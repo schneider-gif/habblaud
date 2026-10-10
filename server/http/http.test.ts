@@ -426,3 +426,33 @@ describe('demonstração travada (HABBLAUD_DEMO_LOCKED)', () => {
     }
   });
 });
+
+describe('perfil do agente (/api/agents/:id/profile)', () => {
+  it('muda nome e aparência do principal, valida e persiste pela sessão', async () => {
+    const env = await start({ terminal: true });
+    try {
+      const post = (body: unknown) => fetch(`${env.base}/api/agents/.claude%3A1/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      expect((await post({ name: 'Bia', appearance: { hairStyle: 'bun', hair: '#ff5cad' } })).status).toBe(200);
+      const a = (await snapshotOf(env.base)).agents.find((x) => x.id === '.claude:1')!;
+      expect(a.name).toBe('Bia');
+      expect(a.appearance).toEqual({ hairStyle: 'bun', hair: '#ff5cad' });
+      expect((await post({ name: '<b>' })).status).toBe(400);
+      expect((await post({ appearance: { hairStyle: 'nope' } })).status).toBe(400);
+      const missing = await fetch(`${env.base}/api/agents/.claude%3A99/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"X"}' });
+      expect(missing.status).toBe(404);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+  it('desligado sem terminal local', async () => {
+    const env = await start({ terminal: false });
+    try {
+      const r = await fetch(`${env.base}/api/agents/.claude%3A1/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"X"}' });
+      expect(r.status).toBe(403);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+});

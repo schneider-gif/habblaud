@@ -15,6 +15,7 @@ import { DayLauncher } from './daystats-launcher';
 import { h } from './dom';
 import { Drawer } from './drawer';
 import { FeedPanel } from './feed';
+import { AgentCustomizer } from './customizer';
 import { HelpDialog } from './help';
 import { HistoryPopover } from './history';
 import { HoverTip } from './hovertip';
@@ -63,6 +64,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   let drawer: Drawer;
   let settings: SettingsPopover;
   let help: HelpDialog;
+  let customizer: AgentCustomizer;
+  let toastsRef: Toasts | undefined;
   let area: FreeArea;
   let timelapse: TimelapsePlayer;
   /** A seleção em curso partiu da UI (lista, feed, aviso...), não de um clique no canvas. */
@@ -132,6 +135,15 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       requestAnimationFrame(() => sidebar.focusSearch());
     },
     openHelp: (section) => help.open(section),
+    notify(text, level = 'info') {
+      toastsRef?.push({ id: `ui-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, level, text, at: Date.now() });
+      ctx.announce(text);
+    },
+    customize(agentId) {
+      const a = agentId ? ctx.agent(agentId) : undefined;
+      if (agentId && !a) return ctx.announce('O agente já saiu do escritório.');
+      customizer.open(a);
+    },
     toggleSettings: () => settings.toggle(topbar.settingsBtn),
     openAbout: () => settings.showAbout(topbar.settingsBtn),
     toggleTimelapse() {
@@ -154,6 +166,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   drawer = new Drawer(ctx, terminal);
   const feed = new FeedPanel(ctx);
   const toasts = new Toasts(ctx);
+  toastsRef = toasts;
+  customizer = new AgentCustomizer(ctx);
   const updateToaster = new UpdateToaster(ctx, (n) => toasts.push(n));
   settings = new SettingsPopover(ctx, notifier, sound);
   help = new HelpDialog();
@@ -168,7 +182,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const scrim = h('div', { class: 'ui-scrim', attrs: { 'aria-hidden': 'true' }, on: { click: () => ctx.togglePanel('sidebar', false) } });
 
   root.classList.add('ui-root');
-  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, drawer.el, terminal.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, live, splash.el);
+  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, drawer.el, terminal.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
   area = new FreeArea(world, { root, topbar: topbar.el, sidebar: sidebar.el, drawer: drawer.el, feed: feed.el }, () => ({
     sidebar: panels.sidebar,
     feed: panels.feed,

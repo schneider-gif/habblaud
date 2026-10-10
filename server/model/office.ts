@@ -22,6 +22,7 @@ import type {
 } from '../../shared/types';
 import { SHELL_WAIT_TOOL, SPECIAL, type ShellOutcome } from '../../shared/activity';
 import { DemoSimulator } from '../../shared/demo/simulator';
+import type { AgentProfile } from '../../shared/profile';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
@@ -165,6 +166,7 @@ export class Office {
   private dirty = true;
   private last: OfficeSnapshot | null = null;
   private demo: DemoSimulator | null = null;
+  private pendingProfiles = new Map<string, AgentProfile>();
   private demoSnap: OfficeSnapshot | null = null;
   private booting = false;
   private bootFeed: FeedItem[] = [];
@@ -280,6 +282,15 @@ export class Office {
       stats: zeroStats(),
       seed: hash32(p.id),
     };
+    const pending = this.pendingProfiles.get(p.id);
+    if (pending) {
+      this.pendingProfiles.delete(p.id);
+      this.deps.names.setProfile(p.sessionId, { name: pending.name, look: pending.appearance?.look, appearance: pending.appearance });
+      if (pending.name) info.name = pending.name;
+      if (pending.appearance?.look) info.look = pending.appearance.look;
+    }
+    const chosen = this.deps.names.appearance(p.sessionId);
+    if (chosen) info.appearance = chosen;
     if (p.status === 'waiting') info.waitingFor = p.waitingFor ?? 'responder no terminal';
     const rec: AgentRecord = { info, history: [] };
     if (p.status === 'working') rec.turnStart = now;
@@ -294,7 +305,7 @@ export class Office {
     const rec = this.agents.get(id);
     if (!rec || rec.info.sessionId === sessionId) return;
     const info = rec.info;
-    this.deps.names.remember(sessionId, { name: info.name, look: info.look });
+    this.deps.names.remember(sessionId, { name: info.name, look: info.look }, info.sessionId);
     info.sessionId = sessionId;
     info.tasks = [];
     info.stats = zeroStats();
@@ -692,6 +703,27 @@ export class Office {
   }
 
   // ---------------------------------------------------------------- demonstração
+
+  /** Perfil para um agente que ainda vai chegar (aberto pelo escritório: o id sai do pid do pane do tmux). */
+  setPendingProfile(id: string, profile: AgentProfile): void {
+    if (this.pendingProfiles.size > 50) this.pendingProfiles.clear();
+    this.pendingProfiles.set(id, profile);
+  }
+
+  /** Muda nome e/ou aparência de um agente principal presente. Devolve false se ele não existe. */
+  setProfile(id: string, profile: AgentProfile): boolean {
+    const rec = this.agents.get(id);
+    if (!rec || rec.info.kind !== 'main') return false;
+    const info = rec.info;
+    if (profile.name) info.name = profile.name;
+    if (profile.appearance) {
+      info.appearance = profile.appearance;
+      if (profile.appearance.look) info.look = profile.appearance.look;
+    }
+    this.deps.names.setProfile(info.sessionId, { name: profile.name, look: profile.appearance?.look, appearance: profile.appearance });
+    this.markDirty();
+    return true;
+  }
 
   setDemo(enabled: boolean): void {
     if (enabled && this.deps.demoLocked) return;

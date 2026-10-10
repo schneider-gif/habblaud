@@ -106,11 +106,12 @@ export function characterSprite(req: CharacterFrameRequest): Sprite {
   return charCache.get(key, () => toSprite(renderCharacter({ ...req, frame, seated })));
 }
 
-export function avatarCanvas(seed: number, opts: { look?: 'f' | 'm'; sub?: boolean; scale?: number } = {}): HTMLCanvasElement {
+export function avatarCanvas(seed: number, opts: { look?: 'f' | 'm'; sub?: boolean; scale?: number; appearance?: Partial<Appearance> } = {}): HTMLCanvasElement {
   const scale = Math.max(1, Math.round(opts.scale ?? 3));
-  const key = `${seed}|${opts.look ?? '-'}|${opts.sub ? 1 : 0}|${scale}`;
+  const key = `${seed}|${opts.look ?? '-'}|${opts.sub ? 1 : 0}|${scale}|${opts.appearance ? JSON.stringify(opts.appearance) : '-'}`;
   return avatarCache.get(key, () => {
-    const s = renderCharacter({ appearance: appearanceFromSeedPure(seed, opts), dir: 'down', pose: 'stand', frame: 0 });
+    const appearance = { ...appearanceFromSeedPure(seed, opts), ...(opts.appearance ?? {}) } as Appearance;
+    const s = renderCharacter({ appearance, dir: 'down', pose: 'stand', frame: 0 });
     // Busto: cabeça + ombros (20x20 a partir do topo do cabelo).
     const crop = s.buf.crop(2, 2, CHAR_W - 4, 20);
     const out = new PixelBuf(crop.w * scale, crop.h * scale);

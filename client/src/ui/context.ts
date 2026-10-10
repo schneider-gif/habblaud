@@ -42,6 +42,10 @@ export interface UiContext {
   isNarrow(): boolean;
   /** Anuncia um texto para leitores de tela. */
   announce(text: string): void;
+  /** Aviso visível (toast) e lido por leitores de tela. */
+  notify(text: string, level?: 'info' | 'warn'): void;
+  /** Editor de agente: sem id abre um agente novo; com id personaliza nome e boneco. */
+  customize(agentId?: string): void;
   focusSearch(): void;
   /** Abre a ajuda; com `section`, rola até ela (ex.: "usage" = Contas e uso). */
   openHelp(section?: HelpSection): void;

@@ -3,12 +3,17 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { pickName, type PersonName } from '../../shared/names';
+import { cleanAppearance, type AppearanceOverride } from '../../shared/profile';
 import { errMsg, log } from '../log';
 
 interface StoredName {
   name: string;
   look: 'f' | 'm';
   at: number;
+  /** Aparência escolhida no escritório (o resto vem da semente). */
+  appearance?: AppearanceOverride;
+  /** Nome escolhido pelo usuário: vence colisões com outros agentes. */
+  custom?: boolean;
 }
 
 interface NamesFile {
@@ -38,7 +43,15 @@ export class NameStore {
       const j = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<NamesFile>;
       for (const [key, v] of Object.entries(j.names ?? {})) {
         if (v && typeof v.name === 'string' && (v.look === 'f' || v.look === 'm')) {
-          this.names.set(key, { name: v.name, look: v.look, at: typeof v.at === 'number' ? v.at : 0 });
+          const e: StoredName = { name: v.name, look: v.look, at: typeof v.at === 'number' ? v.at : 0 };
+          try {
+            const ap = cleanAppearance(v.appearance);
+            if (Object.keys(ap).length) e.appearance = ap;
+          } catch {
+            // aparência corrompida no arquivo: fica só o nome
+          }
+          if (v.custom === true) e.custom = true;
+          this.names.set(key, e);
         }
       }
     } catch (err) {
@@ -49,7 +62,7 @@ export class NameStore {
   /** Nome de `key`: o persistido, se não colidir com `used`; senão um novo do pool. */
   assign(key: string, used: ReadonlySet<string>): PersonName {
     const stored = this.names.get(key);
-    if (stored && !used.has(stored.name)) {
+    if (stored && (stored.custom || !used.has(stored.name))) {
       stored.at = this.now();
       this.scheduleFlush();
       return { name: stored.name, look: stored.look };
@@ -59,10 +72,30 @@ export class NameStore {
     return person;
   }
 
-  /** Associa `person` a mais uma chave (ex.: a sessão nova depois de um /clear). */
-  remember(key: string, person: PersonName): void {
-    this.names.set(key, { name: person.name, look: person.look, at: this.now() });
+  /** Associa `person` a mais uma chave (ex.: a sessão nova depois de um /clear); `from` leva junto o perfil escolhido. */
+  remember(key: string, person: PersonName, from?: string): void {
+    const src = from ? this.names.get(from) : undefined;
+    this.names.set(key, { name: person.name, look: person.look, at: this.now(), ...(src?.appearance ? { appearance: src.appearance } : {}), ...(src?.custom ? { custom: true } : {}) });
     this.scheduleFlush();
+  }
+
+  /** Grava nome e/ou aparência escolhidos pelo usuário para `key`. */
+  setProfile(key: string, p: { name?: string; look?: 'f' | 'm'; appearance?: AppearanceOverride }): void {
+    const cur = this.names.get(key);
+    const name = p.name ?? cur?.name;
+    if (!name) return;
+    this.names.set(key, {
+      name,
+      look: p.look ?? cur?.look ?? 'f',
+      at: this.now(),
+      ...(p.appearance ? { appearance: p.appearance } : cur?.appearance ? { appearance: cur.appearance } : {}),
+      ...(p.name || cur?.custom ? { custom: true } : {}),
+    });
+    this.scheduleFlush();
+  }
+
+  appearance(key: string): AppearanceOverride | undefined {
+    return this.names.get(key)?.appearance;
   }
 
   get(key: string): PersonName | undefined {

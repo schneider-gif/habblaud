@@ -1,3 +1,4 @@
+import type { AppearanceOverride } from './profile';
 // Protocolo compartilhado entre o servidor (Node) e o cliente (navegador).
 // Código puro: sem APIs de Node nem de DOM.
 //
@@ -138,6 +139,8 @@ export interface AgentInfo {
   stats: AgentStats;
   /** Semente 32-bit para a aparência determinística do personagem. */
   seed: number;
+  /** Aparência escolhida pelo usuário (sobrepõe a da semente, campo a campo). */
+  appearance?: AppearanceOverride;
   /** Subagente rodando em segundo plano. */
   background?: boolean;
   /**

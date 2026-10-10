@@ -64,9 +64,10 @@ describe('input pelo tmux', () => {
     const home = await mkdtemp(join(tmpdir(), 'hb-home-'));
     await mkdir(join(home, 'projeto'));
     const calls: string[][] = [];
-    const input = createAgentInput({ home, run: async (a) => void calls.push(a), now: () => 36 ** 2, claudeCommand: 'claude' });
+    const input = createAgentInput({ home, run: async (a) => void calls.push(a), capture: async () => '4321\n', now: () => 36 ** 2, claudeCommand: 'claude' });
     const r = await input.spawn('projeto');
     expect(r.session).toBe('agente-100');
+    expect(r.pid).toBe(4321);
     expect(calls[0]).toEqual(['new-session', '-d', '-s', 'agente-100', '-c', r.cwd, 'claude']);
     expect(r.cwd.endsWith('/projeto')).toBe(true);
     await expect(input.spawn('../')).rejects.toMatchObject({ status: 400 });

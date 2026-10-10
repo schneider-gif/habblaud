@@ -5,13 +5,14 @@ import { h } from './dom';
 
 const cache = new Map<string, { url: string; w: number; h: number }>();
 
-type AvatarSource = Pick<AgentInfo, 'seed' | 'look' | 'kind'>;
+type AvatarSource = Pick<AgentInfo, 'seed' | 'look' | 'kind'> & { appearance?: AgentInfo['appearance'] };
 
 function avatarData(agent: AvatarSource, scale: number): { url: string; w: number; h: number } {
-  const key = `${agent.seed}|${agent.look}|${agent.kind}|${scale}`;
+  const ap = agent.appearance ? JSON.stringify(agent.appearance) : '';
+  const key = `${agent.seed}|${agent.look}|${agent.kind}|${scale}|${ap}`;
   let entry = cache.get(key);
   if (!entry) {
-    const c = avatarCanvas(agent.seed, { look: agent.look, sub: agent.kind === 'sub', scale });
+    const c = avatarCanvas(agent.seed, { look: agent.appearance?.look ?? agent.look, sub: agent.kind === 'sub', scale, appearance: agent.appearance });
     entry = { url: c.toDataURL('image/png'), w: c.width, h: c.height };
     cache.set(key, entry);
   }
@@ -37,7 +38,7 @@ export function createAvatarPlaceholder(size: AvatarSize): HTMLElement {
 
 /** Atualiza o avatar só se a semente/aparência mudou. */
 export function updateAvatar(box: HTMLElement, agent: AvatarSource, size: AvatarSize): void {
-  const sig = `${agent.seed}|${agent.look}|${agent.kind}`;
+  const sig = `${agent.seed}|${agent.look}|${agent.kind}|${agent.appearance ? JSON.stringify(agent.appearance) : ''}`;
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
   let img = box.querySelector('img');

@@ -166,6 +166,7 @@ function updateShellItem(li: HTMLElement, j: ShellJob, now: number): void {
 class AgentView {
   readonly el: HTMLElement;
   private id = '';
+  private customBtn: HTMLButtonElement;
   private last: AgentInfo | null = null;
   private history: Activity[] = [];
   private historyReq = 0;
@@ -262,9 +263,11 @@ class AgentView {
       { class: 'ui-btn ui-term-cta', type: 'button', attrs: { 'aria-pressed': 'false' }, on: { click: () => this.toggleTerminal() } },
       termIcon,
       this.termLabel,
-      h('span', { class: 'ui-term-cta__ro', text: 'somente leitura' }),
+      h('span', { class: 'ui-term-cta__ro', text: 'conversa' }),
       h('kbd', { class: 'ui-kbd', text: 'T', attrs: { 'aria-hidden': 'true' } }),
     );
+
+    this.customBtn = h('button', { class: 'ui-btn ui-cust-cta', type: 'button', text: '✎ Personalizar nome e boneco', on: { click: () => this.ctx.customize(this.id) } });
 
     this.alertText = h('p', { class: 'ui-alert__text' });
     const alertIcon = h('span', { class: 'ui-alert__icon', attrs: { 'aria-hidden': 'true' } });
@@ -347,6 +350,7 @@ class AgentView {
       this.gone,
       statusRow,
       this.termBtn,
+      this.customBtn,
       this.alert,
       this.perm.el,
       this.shellBox,
@@ -519,6 +523,8 @@ class AgentView {
   }
 
   private renderTerminalButton(live: boolean): void {
+    // personalizar: só agentes principais presentes e com o escritório local (mesma trava do terminal)
+    setHidden(this.customBtn, !(live && this.ctx.store.snapshot?.meta.terminal && this.ctx.agent(this.id)?.kind === 'main'));
     const available = !!this.ctx.store.snapshot?.meta.terminal;
     const open = this.terminal.agentId === this.id;
     // aria-disabled (e não disabled): o botão continua focável e a dica do porquê aparece no hover.

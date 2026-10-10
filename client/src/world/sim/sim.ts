@@ -1,7 +1,7 @@
 // Simulação do escritório: concilia snapshots do servidor com os personagens e salas do mundo,
 // planeja comportamentos e executa as filas de passos a cada frame.
 import type { AgentInfo, OfficeSnapshot, RoomInfo } from '../../../../shared/types';
-import type { ArtModule, Dir, RoomTheme } from '../../art/api';
+import type { Appearance, ArtModule, Dir, RoomTheme } from '../../art/api';
 import type { WorldOptions } from '../api';
 import { COL_W, COMPACT_DELAY_MS, DISMANTLE_DELAY_MS, FOOT_DX, FOOT_DY, MISSING_DEBOUNCE_MS, RUN_SPEED, TILE, WALK_SPEED } from '../constants';
 import { assembleBuilding, type BuildingLayout } from '../layout/building';
@@ -243,9 +243,23 @@ export class Sim {
     return slot;
   }
 
+  /** Aparência da semente com o que o usuário escolheu por cima (campo a campo). */
+  private appearanceOf(a: AgentInfo): Appearance {
+    const base = this.art.appearanceFromSeed(a.seed, { look: a.appearance?.look ?? a.look, sub: a.kind === 'sub' });
+    return a.appearance ? ({ ...base, ...a.appearance } as Appearance) : base;
+  }
+
   private updateAgent(ch: Character, a: AgentInfo, now: number): void {
     const prevStatus = ch.info.status;
     const hadShells = !!ch.info.shells?.length;
+    // perfil trocado no escritório: o sprite muda na hora
+    if (JSON.stringify(ch.info.appearance ?? null) !== JSON.stringify(a.appearance ?? null) || ch.info.look !== a.look) {
+      try {
+        ch.appearance = this.appearanceOf(a);
+      } catch {
+        // arte indisponível: mantém o visual atual
+      }
+    }
     ch.info = a;
     ch.missingSince = null;
     if (a.roomId !== ch.roomId && !ch.leaving) {
@@ -379,7 +393,7 @@ export class Sim {
   private spawn(a: AgentInfo, first: boolean, now: number): Character | null {
     let appearance;
     try {
-      appearance = this.art.appearanceFromSeed(a.seed, { look: a.look, sub: a.kind === 'sub' });
+      appearance = this.appearanceOf(a);
     } catch {
       return null;
     }

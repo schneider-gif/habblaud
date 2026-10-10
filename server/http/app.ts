@@ -7,6 +7,7 @@ import type { Office } from '../model/office';
 import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
 import { type AgentInput, InputError } from '../input/tmux';
+import { cleanProfile, ProfileError } from '../../shared/profile';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
@@ -48,7 +49,11 @@ export interface ApiDeps {
 
 /** GET (disponível?) e POST {text} /api/agents/:id/input. */
 const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
-/** POST {cwd?} /api/agents/new: abre um agente novo no tmux. */
+/** POST {name?, appearance?} /api/agents/:id/profile: nome e boneco escolhidos no escritório. */
+const PROFILE_ROUTE = /^\/api\/agents\/([^/]+)\/profile$/;
+/** Conta do Claude aberto pelo escritório (CLAUDE_CONFIG_DIR padrão: ~/.claude). */
+const SPAWN_ACCOUNT = '.claude';
+/** POST {cwd?, name?, appearance?} /api/agents/new: abre um agente novo no tmux. */
 const NEW_AGENT_ROUTE = '/api/agents/new';
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
 const TERMINAL_ROUTE = /^\/api\/agents\/([^/]+)\/terminal$/;
@@ -180,6 +185,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
 
   const failInput = (res: ServerResponse, err: unknown) => {
     if (err instanceof InputError) sendJson(res, err.status, { error: err.message });
+    else if (err instanceof ProfileError) sendJson(res, 400, { error: err.message });
     else if (err instanceof HttpError) sendJson(res, err.status, { error: err.message });
     else sendJson(res, 502, { error: 'o tmux não respondeu: o agente ainda está aberto?' });
   };
@@ -234,11 +240,16 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else if (!isLoopbackHost(req.headers.host)) {
         sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else if (!inputMatch) {
-        if (isRead) sendJson(res, 200, { available: true });
+        if (isRead) input.folders().then((folders) => sendJson(res, 200, { available: true, folders }), (err) => fail(res, err));
         else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
         else
           readJson(req)
-            .then((body) => input.spawn((body as { cwd?: unknown } | undefined)?.cwd))
+            .then(async (body) => {
+              const profile = cleanProfile(body ?? {});
+              const r = await input.spawn((body as { cwd?: unknown } | undefined)?.cwd);
+              if (r.pid && (profile.name || profile.appearance)) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
+              return r;
+            })
             .then((r) => sendJson(res, 201, { ok: true, ...r }))
             .catch((err) => failInput(res, err));
       } else {
@@ -256,6 +267,29 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             .then((body) => input.send(id, (body as { text?: unknown } | undefined)?.text))
             .then(() => sendJson(res, 200, { ok: true }))
             .catch((err) => failInput(res, err));
+      }
+      return true;
+    }
+    const profileMatch = PROFILE_ROUTE.exec(path);
+    if (profileMatch) {
+      if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else if (!deps.terminal || !isLoopbackHost(req.headers.host)) {
+        sendJson(res, 403, { error: 'personalizar agentes só funciona pelo próprio escritório' });
+      } else {
+        let id: string;
+        try {
+          id = decodeURIComponent(profileMatch[1]);
+        } catch {
+          sendJson(res, 400, { error: 'id inválido' });
+          return true;
+        }
+        readJson(req)
+          .then((body) => {
+            const profile = cleanProfile(body);
+            if (!office.setProfile(id, profile)) throw new HttpError(404, 'agente não encontrado (só agentes principais presentes)');
+            sendJson(res, 200, { ok: true });
+          })
+          .catch((err) => failInput(res, err));
       }
       return true;
     }
