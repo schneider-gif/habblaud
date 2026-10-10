@@ -70,7 +70,7 @@ export class AgentCustomizer {
 
     const look = h('div', { class: 'ui-cust__seg', role: 'group', attrs: { 'aria-label': 'Estilo' } });
     for (const [k, label] of [['f', 'Feminino'], ['m', 'Masculino']] as const) {
-      const b = h('button', { class: 'ui-btn', type: 'button', text: label, on: { click: () => this.set({ look: k, ...(k === 'f' ? { facialHair: 'none' } : {}) }) } });
+      const b = h('button', { class: 'ui-btn', type: 'button', text: label, on: { click: () => this.setLook(k) } });
       this.lookBtns.set(k, b);
       look.append(b);
     }
@@ -175,6 +175,16 @@ export class AgentCustomizer {
     this.seed = (Math.random() * 2 ** 32) >>> 0;
     this.ap = appearanceFromSeed(this.seed);
     if (sync) this.sync();
+  }
+
+  /**
+   * O desenho só usa `look` para a cor da boca: trocar o estilo sorteia de novo as PEÇAS típicas dele (cabelo, roupa,
+   * parte de baixo, acessório, barba) e mantém as cores escolhidas, para o boneco mudar de verdade.
+   */
+  private setLook(look: 'f' | 'm'): void {
+    if (this.ap.look === look) return;
+    const fresh = appearanceFromSeed(this.seed, { look });
+    this.set({ look, hairStyle: fresh.hairStyle, topStyle: fresh.topStyle, bottomStyle: fresh.bottomStyle, accessory: fresh.accessory, accessoryColor: fresh.accessoryColor, facialHair: fresh.facialHair });
   }
 
   private set(p: Partial<Appearance>): void {

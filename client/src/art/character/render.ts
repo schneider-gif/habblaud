@@ -728,15 +728,21 @@ function drawFacialHair(dc: Dc): void {
   }
 }
 
+/** Linha da aba do boné / barra do gorro (relativa ao topo da cabeça; ver drawAccessory): acima dela, só o chapéu. */
+const HAT_TOP = 6;
+
 function drawHair(dc: Dc, layer: 'front' | 'back'): void {
   const style = dc.a.hairStyle;
   const set = HAIR[style]?.[dc.r.view];
   const tpl = set?.[layer];
   if (!tpl) return;
-  // Boné/gorro escondem a parte de cima do cabelo.
+  // Boné/gorro escondem a parte de cima do cabelo: nada acima da copa (linha 2 da cabeça) é desenhado. Sem isso,
+  // penteados volumosos (black power, coque, moicano) atravessam o chapéu quando a combinação é escolhida à mão.
   const pal = hairPalette(dc.p, style === 'buzz');
   const pal2: Palette = { ...pal, a: dc.a.accessory === 'bow' ? dc.p.item.base : shade(dc.a.top, 0.05) };
-  stampTpl(dc, tpl, pal2, dc.r.ub + dc.r.hd, TEXTURED.has(style));
+  const hat = dc.a.accessory === 'cap' || dc.a.accessory === 'beanie';
+  const clipped = hat ? { ...tpl, rows: tpl.rows.map((row, i) => (tpl.y + i < HAT_TOP ? '.'.repeat(row.length) : row)) } : tpl;
+  stampTpl(dc, clipped, pal2, dc.r.ub + dc.r.hd, TEXTURED.has(style));
 }
 
 function drawAccessory(dc: Dc): void {
