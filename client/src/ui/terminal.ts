@@ -42,6 +42,10 @@ export const TERMINAL_UNAVAILABLE_HINT = 'O terminal só fica disponível quando
 const OPEN_ERROR = 'Não foi possível abrir o terminal. O recurso só funciona no acesso local, com o agente ainda aberto.';
 const SESSION_OPEN_ERROR = 'Não foi possível abrir a sessão. O histórico só funciona no acesso local, com o transcript ainda no disco.';
 const INPUT_PLACEHOLDER = 'Somente leitura — responda no terminal do Claude Code';
+/** Agente rodando no tmux: a caixa do rodapé manda mensagens (POST /api/agents/:id/input). */
+const SEND_PLACEHOLDER = 'Mensagem para o agente — Enter envia';
+/** Sem conversa gravada ainda, mas dá para mandar a primeira mensagem. */
+const FIRST_MESSAGE = 'Este agente ainda não tem conversa. Mande a primeira mensagem aqui embaixo.';
 /** Espera depois da última tecla antes de buscar (a busca percorre toda a conversa na tela). */
 const SEARCH_DEBOUNCE_MS = 120;
 /** "Copiado" fica à mostra por este tempo. */
@@ -595,6 +599,11 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private currentEl: HTMLElement | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private inputEl!: HTMLInputElement;
+  /** O agente aberto recebe mensagens (roda no tmux). */
+  private canSend = false;
+  private sending = false;
+
   private kindEl: HTMLElement;
   private accEl: HTMLElement;
   private nameEl: HTMLElement;
@@ -701,7 +710,15 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.statusText = h('span', { class: 'ui-term__status-text' });
     this.statusTime = h('span', { class: 'ui-term__status-time' });
     this.status = h('p', { class: 'ui-term__status' }, this.glyph, this.statusText, this.statusTime);
-    const input = h('input', { class: 'ui-term__input', type: 'text', attrs: { disabled: true, placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER } });
+    const input = h('input', { class: 'ui-term__input', type: 'text', attrs: { disabled: true, placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' } });
+    this.inputEl = input;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        e.stopPropagation();
+        void this.sendInput();
+      }
+    });
 
     this.el = h(
       'section',
@@ -793,6 +810,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.lastEntryAt = 0;
     this.el.hidden = false;
     this.el.classList.toggle('is-session', !!session);
+    this.setCanSend(false);
+    if (!session) void this.checkInput(id);
     this.connect();
     this.render();
     this.focusLog();
@@ -1277,10 +1296,63 @@ export class TerminalPanel implements UiComponent, TerminalControl {
 
   // ---------------------------------------------------------------- estado e rodapé
 
+  // ---------------------------------------------------------------- mensagens (tmux)
+
+  private async checkInput(id: string): Promise<void> {
+    if (this.ctx.store.mock) return;
+    try {
+      const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`);
+      const j = (await r.json()) as { available?: boolean };
+      if (this.id === id) this.setCanSend(r.ok && j.available === true);
+    } catch {
+      // sem o recurso: continua somente leitura
+    }
+  }
+
+  private setCanSend(on: boolean): void {
+    this.canSend = on;
+    const label = on ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
+    this.inputEl.disabled = !on || this.sending;
+    setAttr(this.inputEl, 'placeholder', label);
+    setAttr(this.inputEl, 'aria-label', label);
+    this.el.classList.toggle('can-send', on);
+    this.renderState();
+  }
+
+  private async sendInput(): Promise<void> {
+    const id = this.id;
+    const text = this.inputEl.value.trim();
+    if (!id || !this.canSend || this.sending || !text) return;
+    this.sending = true;
+    this.inputEl.disabled = true;
+    try {
+      const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (r.ok) {
+        this.inputEl.value = '';
+        this.ctx.announce('Mensagem enviada.');
+        // primeira mensagem: o transcript nasce agora, então o stream que falhou tenta de novo
+        if (this.conn === 'failed') setTimeout(() => this.id === id && this.connect(), 1500);
+      } else this.ctx.announce(j.error ?? 'Não foi possível enviar a mensagem.');
+    } catch {
+      this.ctx.announce('Não foi possível enviar a mensagem.');
+    } finally {
+      this.sending = false;
+      if (this.id === id) {
+        this.inputEl.disabled = !this.canSend;
+        this.inputEl.focus({ preventScroll: true });
+      }
+    }
+  }
+
   private renderState(): void {
     setHidden(this.reconnEl, this.conn !== 'reconnecting');
     setHidden(this.alertEl, this.conn !== 'failed');
-    setText(this.alertText, this.session ? SESSION_OPEN_ERROR : OPEN_ERROR);
+    setText(this.alertText, this.session ? SESSION_OPEN_ERROR : this.canSend ? FIRST_MESSAGE : OPEN_ERROR);
     setHidden(this.note, !(this.loaded && this.truncated));
     const empty = this.rows.size === 0;
     const filteredOut = !empty && this.visibleRows === 0;

@@ -45,6 +45,23 @@ export class TopBar implements UiComponent {
   /** Grupo dos botões de painéis (feed, configurações, ajuda); o histórico entra aqui (ui/index.ts). */
   readonly panelGroup: HTMLElement;
 
+  private newAgentBtn: HTMLButtonElement;
+
+  private async newAgent(): Promise<void> {
+    const cwd = window.prompt('Pasta do projeto, dentro do seu HOME (deixe vazio para o HOME):', '');
+    if (cwd === null) return;
+    this.newAgentBtn.disabled = true;
+    try {
+      const r = await fetch('/api/agents/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cwd }) });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      this.ctx.announce(r.ok ? 'Novo agente abrindo: ele aparece no escritório em instantes.' : (j.error ?? 'Não foi possível abrir o agente.'));
+    } catch {
+      this.ctx.announce('Não foi possível abrir o agente.');
+    } finally {
+      this.newAgentBtn.disabled = false;
+    }
+  }
+
   constructor(private ctx: UiContext) {
     // Marca: usa o logo do projeto se existir; senão, o prédio em pixels.
     const mark = h('span', { class: 'ui-brand__mark' });
@@ -116,6 +133,14 @@ export class TopBar implements UiComponent {
     );
     this.panelGroup = panelGroup;
 
+    // "Novo agente": só aparece quando o servidor abre agentes no tmux (GET /api/agents/new -> {available}).
+    this.newAgentBtn = h('button', { class: 'ui-btn ui-btn--primary ui-btn-new-agent', type: 'button', hidden: true, text: '+ Novo agente', on: { click: () => void this.newAgent() } });
+    if (!ctx.store.mock)
+      fetch('/api/agents/new')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { available?: boolean } | null) => setHidden(this.newAgentBtn, j?.available !== true))
+        .catch(() => undefined);
+
     this.el = h(
       'header',
       { class: 'ui-topbar', role: 'banner' },
@@ -132,7 +157,7 @@ export class TopBar implements UiComponent {
       ),
       counterWrap,
       this.usage.el,
-      h('div', { class: 'ui-topbar__right' }, viewGroup, panelGroup),
+      h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, viewGroup, panelGroup),
     );
   }
 

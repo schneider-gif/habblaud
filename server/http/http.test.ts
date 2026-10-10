@@ -12,6 +12,7 @@ import { tempDir } from '../test/fixtures';
 import { createApiHandler, type ApiDeps } from './app';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
 import { Hub } from './sse';
+import { createAgentInput } from '../input/tmux';
 import { createStaticHandler, IMMUTABLE, REVALIDATE } from './static';
 
 setQuiet(true);
@@ -359,5 +360,49 @@ describe('guarda de Host/Origin', () => {
     expect(originAllowed('http://1.2.3.4', 'localhost:4747', allowed)).toBe(false);
     expect(originAllowed('null', 'localhost:4747', allowed)).toBe(false);
     expect(originAllowed('file://', 'localhost:4747', allowed)).toBe(false);
+  });
+});
+
+describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
+  const post = (base: string, path: string, body: unknown, host?: string) =>
+    new Promise<{ status: number; json: Record<string, unknown> }>((ok, fail) => {
+      const data = JSON.stringify(body);
+      const req = http.request(`${base}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), ...(host ? { Host: host } : {}) },
+      }, (res) => {
+        let s = '';
+        res.on('data', (c) => (s += c));
+        res.on('end', () => ok({ status: res.statusCode ?? 0, json: JSON.parse(s || '{}') }));
+      });
+      req.on('error', fail);
+      req.end(data);
+    });
+
+  it('encaminha o texto ao tmux só com Host local e com o recurso ligado', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      run: async (a) => void calls.push(a),
+    });
+    const env = await start({ terminal: true, input });
+    try {
+      expect(await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' })).toMatchObject({ status: 200 });
+      expect(calls.at(-1)).toEqual(['-S', '/tmp/tmux-1/default', 'send-keys', '-t', '%2', 'Enter']);
+      const n = calls.length;
+      expect((await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' }, 'habblaud.lan')).status).toBe(403);
+      expect((await post(env.base, '/api/agents/.claude%3A900/input', { text: '' })).status).toBe(400);
+      expect(calls.length).toBe(n);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+    const off = await start({ terminal: false, input });
+    try {
+      expect((await post(off.base, '/api/agents/.claude%3A900/input', { text: 'oi' })).status).toBe(403);
+    } finally {
+      await off.close();
+      off.cleanup();
+    }
   });
 });

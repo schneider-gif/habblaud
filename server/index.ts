@@ -24,6 +24,7 @@ import { PermissionRegistry } from './permissions/registry';
 import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
+import { createAgentInput } from './input/tmux';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -132,6 +133,7 @@ const api = createApiHandler({
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
+  input: process.platform === 'linux' ? createAgentInput() : undefined,
   stats,
   updates,
 });

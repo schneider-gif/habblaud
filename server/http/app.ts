@@ -6,6 +6,7 @@ import type { DayStatsService } from '../history/daystats';
 import type { Office } from '../model/office';
 import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
+import { type AgentInput, InputError } from '../input/tmux';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
@@ -31,6 +32,11 @@ export interface ApiDeps {
    * local (ServerConfig.terminal); a trava do Host local é conferida aqui antes de chamá-las.
    */
   permissions?: (req: IncomingMessage, res: ServerResponse, path: string) => void;
+  /**
+   * Mandar mensagens e abrir agentes pelo escritório (server/input/tmux.ts). Mesma trava do terminal: só com bind
+   * local e Host local; sem isto as rotas respondem 403.
+   */
+  input?: AgentInput;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
   stats?: DayStatsService;
   /** Verificação de versão nova no GitHub (GET /api/updates, POST /api/updates/check; updates/checker.ts). */
@@ -40,6 +46,10 @@ export interface ApiDeps {
   };
 }
 
+/** GET (disponível?) e POST {text} /api/agents/:id/input. */
+const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
+/** POST {cwd?} /api/agents/new: abre um agente novo no tmux. */
+const NEW_AGENT_ROUTE = '/api/agents/new';
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
 const TERMINAL_ROUTE = /^\/api\/agents\/([^/]+)\/terminal$/;
 
@@ -167,6 +177,12 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     else sendJson(res, 500, { error: 'erro interno' });
   };
 
+  const failInput = (res: ServerResponse, err: unknown) => {
+    if (err instanceof InputError) sendJson(res, err.status, { error: err.message });
+    else if (err instanceof HttpError) sendJson(res, err.status, { error: err.message });
+    else sendJson(res, 502, { error: 'o tmux não respondeu: o agente ainda está aberto?' });
+  };
+
   return (req, res, url) => {
     const path = url.pathname;
     if (path !== '/api' && !path.startsWith('/api/')) return false;
@@ -206,6 +222,39 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       else {
         const own = { account: url.searchParams.get('account') || undefined, session: url.searchParams.get('session') || undefined };
         sendJson(res, 200, modSummary(hub.current(), (id) => office.has(id), deps.version, own));
+      }
+      return true;
+    }
+    const inputMatch = INPUT_ROUTE.exec(path);
+    if (inputMatch || path === NEW_AGENT_ROUTE) {
+      const input = deps.terminal ? deps.input : undefined;
+      if (!input) {
+        sendJson(res, 403, { error: 'enviar mensagens pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      } else if (!isLoopbackHost(req.headers.host)) {
+        sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
+      } else if (!inputMatch) {
+        if (isRead) sendJson(res, 200, { available: true });
+        else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
+        else
+          readJson(req)
+            .then((body) => input.spawn((body as { cwd?: unknown } | undefined)?.cwd))
+            .then((r) => sendJson(res, 201, { ok: true, ...r }))
+            .catch((err) => failInput(res, err));
+      } else {
+        let id: string;
+        try {
+          id = decodeURIComponent(inputMatch[1]);
+        } catch {
+          sendJson(res, 400, { error: 'id inválido' });
+          return true;
+        }
+        if (isRead) input.available(id).then((available) => sendJson(res, 200, { available }), (err) => fail(res, err));
+        else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
+        else
+          readJson(req)
+            .then((body) => input.send(id, (body as { text?: unknown } | undefined)?.text))
+            .then(() => sendJson(res, 200, { ok: true }))
+            .catch((err) => failInput(res, err));
       }
       return true;
     }
