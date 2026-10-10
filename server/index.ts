@@ -25,6 +25,7 @@ import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
 import { createAgentInput } from './input/tmux';
+import { StateStore } from './model/state';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -41,6 +42,8 @@ if (legacyEnv) log.warn(legacyEnv);
 
 const names = new NameStore(join(config.dataDir, 'names.json'));
 names.load();
+const state = new StateStore(join(config.dataDir, 'state.json'));
+state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
 const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry } = {};
@@ -135,6 +138,7 @@ const api = createApiHandler({
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
   input: process.platform === 'linux' ? createAgentInput() : undefined,
+  state,
   stats,
   updates,
 });
@@ -225,6 +229,7 @@ function shutdown(signal: string): void {
   permissions?.stop();
   updates.stop();
   names.flush();
+  state.flush();
   void closeVite?.();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1_500).unref();

@@ -1,5 +1,7 @@
 // Simulação do escritório: concilia snapshots do servidor com os personagens e salas do mundo,
 // planeja comportamentos e executa as filas de passos a cada frame.
+import { NEED_GAIN } from '../social/needs';
+import { noteSeedName } from '../social/persona';
 import type { AgentInfo, OfficeSnapshot, RoomInfo } from '../../../../shared/types';
 import type { Appearance, ArtModule, Dir, RoomTheme } from '../../art/api';
 import type { WorldOptions } from '../api';
@@ -252,6 +254,7 @@ export class Sim {
   private updateAgent(ch: Character, a: AgentInfo, now: number): void {
     const prevStatus = ch.info.status;
     const hadShells = !!ch.info.shells?.length;
+    noteSeedName(a.seed, a.name);
     // perfil trocado no escritório: o sprite muda na hora
     if (JSON.stringify(ch.info.appearance ?? null) !== JSON.stringify(a.appearance ?? null) || ch.info.look !== a.look) {
       try {
@@ -397,6 +400,7 @@ export class Sim {
     } catch {
       return null;
     }
+    noteSeedName(a.seed, a.name);
     const ch = new Character(a, appearance);
     ch.lastActivityId = a.activity?.id ?? null;
     ch.shellDoneAt = latestShellDone(a)?.at ?? 0;
@@ -1479,6 +1483,8 @@ export class Sim {
     };
     const release = (s: SpotDef) => steps.push({ t: 'do', fn: () => this.spots.release(s.id, ch.id) });
     let carry: 'none' | 'coffee' | 'water' = 'none';
+    // beber/comer/jogar sozinho também enche as barrinhas (ao terminar a atividade)
+    const fill = NEED_GAIN[what];
 
     switch (what) {
       case 'coffee': {
@@ -1595,11 +1601,13 @@ export class Sim {
         const home = ch.homeSpot;
         if (!home) return false;
         steps.push({ t: 'exit' }, { t: 'act', pose: 'stretch', ms: 2600 }, { t: 'enter', spot: home });
+        steps.push({ t: 'do', fn: () => fill && this.social.fillNeeds(ch.id, fill) });
         steps.push({ t: 'do', fn: () => (ch.nextOutingAt = this.now + idleSitMs(ch.rng, this.options().liveliness)) });
         ch.queue.push(...steps);
         return true;
       }
     }
+    steps.push({ t: 'do', fn: () => fill && this.social.fillNeeds(ch.id, fill) });
     ch.queue.push(...steps);
     this.pushHome(ch, carry);
     void now;

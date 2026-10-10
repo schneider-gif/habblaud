@@ -100,6 +100,8 @@ export interface AgentSocial {
   doing: string | null;
   /** Extrato: movimentações mais recentes primeiro. */
   ledger: { at: number; delta: number; icon: string; text: string }[];
+  /** Água, Comida e Lazer (0–100), só diversão. */
+  needs?: { agua: number; comida: number; lazer: number };
 }
 
 /** Partida/aposta resolvida (vira uma linha do feed). */

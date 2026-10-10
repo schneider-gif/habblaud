@@ -1,5 +1,6 @@
 // Mundo do escritório: liga a simulação (sim/), o desenho (render/), a câmera e a entrada,
 // e implementa o contrato WorldApi consumido pela UI.
+import type { StorageLike } from './social/wallet';
 import * as artModule from '../art';
 import { TILE, type ArtModule } from '../art/api';
 import type { OfficeStore } from '../net/store';
@@ -21,11 +22,11 @@ export type { WorldDebug } from './debug';
 
 const art: ArtModule = artModule;
 
-export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): WorldApi & { debug: WorldDebug } {
+export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, storage?: StorageLike | null): WorldApi & { debug: WorldDebug } {
   let options: WorldOptions = { ...DEFAULT_WORLD_OPTIONS };
   const camera = new Camera();
   // Simulação e desenho são recriados quando o timelapse entra, pula ou sai (rebuild).
-  let sim = new Sim(art, () => options);
+  let sim = new Sim(art, () => options, storage);
   let renderer = new Renderer(canvas, art, sim, camera);
   let overlay = new Overlay(renderer.ctx, sim, renderer, camera);
   let assets: WorldAssets | null = null;
@@ -300,7 +301,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore): Worl
   const rebuild = () => {
     // As carteiras ao vivo gravam a cada 5 s: não perde o que mudou desde a última vez (no replay, não grava nada).
     sim.social.wallets.save(Date.now());
-    sim = new Sim(art, () => options, playback ? null : undefined);
+    sim = new Sim(art, () => options, playback ? null : storage);
     renderer = new Renderer(canvas, art, sim, camera);
     if (assets) renderer.setAssets(assets);
     if (playback) {

@@ -8,6 +8,7 @@ import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
 import { type AgentInput, InputError } from '../input/tmux';
 import { cleanProfile, ProfileError } from '../../shared/profile';
+import { type StateStore, StateError } from '../model/state';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
@@ -38,6 +39,8 @@ export interface ApiDeps {
    * local e Host local; sem isto as rotas respondem 403.
    */
   input?: AgentInput;
+  /** Vida social salva no servidor (GET/PUT /api/state). */
+  state?: StateStore;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
   stats?: DayStatsService;
   /** Verificação de versão nova no GitHub (GET /api/updates, POST /api/updates/check; updates/checker.ts). */
@@ -268,6 +271,21 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             .then(() => sendJson(res, 200, { ok: true }))
             .catch((err) => failInput(res, err));
       }
+      return true;
+    }
+    if (path === '/api/state') {
+      const state = deps.state;
+      if (!state) sendJson(res, 404, { error: 'estado no servidor desligado' });
+      else if (isRead) sendJson(res, 200, state.all());
+      else if (method !== 'PUT') methodNotAllowed(res, 'GET, PUT');
+      else
+        readJson(req)
+          .then((body) => {
+            const b = (body ?? {}) as { key?: unknown; value?: unknown };
+            state.set(b.key, b.value);
+            sendJson(res, 200, { ok: true });
+          })
+          .catch((err) => (err instanceof StateError ? sendJson(res, 400, { error: err.message }) : fail(res, err)));
       return true;
     }
     const profileMatch = PROFILE_ROUTE.exec(path);

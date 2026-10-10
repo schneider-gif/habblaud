@@ -7057,3 +7057,102 @@ html.is-replay #world {
 .ui-root :focus-visible {
   outline-color: var(--ui-accent);
 }
+
+/* Bem-estar do agente (ui/social.ts): coração + barras de água, comida e lazer. */
+.ui-needs {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: 6px 0 10px;
+}
+.ui-needs__heart {
+  font-size: 22px;
+  line-height: 1;
+  color: #ff3b5c;
+  background: none;
+  border: 0;
+  padding: 2px;
+  cursor: pointer;
+  animation: ui-heart 1.6s ease-in-out infinite;
+}
+@keyframes ui-heart {
+  50% {
+    transform: scale(1.12);
+  }
+}
+.ui-needs__rows {
+  display: grid;
+  gap: 5px;
+}
+.ui-needs__row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.ui-needs__bar {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--ui-line-strong);
+}
+.ui-needs__fill {
+  display: block;
+  height: 100%;
+  transition: width 0.6s var(--ease);
+}
+.ui-needs__fill.is-agua {
+  background: #6fd3ff;
+}
+.ui-needs__fill.is-comida {
+  background: #ff814a;
+}
+.ui-needs__fill.is-lazer {
+  background: #c8ff32;
+}
+.ui-needs__fill.is-low {
+  animation: ui-low 1.2s steps(2) infinite;
+}
+@keyframes ui-low {
+  50% {
+    opacity: 0.45;
+  }
+}
+.ui-needs__val {
+  text-align: right;
+  color: var(--ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-needs__heart,
+  .ui-needs__fill.is-low {
+    animation: none;
+  }
+}
+.ui-cust__wide {
+  grid-column: 1 / -1;
+}
+.ui-cust__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ui-cust__chip {
+  padding: 4px 9px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ui-cust__chip.is-on {
+  border-color: #ff5cad;
+  background: rgba(255, 92, 173, 0.18);
+}
+.ui-cust__hint {
+  color: var(--ui-muted);
+  font-size: 12px;
+}

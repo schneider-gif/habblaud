@@ -5,6 +5,12 @@ import type { UiContext } from './context';
 import { h, setHidden, setText, setTitle } from './dom';
 import { plural, relativeTime } from './format';
 
+const NEED_UI = [
+  ['agua', '💧', 'Água'],
+  ['comida', '🍔', 'Comida'],
+  ['lazer', '🎮', 'Lazer'],
+] as const;
+
 /** "+🪙10" / "−🪙10" (sinal tipográfico de menos). */
 export function coinDelta(delta: number): string {
   return `${delta >= 0 ? '+' : '−'}🪙${Math.abs(delta)}`;
@@ -33,6 +39,9 @@ export class SocialSection {
   private rivalsRow: HTMLElement;
   private ledger: HTMLElement;
   private ledgerBox: HTMLDetailsElement;
+  private needsBox: HTMLElement;
+  private needBars = new Map<string, { fill: HTMLElement; val: HTMLElement }>();
+  private heart: HTMLElement;
   /** Assinaturas do que já está no DOM (só refaz as listas quando mudam). */
   private keys = { traits: '', bonds: '', ledger: '' };
 
@@ -57,11 +66,27 @@ export class SocialSection {
       h('span', { class: 'ui-social__purse', attrs: { 'aria-hidden': 'true' }, text: '🪙' }),
       h('div', { class: 'ui-social__wallet-body' }, h('div', { class: 'ui-social__wallet-line' }, this.coins, this.record), this.earned),
     );
-    setTitle(wallet, 'Moedinhas fictícias: entra no escritório com um saldo, ganha 🪙10 por tarefa concluída e 🪙5 por pedido atendido, e aposta com os colegas. Ficam salvas neste navegador.');
+    setTitle(wallet, 'Moedinhas fictícias: entra no escritório com um saldo, ganha 🪙10 por tarefa concluída e 🪙5 por pedido atendido, e aposta com os colegas. Ficam salvas no escritório (servidor).');
+    // Bem-estar: coração + barras (água, comida, lazer). Só diversão: nada disso atrapalha o trabalho do agente.
+    this.heart = h('button', { class: 'ui-needs__heart', type: 'button', text: '❤', attrs: { 'aria-expanded': 'true', 'aria-label': 'Bem-estar: água, comida e lazer' } });
+    const rows = h('div', { class: 'ui-needs__rows' });
+    for (const [k, emoji, label] of NEED_UI) {
+      const fill = h('span', { class: `ui-needs__fill is-${k}` });
+      const val = h('span', { class: 'ui-needs__val' });
+      rows.append(h('div', { class: 'ui-needs__row' }, h('span', { class: 'ui-needs__label', text: `${emoji} ${label}` }), h('span', { class: 'ui-needs__bar' }, fill), val));
+      this.needBars.set(k, { fill, val });
+    }
+    this.heart.addEventListener('click', () => {
+      const open = rows.hidden;
+      rows.hidden = !open;
+      this.heart.setAttribute('aria-expanded', String(open));
+    });
+    this.needsBox = h('div', { class: 'ui-needs', attrs: { title: 'Só diversão: o agente enche as barras bebendo água ou café, comendo e jogando quando está à toa. Umas 3 vezes por dia de cada coisa deixa em 100%.' } }, this.heart, rows);
     this.el = h(
       'section',
       { class: 'ui-sec ui-social' },
       h('div', { class: 'ui-sec__head' }, title, this.extra),
+      this.needsBox,
       this.doing,
       wallet,
       this.traits,
@@ -78,6 +103,18 @@ export class SocialSection {
     setHidden(this.el, !s);
     if (!s) return;
     setText(this.extra, `🪙 ${s.coins}`);
+    setHidden(this.needsBox, !s.needs);
+    if (s.needs) {
+      const mood = (s.needs.agua + s.needs.comida + s.needs.lazer) / 3;
+      this.heart.style.filter = `saturate(${0.25 + mood / 133}) brightness(${0.75 + mood / 400})`;
+      for (const [k] of NEED_UI) {
+        const v = Math.round(s.needs[k]);
+        const bar = this.needBars.get(k)!;
+        bar.fill.style.width = `${v}%`;
+        bar.fill.classList.toggle('is-low', v < 25);
+        setText(bar.val, `${v}%`);
+      }
+    }
     setText(this.doing, s.doing ?? '');
     setHidden(this.doing, !s.doing);
     setText(this.coins, `${s.coins} moedinhas`);

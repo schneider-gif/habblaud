@@ -5,6 +5,7 @@
 // Os rótulos são substantivos ("Competição", "Vaidade"): não dependem do gênero de ninguém.
 import { mulberry32 } from '../../../../shared/hash';
 import { IDLE_WEIGHTS, type IdleActivity } from '../sim/behavior';
+import type { StorageLike } from './wallet';
 
 export type TraitId =
   | 'competicao'
@@ -98,18 +99,79 @@ function mix(seed: number): number {
 
 const cache = new Map<number, Persona>();
 
+// ------------------------------------------------------------------ escolhas do usuário (por nome do agente)
+
+/** Traços, amigos e rivais escolhidos no editor do agente. Nomes porque o id/semente muda quando o Claude reinicia. */
+export interface SocialOverride {
+  traits?: TraitId[];
+  friends?: string[];
+  rivals?: string[];
+}
+const SOCIAL_KEY = 'habblaude.social.v1';
+let overrides: Record<string, SocialOverride> = {};
+let socialStore: StorageLike | null = null;
+/** semente -> nome do agente presente (o sim avisa em noteSeedName). */
+const seedNames = new Map<number, string>();
+
+function overrideFor(seed: number): SocialOverride | undefined {
+  const n = seedNames.get(seed >>> 0);
+  return n ? overrides[n] : undefined;
+}
+
+/** Liga o armazenamento (servidor ou navegador) e lê as escolhas salvas. */
+export function bindSocialStorage(s: StorageLike | null): void {
+  socialStore = s;
+  try {
+    overrides = JSON.parse(s?.getItem(SOCIAL_KEY) ?? '{}') as Record<string, SocialOverride>;
+  } catch {
+    overrides = {};
+  }
+  cache.clear();
+}
+
+/** O sim registra o nome atual de cada semente (renomear muda as escolhas que valem). */
+export function noteSeedName(seed: number, name: string): void {
+  if (seedNames.get(seed >>> 0) === name) return;
+  seedNames.set(seed >>> 0, name);
+  cache.delete(seed);
+}
+
+export function socialOverride(name: string): SocialOverride | undefined {
+  return overrides[name];
+}
+
+/** Grava as escolhas de `name` (lista vazia = volta ao sorteio). */
+export function setSocialOverride(name: string, o: SocialOverride): void {
+  const clean: SocialOverride = {
+    traits: (o.traits ?? []).filter((t) => t in TRAITS).slice(0, 3),
+    friends: [...new Set(o.friends ?? [])].filter((n) => n && n !== name),
+    rivals: [...new Set(o.rivals ?? [])].filter((n) => n && n !== name),
+  };
+  clean.friends = clean.friends!.filter((n) => !clean.rivals!.includes(n));
+  overrides = { ...overrides, [name]: clean };
+  cache.clear();
+  try {
+    socialStore?.setItem(SOCIAL_KEY, JSON.stringify(overrides));
+  } catch {
+    // sem armazenamento: vale só nesta aba
+  }
+}
+
 /** Personalidade do agente com esta semente (2 ou 3 traços sem conflito). */
 export function personaFor(seed: number): Persona {
   const hit = cache.get(seed);
   if (hit) return hit;
   const rng = mulberry32(mix(seed));
   const n = rng() < 0.55 ? 2 : 3;
-  const traits: TraitId[] = [];
+  let traits: TraitId[] = [];
   for (let guard = 0; traits.length < n && guard < 40; guard++) {
     const t = TRAIT_IDS[Math.floor(rng() * TRAIT_IDS.length) % TRAIT_IDS.length];
     if (traits.includes(t) || traits.some((o) => clashes(o, t))) continue;
     traits.push(t);
   }
+  // traços escolhidos no escritório vencem o sorteio (o resto da personalidade continua da semente)
+  const chosen = overrideFor(seed)?.traits?.filter((t) => t in TRAITS);
+  if (chosen?.length) traits = chosen.slice(0, 3);
   let sociability = 0.45 + rng() * 0.3;
   if (traits.includes('timidez')) sociability -= 0.3;
   if (traits.includes('fofoca')) sociability += 0.2;
@@ -141,6 +203,13 @@ export type Bond = 'amizade' | 'rivalidade';
  */
 export function bondBetween(seedA: number, seedB: number): Bond | null {
   if (seedA === seedB) return null;
+  // vínculos escolhidos no escritório (por nome, de qualquer um dos lados) vencem o sorteio
+  const na = seedNames.get(seedA >>> 0), nb = seedNames.get(seedB >>> 0);
+  if (na && nb) {
+    const oa = overrides[na], ob = overrides[nb];
+    if (oa?.rivals?.includes(nb) || ob?.rivals?.includes(na)) return 'rivalidade';
+    if (oa?.friends?.includes(nb) || ob?.friends?.includes(na)) return 'amizade';
+  }
   const lo = Math.min(seedA >>> 0, seedB >>> 0);
   const hi = Math.max(seedA >>> 0, seedB >>> 0);
   const r = mulberry32(mix(lo ^ Math.imul(hi, 0x9e3779b1)))();

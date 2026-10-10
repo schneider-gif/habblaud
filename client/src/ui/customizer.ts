@@ -12,6 +12,7 @@ import {
   type AppearanceOverride,
 } from '../../../shared/profile';
 import { appearanceFromSeed, characterSprite, poseFrameCount, poseFrameDuration, type Appearance } from '../art';
+import { bondBetween, personaFor, setSocialOverride, socialOverride, TRAITS, type TraitId } from '../world/social/persona';
 import type { UiContext } from './context';
 import { h, iconButton } from './dom';
 import { ICONS } from './icons';
@@ -56,6 +57,10 @@ export class AgentCustomizer {
   private timer: ReturnType<typeof setInterval> | null = null;
   private frame = 0;
   private busy = false;
+  private traitBtns = new Map<TraitId, HTMLButtonElement>();
+  private traits = new Set<TraitId>();
+  private bondsBox!: HTMLElement;
+  private bonds = new Map<string, 'amizade' | 'rivalidade' | null>();
 
   constructor(private ctx: UiContext) {
     this.titleEl = h('h2', { attrs: { id: 'ui-cust-title' } });
@@ -122,6 +127,7 @@ export class AgentCustomizer {
           colors('shoes', 'Sapatos', CLOTHES),
           sel('accessory', 'Acessório', ACCESSORIES),
           colors('accessoryColor', 'Cor do acessório', CLOTHES),
+          this.socialFields(),
         ),
       ),
       h('div', { class: 'ui-cust__foot' }, this.errEl, cancel, this.saveBtn),
@@ -133,6 +139,66 @@ export class AgentCustomizer {
     this.nameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void this.save();
     });
+  }
+
+  /** Personalidade (até 3 traços) e vínculos com os colegas presentes: neutro → amizade → rivalidade. */
+  private socialFields(): HTMLElement {
+    const traits = h('div', { class: 'ui-cust__chips', role: 'group', attrs: { 'aria-label': 'Personalidade' } });
+    for (const t of Object.values(TRAITS)) {
+      const b = h('button', { class: 'ui-cust__chip', type: 'button', text: `${t.emoji} ${t.label}`, title: t.desc, on: { click: () => this.toggleTrait(t.id) } });
+      this.traitBtns.set(t.id, b);
+      traits.append(b);
+    }
+    this.bondsBox = h('div', { class: 'ui-cust__chips', role: 'group', attrs: { 'aria-label': 'Amizades e rivalidades' } });
+    return h(
+      'div',
+      { class: 'ui-cust__field ui-cust__wide' },
+      h('span', { text: 'Personalidade (até 3)' }),
+      traits,
+      h('span', { text: 'Colegas (clique: 💛 amizade → ⚔️ rivalidade → neutro)' }),
+      this.bondsBox,
+    );
+  }
+
+  private toggleTrait(t: TraitId): void {
+    if (this.traits.has(t)) this.traits.delete(t);
+    else if (this.traits.size < 3) this.traits.add(t);
+    this.syncSocial();
+  }
+
+  private loadSocial(agent?: AgentInfo): void {
+    this.traits = new Set(agent ? (socialOverride(agent.name)?.traits ?? personaFor(agent.seed).traits) : personaFor(this.seed).traits);
+    this.bonds.clear();
+    const others = (this.ctx.store.snapshot?.agents ?? []).filter((a) => a.kind === 'main' && !a.id.startsWith('demo:') && a.id !== agent?.id);
+    for (const o of others) this.bonds.set(o.name, agent ? bondBetween(agent.seed, o.seed) : null);
+    this.bondsBox.replaceChildren(
+      ...[...this.bonds.keys()].map((name) =>
+        h('button', {
+          class: 'ui-cust__chip',
+          type: 'button',
+          attrs: { 'data-name': name },
+          on: {
+            click: () => {
+              const cur = this.bonds.get(name) ?? null;
+              this.bonds.set(name, cur === null ? 'amizade' : cur === 'amizade' ? 'rivalidade' : null);
+              this.syncSocial();
+            },
+          },
+        }),
+      ),
+    );
+    if (!this.bonds.size) this.bondsBox.append(h('span', { class: 'ui-cust__hint', text: 'Sem colegas no escritório agora.' }));
+    this.syncSocial();
+  }
+
+  private syncSocial(): void {
+    for (const [t, b] of this.traitBtns) b.classList.toggle('is-on', this.traits.has(t));
+    for (const b of this.bondsBox.querySelectorAll<HTMLButtonElement>('button[data-name]')) {
+      const name = b.dataset.name!;
+      const k = this.bonds.get(name) ?? null;
+      b.textContent = `${k === 'amizade' ? '💛' : k === 'rivalidade' ? '⚔️' : '·'} ${name}`;
+      b.classList.toggle('is-on', k !== null);
+    }
   }
 
   /** Abre para um agente novo (sem argumento) ou para personalizar `agent`. */
@@ -157,6 +223,7 @@ export class AgentCustomizer {
       void this.loadFolders();
     }
     this.sync();
+    this.loadSocial(agent);
     if (!this.el.open) this.el.showModal();
     this.nameInput.focus();
     this.start();
@@ -263,6 +330,13 @@ export class AgentCustomizer {
         this.errEl.hidden = false;
         return;
       }
+      const who = name || (this.mode.kind === 'edit' ? this.mode.agent.name : '');
+      if (who)
+        setSocialOverride(who, {
+          traits: [...this.traits],
+          friends: [...this.bonds].filter(([, k]) => k === 'amizade').map(([n]) => n),
+          rivals: [...this.bonds].filter(([, k]) => k === 'rivalidade').map(([n]) => n),
+        });
       this.el.close();
       this.ctx.notify(isNew ? `${name || 'O novo agente'} está chegando: aparece no escritório em alguns segundos.` : 'Agente atualizado.');
     } catch {

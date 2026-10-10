@@ -456,3 +456,21 @@ describe('perfil do agente (/api/agents/:id/profile)', () => {
     }
   });
 });
+
+describe('estado da vida social (/api/state)', () => {
+  it('guarda chaves conhecidas como texto JSON e recusa o resto', async () => {
+    const { StateStore } = await import('../model/state');
+    const env = await start({ state: new StateStore(null) });
+    try {
+      const put = (body: unknown) => fetch(`${env.base}/api/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      expect((await put({ key: 'habblaude.needs.v1', value: '{"Bia":{"agua":90,"comida":50,"lazer":10,"at":1}}' })).status).toBe(200);
+      expect((await put({ key: 'outra', value: '{}' })).status).toBe(400);
+      expect((await put({ key: 'habblaude.needs.v1', value: 'não é json' })).status).toBe(400);
+      const all = await (await fetch(`${env.base}/api/state`)).json();
+      expect(JSON.parse(all['habblaude.needs.v1']).Bia.agua).toBe(90);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+});

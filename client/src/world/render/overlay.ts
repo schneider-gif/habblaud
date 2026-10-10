@@ -867,7 +867,7 @@ export class Overlay {
     const { nameW, chipW, badgeW } = this.labelWidth(l);
     const { x, y, w, h } = l;
     const selected = sel.agent === ch.id;
-    ctx.fillStyle = selected ? 'rgba(18,96,140,0.95)' : ch.mode === 'wait' ? 'rgba(120,78,0,0.92)' : 'rgba(22,26,38,0.82)';
+    ctx.fillStyle = selected ? 'rgba(194,65,127,0.95)' : ch.mode === 'wait' ? 'rgba(120,78,0,0.92)' : 'rgba(33,23,53,0.86)';
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 7.5);
     ctx.fill();
@@ -896,6 +896,11 @@ export class Overlay {
       ctx.font = BADGE_FONT;
       ctx.fillStyle = '#2a2000';
       ctx.fillText('SUB', cx + 3.5, y + h / 2 + 0.5);
+    } else if (!sub && !ch.info.id.startsWith('demo:')) {
+      // coração do bem-estar (água, comida, lazer): clicar no agente abre as barrinhas na gaveta
+      const hx = Math.round(x + w - 4), hy = Math.round(y - 3);
+      ctx.fillStyle = '#ff3b5c';
+      for (const [dx, dy, ww] of [[0, 0, 2], [3, 0, 2], [-1, 1, 7], [0, 2, 5], [1, 3, 3], [2, 4, 1]] as const) ctx.fillRect(hx + dx, hy + dy, ww, 1);
     } else if (sub) {
       // selo compacto: pontinho na cor do crachá
       ctx.fillStyle = ch.appearance.lanyard ?? '#f2b33d';

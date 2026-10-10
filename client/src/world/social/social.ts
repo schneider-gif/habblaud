@@ -3,6 +3,8 @@
 // conversa, jokenpô valendo moedinhas e o espelho do banheiro. Este "diretor" escolhe a roda e os
 // parceiros pela personalidade, leva cada um ao seu lugar (passos da fila) e conduz o roteiro
 // (falas, comemorações, placar, apostas). A simulação chama update() a cada quadro.
+import { NEED_GAIN, Needs, type NeedKind } from './needs';
+import { bindSocialStorage } from './persona';
 import type { AgentInfo } from '../../../../shared/types';
 import type { Dir, HeldItem, Pose } from '../../art/api';
 import type { AgentSocial, SocialEvent } from '../api';
@@ -85,6 +87,8 @@ interface SeatPlan {
 export class Social {
   readonly gatherings = new Set<Gathering>();
   readonly wallets: Wallets;
+  /** Água, Comida e Lazer (só diversão): enchem ao fim das rodas e das atividades solo. */
+  readonly needs: Needs;
   readonly floaters: Floater[] = [];
   readonly events: SocialEvent[] = [];
   private seq = 1;
@@ -96,6 +100,8 @@ export class Social {
     storage: StorageLike | null,
   ) {
     this.wallets = new Wallets(storage);
+    this.needs = new Needs(storage);
+    if (storage) bindSocialStorage(storage); // o timelapse (storage null) não apaga as escolhas
   }
 
   // =================================================================== disponibilidade
@@ -605,6 +611,9 @@ export class Social {
   private end(g: Gathering, now: number): void {
     if (g.phase === 'ended') return;
     g.phase = 'ended';
+    // quem participou de verdade (chegou à roda) enche as barrinhas
+    const gain = NEED_GAIN[g.kind];
+    if (gain) for (const m of g.members) if (m.arrived) this.fillNeeds(m.id, gain);
     const tag = ownerTag(g);
     for (const id of g.pool) this.sim.spots.release(id, tag);
     g.pool.length = 0;
@@ -615,6 +624,13 @@ export class Social {
       if (c && c.gathering === g) this.sim.clearPlan(c);
     }
     void now;
+  }
+
+  /** Soma o ganho de uma atividade às barrinhas do personagem (pelo nome; ignorado no timelapse). */
+  fillNeeds(charId: string, gain: Partial<Record<NeedKind, number>>): void {
+    const c = this.sim.chars.get(charId);
+    if (!c || c.info.id.startsWith('demo:')) return;
+    for (const [k, v] of Object.entries(gain) as [NeedKind, number][]) this.needs.bump(c.info.name, k, v, Date.now());
   }
 
   /** Encerra tudo (aba volta do segundo plano). */
@@ -654,6 +670,7 @@ export class Social {
     if (now >= this.nextSaveAt) {
       this.nextSaveAt = now + 5_000;
       this.wallets.save(now);
+      this.needs.save();
     }
   }
 
@@ -1196,6 +1213,7 @@ export class Social {
       bonds,
       doing: this.doing(id),
       ledger: w ? w.ledger.map((e) => ({ ...e })) : [],
+      needs: (({ agua, comida, lazer }) => ({ agua, comida, lazer }))(this.needs.get(ch.info.name, Date.now())),
     };
   }
 
