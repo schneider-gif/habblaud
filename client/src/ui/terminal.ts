@@ -749,6 +749,9 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   openSession(session: RecentSession, opener: HTMLElement | null = activeElement()): void {
     // Ainda aberta e no escritório: o terminal ao vivo do agente (com status no rodapé).
     if (session.open && session.agentId && this.ctx.agent(session.agentId)) return this.open(session.agentId, opener);
+    // Aberta mas sem agentId no item do histórico: acha o principal pela sessão (assim a caixa de mensagens vale).
+    const live = session.open ? this.ctx.store.snapshot?.agents.find((a) => a.kind === 'main' && a.account === session.account && a.sessionId === session.sessionId) : undefined;
+    if (live) return this.open(live.id, opener);
     this.start(sessionKey(session.account, session.sessionId), session, opener);
   }
 
@@ -936,6 +939,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.truncated = data.truncated;
     this.unread = 0;
     this.ingest(data.entries, true);
+    // Terminal ao vivo que ainda não sabe se aceita mensagens (primeira consulta falhou): pergunta de novo.
+    if (!this.session && !this.canSend && this.id) void this.checkInput(this.id);
     // A conversa foi remontada: a busca refaz os destaques (mantendo o resultado atual, se ele ainda existir).
     if (this.folded) this.runSearch(false);
     const target = anchor ? this.rows.get(anchor.key) : undefined;
@@ -1298,15 +1303,19 @@ export class TerminalPanel implements UiComponent, TerminalControl {
 
   // ---------------------------------------------------------------- mensagens (tmux)
 
-  private async checkInput(id: string): Promise<void> {
+  private async checkInput(id: string, retry = true): Promise<void> {
     if (this.ctx.store.mock) return;
+    let ok = false;
     try {
-      const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`);
+      const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`, { cache: 'no-store' });
       const j = (await r.json()) as { available?: boolean };
-      if (this.id === id) this.setCanSend(r.ok && j.available === true);
+      ok = r.ok && j.available === true;
     } catch {
-      // sem o recurso: continua somente leitura
+      // rede ou proxy no meio do caminho: tenta mais uma vez abaixo
     }
+    if (this.id !== id) return;
+    if (ok || !retry) this.setCanSend(ok);
+    else setTimeout(() => void (this.id === id && !this.canSend && this.checkInput(id, false)), 1500);
   }
 
   private setCanSend(on: boolean): void {
