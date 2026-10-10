@@ -70,6 +70,7 @@ const office = new Office({
   sources: () => late.watcher?.sources() ?? [],
   accountName: (id) => accounts.find(id)?.detected.name,
   terminal: config.terminal,
+  demoLocked: config.demoLocked,
   permissions: () => late.permissions?.snapshot() ?? new Map(),
   updates: () => updates.status(),
 });

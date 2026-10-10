@@ -110,7 +110,7 @@ export class EmptyState implements UiComponent {
     const keys = shortcutHint(snap.accounts);
     setText(this.hint, `Abra o Claude Code em qualquer projeto${keys ? ` (${keys})` : ''} e veja seu agente chegar.`);
     this.demoBtn.disabled = this.busy;
-    setHidden(this.demoBtn, store.mock);
+    setHidden(this.demoBtn, store.mock || snap.meta.demoLocked === true);
   }
 
   private async startDemo(): Promise<void> {

@@ -287,6 +287,8 @@ export interface OfficeSnapshot {
   accounts: AccountInfo[];
   meta: {
     demo: boolean;
+    /** Demonstração travada (HABBLAUD_DEMO_LOCKED): o servidor não liga e a interface esconde os botões. */
+    demoLocked?: boolean;
     sources: SourceInfo[];
     startedAt: number;
     version: string;

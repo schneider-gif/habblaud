@@ -167,6 +167,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
   const handleDemo = async (req: IncomingMessage, res: ServerResponse) => {
     const body = (await readJson(req)) as { enabled?: unknown };
     if (typeof body?.enabled !== 'boolean') throw new HttpError(400, 'esperado {enabled: boolean}');
+    if (body.enabled && hub.current().meta.demoLocked) throw new HttpError(403, 'demonstração desligada neste escritório');
     office.setDemo(body.enabled);
     sendJson(res, 200, { ok: true, demo: office.isDemo() });
   };

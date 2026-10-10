@@ -201,7 +201,7 @@ export class SettingsPopover implements UiComponent {
     this.liveliness.set(p.liveliness);
     this.daylight.set(p.daylight);
     this.soundGroup.render();
-    setHidden(this.demoGroup, this.ctx.store.mock);
+    setHidden(this.demoGroup, this.ctx.store.mock || this.ctx.store.snapshot?.meta.demoLocked === true);
     this.about.render();
 
     const notif = this.switches.get('browserNotifications')!;

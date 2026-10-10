@@ -406,3 +406,23 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     }
   });
 });
+
+describe('demonstração travada (HABBLAUD_DEMO_LOCKED)', () => {
+  it('recusa ligar, avisa no snapshot e o office não liga nem chamado direto', async () => {
+    const env = await start({}, { demoLocked: true });
+    try {
+      const r = await fetch(`${env.base}/api/demo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"enabled":true}' });
+      expect(r.status).toBe(403);
+      const snap = await snapshotOf(env.base);
+      expect(snap.meta.demoLocked).toBe(true);
+      expect(snap.meta.demo).toBe(false);
+      env.office.setDemo(true);
+      expect(env.office.isDemo()).toBe(false);
+      const off = await fetch(`${env.base}/api/demo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"enabled":false}' });
+      expect(off.status).toBe(200);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+});

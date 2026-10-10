@@ -48,6 +48,8 @@ const FEED_LIMIT = 200;
 
 export interface OfficeDeps {
   names: NameStore;
+  /** Demonstração proibida: setDemo(true) não faz nada. */
+  demoLocked?: boolean;
   version: string;
   /** Build do cliente servido (ver OfficeSnapshot.meta.build); ausente no modo dev e nos testes. */
   build?: () => string | undefined;
@@ -692,6 +694,7 @@ export class Office {
   // ---------------------------------------------------------------- demonstração
 
   setDemo(enabled: boolean): void {
+    if (enabled && this.deps.demoLocked) return;
     if (enabled === this.isDemo()) return;
     const now = this.now();
     if (enabled) {
@@ -786,6 +789,7 @@ export class Office {
       accounts: [...this.deps.accounts(sessions), ...(this.demoSnap?.accounts ?? [])],
       meta: {
         demo: this.isDemo(),
+        demoLocked: this.deps.demoLocked === true,
         sources: this.deps.sources(),
         startedAt: this.deps.startedAt,
         version: this.deps.version,
