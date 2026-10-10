@@ -343,6 +343,12 @@ describe('guarda de Host/Origin', () => {
       expect(isLoopbackHost(h)).toBe(false);
     }
   });
+  it('isLoopbackHost: nomes de HABBLAUD_LOCAL_HOSTS (proxy autenticado) contam como locais, só por nome exato', () => {
+    const local = parseAllowedHosts('escritorio--ws--u.habblaude.com');
+    expect(isLoopbackHost('escritorio--ws--u.habblaude.com', local)).toBe(true);
+    expect(isLoopbackHost('ESCRITORIO--ws--u.habblaude.com:443', local)).toBe(true);
+    for (const h of ['outro--ws--u.habblaude.com', 'habblaude.com', 'x.escritorio--ws--u.habblaude.com']) expect(isLoopbackHost(h, local)).toBe(false);
+  });
 
   it('Origin: ausente, mesma origem ou local', () => {
     expect(originAllowed(undefined, 'localhost:4747', allowed)).toBe(true);

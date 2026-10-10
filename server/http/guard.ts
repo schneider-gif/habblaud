@@ -48,12 +48,19 @@ function isLoopbackName(name: string): boolean {
 /**
  * Cabeçalho Host local (`localhost`, `*.localhost`, 127.x ou `[::1]`; porta ignorada)? Usado pelo terminal
  * somente leitura, que só atende quem abriu o Habblaud pelo próprio computador: um IP da rede ou um nome
- * de HABBLAUD_ALLOWED_HOSTS (proxy, túnel) não serve. Ausente ou inválido: false.
+ * de HABBLAUD_ALLOWED_HOSTS (proxy, túnel) não serve, exceto os de HABBLAUD_LOCAL_HOSTS. Ausente ou inválido: false.
  */
-export function isLoopbackHost(host: string | undefined): boolean {
+export function isLoopbackHost(host: string | undefined, localHosts: ReadonlySet<string> = LOCAL_HOSTS): boolean {
   const name = hostnameOf(host);
-  return !!name && isLoopbackName(name);
+  return !!name && (isLoopbackName(name) || localHosts.has(name));
 }
+
+/**
+ * HABBLAUD_LOCAL_HOSTS: nomes exatos que contam como "pelo próprio computador" para o terminal, o histórico e as
+ * permissões. Só para um proxy que já autentica o dono antes de encaminhar (ex.: app do Coder com share=owner,
+ * Habblaud em bind 127.0.0.1). Um proxy aberto aqui expõe as conversas.
+ */
+const LOCAL_HOSTS = parseAllowedHosts(process.env.HABBLAUD_LOCAL_HOSTS);
 
 /**
  * Host aceito? IP literal (não há DNS envolvido, logo não há rebinding), `localhost`/`*.localhost`
