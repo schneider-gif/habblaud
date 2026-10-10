@@ -50,6 +50,11 @@ export interface WatcherOptions {
   /** Quanto do fim de cada transcript é lido ao abrir a sessão (padrão 1 MB). */
   tailBytes?: number;
   isAlive?: (pid: number) => boolean;
+  /**
+   * Config dirs espelhados de outra máquina (HABBLAUD_REMOTE_DIRS, ponte do Mac): o pid de lá não existe aqui, então a
+   * sessão vale enquanto o arquivo <dir>/.habblaud-bridge for tocado (batimento da ponte) há menos de REMOTE_FRESH_MS.
+   */
+  remoteDirs?: ReadonlySet<string>;
   /** Desliga o fs.watch (testes). */
   watch?: boolean;
 }
@@ -253,7 +258,10 @@ export class ClaudeWatcher {
     for (const acc of this.opts.accounts.entries()) {
       let reader = this.readers.get(acc.dir);
       if (!reader) {
-        reader = new RegistryReader(acc.dir, { checkPid: !this.opts.inDocker, isAlive: this.opts.isAlive });
+        const remote = this.opts.remoteDirs?.has(acc.dir);
+        reader = remote
+          ? new RegistryReader(acc.dir, { checkPid: true, isAlive: () => bridgeFresh(acc.dir, this.now()) })
+          : new RegistryReader(acc.dir, { checkPid: !this.opts.inDocker, isAlive: this.opts.isAlive });
         this.readers.set(acc.dir, reader);
         this.watchDir(join(acc.dir, 'sessions'));
       }
@@ -895,5 +903,16 @@ export function readCustomTitleFile(sessionDir: string): string | undefined {
     return typeof j.customTitle === 'string' && j.customTitle.trim() ? j.customTitle.trim() : undefined;
   } catch {
     return undefined;
+  }
+}
+
+/** Batimento da ponte: sem ele há mais que isso, os agentes remotos saem do escritório (Mac dormiu, rede caiu). */
+export const REMOTE_FRESH_MS = 90_000;
+
+export function bridgeFresh(dir: string, now: number): boolean {
+  try {
+    return now - statSync(join(dir, '.habblaud-bridge')).mtimeMs < REMOTE_FRESH_MS;
+  } catch {
+    return false;
   }
 }

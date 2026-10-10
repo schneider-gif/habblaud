@@ -32,6 +32,7 @@ describe('input pelo tmux', () => {
     const calls: string[][] = [];
     const input = createAgentInput({
       readEnviron: async () => env({ TMUX: '/tmp/tmux-1000/default,9,0', TMUX_PANE: '%7' }),
+      readCmdline: async () => 'node\0/usr/bin/claude\0',
       run: async (a) => void calls.push(a),
       now: () => 42,
     });
@@ -51,6 +52,7 @@ describe('input pelo tmux', () => {
         if (pid === 600) throw new Error('ENOENT');
         return env({ HOME: '/home/u' });
       },
+      readCmdline: async () => 'claude\0',
       run: async (a) => void calls.push(a),
     });
     for (const id of ['.claude:500', '.claude:600', 'demo:x-1']) {
@@ -87,5 +89,21 @@ describe('input pelo tmux', () => {
     expect(state.userID).toBe('u1');
     expect(state.projects['/outro']).toEqual({ x: 1 });
     expect(state.projects[r.cwd]).toMatchObject({ allowedTools: ['Bash'], hasTrustDialogAccepted: true });
+  });
+
+  it('nunca digita em pid de outro programa nem em agente de conta remota (ponte)', async () => {
+    const calls: string[][] = [];
+    const tmuxEnv = env({ TMUX: '/tmp/tmux-1000/default,9,0', TMUX_PANE: '%7' });
+    const input = createAgentInput({
+      readEnviron: async () => tmuxEnv,
+      readCmdline: async (pid) => (pid === 700 ? 'vim\0notas.txt\0' : 'claude\0'),
+      remoteAccounts: new Set(['.claude-mac']),
+      run: async (a) => void calls.push(a),
+    });
+    expect(await input.available('.claude:700')).toBe(false);
+    expect(await input.available('.claude-mac:500')).toBe(false);
+    expect(await input.available('.claude:500')).toBe(true);
+    await expect(input.send('.claude-mac:500', 'oi')).rejects.toMatchObject({ status: 409 });
+    expect(calls).toEqual([]);
   });
 });

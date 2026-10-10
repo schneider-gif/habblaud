@@ -19,6 +19,10 @@ export interface TmuxTarget {
 
 export interface AgentInputDeps {
   readEnviron?: (pid: number) => Promise<string>;
+  /** Linha de comando do processo (NUL-separada): o pid só vale se for mesmo um Claude Code. */
+  readCmdline?: (pid: number) => Promise<string>;
+  /** Contas espelhadas de outra máquina (ponte): o pid é de lá, nunca recebem mensagens. */
+  remoteAccounts?: ReadonlySet<string>;
   run?: (args: string[]) => Promise<void>;
   /** Roda tmux e devolve o stdout (pid do pane do agente novo). */
   capture?: (args: string[]) => Promise<string>;
@@ -74,6 +78,7 @@ export function cleanInput(text: unknown): string {
 
 export function createAgentInput(deps: AgentInputDeps = {}) {
   const readEnviron = deps.readEnviron ?? ((pid: number) => readFile(`/proc/${pid}/environ`, 'latin1'));
+  const readCmdline = deps.readCmdline ?? ((pid: number) => readFile(`/proc/${pid}/cmdline`, 'latin1'));
   const run =
     deps.run ??
     ((args: string[]) =>
@@ -113,7 +118,11 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
   const targetOf = async (id: string): Promise<TmuxTarget | undefined> => {
     const pid = pidOfAgent(id);
     if (pid === undefined) return undefined;
+    // agente de outra máquina: o mesmo número de pid aqui é outro processo qualquer
+    if (deps.remoteAccounts?.has(id.slice(0, id.lastIndexOf(':')))) return undefined;
     try {
+      // pid reaproveitado por outro programa: nunca digitar no tmux de quem não é o Claude
+      if (!/claude/i.test((await readCmdline(pid)).replace(/\0/g, ' '))) return undefined;
       return tmuxTargetFromEnviron(await readEnviron(pid));
     } catch {
       return undefined; // processo sumiu, de outro usuário ou sistema sem /proc

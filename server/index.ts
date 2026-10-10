@@ -3,7 +3,7 @@
 //   npm run dev    -> tsx server/index.ts --dev (Vite em middleware mode, HMR no mesmo servidor)
 //   npm start      -> node dist/server/index.js (serve dist/client)
 import http from 'node:http';
-import { join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { AccountsService } from './accounts/service';
 import { loadConfig, terminalOffReason } from './config';
 import { createApiHandler, sendJson } from './http/app';
@@ -26,6 +26,7 @@ import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
 import { createAgentInput } from './input/tmux';
 import { StateStore } from './model/state';
+import { expandHome } from './accounts/detect';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -77,7 +78,9 @@ const office = new Office({
   permissions: () => late.permissions?.snapshot() ?? new Map(),
   updates: () => updates.status(),
 });
-const watcher = new ClaudeWatcher({ accounts, office, inDocker: config.inDocker });
+// Ponte (ex.: Mac -> esta VM): config dirs espelhados, vivos pelo batimento e sem receber mensagens.
+const remoteDirs = new Set((process.env.HABBLAUD_REMOTE_DIRS ?? '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => resolve(expandHome(p, config.home))));
+const watcher = new ClaudeWatcher({ accounts, office, inDocker: config.inDocker, remoteDirs });
 late.office = office;
 late.watcher = watcher;
 const hub = new Hub(office);
@@ -137,7 +140,7 @@ const api = createApiHandler({
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
-  input: process.platform === 'linux' ? createAgentInput() : undefined,
+  input: process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined,
   state,
   stats,
   updates,

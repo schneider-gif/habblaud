@@ -383,6 +383,7 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     const calls: string[][] = [];
     const input = createAgentInput({
       readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
       run: async (a) => void calls.push(a),
     });
     const env = await start({ terminal: true, input });
@@ -466,7 +467,7 @@ describe('estado da vida social (/api/state)', () => {
       expect((await put({ key: 'habblaude.needs.v1', value: '{"Bia":{"agua":90,"comida":50,"lazer":10,"at":1}}' })).status).toBe(200);
       expect((await put({ key: 'outra', value: '{}' })).status).toBe(400);
       expect((await put({ key: 'habblaude.needs.v1', value: 'não é json' })).status).toBe(400);
-      const all = await (await fetch(`${env.base}/api/state`)).json();
+      const all = (await (await fetch(`${env.base}/api/state`)).json()) as Record<string, string>;
       expect(JSON.parse(all['habblaude.needs.v1']).Bia.agua).toBe(90);
     } finally {
       await env.close();
