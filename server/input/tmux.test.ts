@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -73,5 +73,18 @@ describe('input pelo tmux', () => {
     await expect(input.spawn('/etc')).rejects.toMatchObject({ status: 400 });
     await expect(input.spawn('nao-existe')).rejects.toMatchObject({ status: 400 });
     expect((await input.spawn(undefined)).cwd).toBe(r.cwd.replace(/\/projeto$/, ''));
+    const state = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'));
+    expect(state.projects[r.cwd].hasTrustDialogAccepted).toBe(true);
+  });
+
+  it('spawn: marca a pasta como confiável preservando o resto do ~/.claude.json', async () => {
+    const home = await realpath(await mkdtemp(join(tmpdir(), 'hb-home-'))); // macOS: /var -> /private/var
+    await writeFile(join(home, '.claude.json'), JSON.stringify({ userID: 'u1', projects: { [home]: { allowedTools: ['Bash'] }, '/outro': { x: 1 } } }));
+    const input = createAgentInput({ home, run: async () => undefined, claudeCommand: 'claude' });
+    const r = await input.spawn('');
+    const state = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'));
+    expect(state.userID).toBe('u1');
+    expect(state.projects['/outro']).toEqual({ x: 1 });
+    expect(state.projects[r.cwd]).toMatchObject({ allowedTools: ['Bash'], hasTrustDialogAccepted: true });
   });
 });

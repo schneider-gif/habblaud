@@ -48,7 +48,7 @@ export class TopBar implements UiComponent {
   private newAgentBtn: HTMLButtonElement;
 
   private async newAgent(): Promise<void> {
-    const cwd = window.prompt('Pasta do projeto, dentro do seu HOME (deixe vazio para o HOME):', '');
+    const cwd = window.prompt('Novo agente: pasta do projeto, dentro do seu HOME (vazio = HOME).\nO Claude vai poder ler, editar e executar arquivos nessa pasta.', '');
     if (cwd === null) return;
     this.newAgentBtn.disabled = true;
     try {

@@ -3,7 +3,7 @@
 // (várias linhas chegam como um bloco, sem disparar Enter no meio) e um Enter envia. Também abre agentes novos
 // numa sessão tmux própria. Linux (lê /proc/<pid>/environ); em outro sistema, nada fica disponível.
 import { execFile } from 'node:child_process';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 
@@ -21,6 +21,8 @@ export interface AgentInputDeps {
   readEnviron?: (pid: number) => Promise<string>;
   run?: (args: string[]) => Promise<void>;
   home?: string;
+  /** Arquivo de estado do Claude Code com a confiança por pasta (padrão: ~/.claude.json). */
+  claudeJson?: string;
   /** Comando (string de shell) que abre um agente novo; padrão: shell de login, para o PATH do usuário achar o claude. */
   claudeCommand?: string;
   now?: () => number;
@@ -79,6 +81,26 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
   const home = deps.home ?? homedir();
   const claude = deps.claudeCommand ?? "bash -lc 'exec claude'";
   const now = deps.now ?? Date.now;
+  const claudeJson = deps.claudeJson ?? resolve(home, '.claude.json');
+
+  // A pasta foi escolhida no escritório, que avisa que o Claude vai ler, editar e executar ali: equivale a
+  // responder "Yes, I trust this folder", pergunta que travaria o agente invisível dentro do tmux.
+  // ponytail: read-modify-write do ~/.claude.json sem lock; um Claude gravando no mesmo instante pode perder
+  // esta marca (aí a pergunta aparece no terminal dele). Trocar por flag do CLI se um dia existir.
+  const markTrusted = async (dir: string) => {
+    let state: { projects?: Record<string, Record<string, unknown>> } = {};
+    try {
+      state = JSON.parse(await readFile(claudeJson, 'utf8'));
+    } catch {
+      // sem o arquivo ainda: nasce só com esta pasta
+    }
+    const projects = (state.projects ??= {});
+    if (projects[dir]?.hasTrustDialogAccepted === true) return;
+    projects[dir] = { ...projects[dir], hasTrustDialogAccepted: true };
+    const tmp = `${claudeJson}.habblaud-${now()}`;
+    await writeFile(tmp, JSON.stringify(state, null, 2), { mode: 0o600 });
+    await rename(tmp, claudeJson);
+  };
 
   const targetOf = async (id: string): Promise<TmuxTarget | undefined> => {
     const pid = pidOfAgent(id);
@@ -117,6 +139,7 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       }
       const rel = relative(await realpath(home), dir);
       if (rel.startsWith('..') || isAbsolute(rel)) throw new InputError(400, 'a pasta precisa estar dentro do seu HOME');
+      await markTrusted(dir);
       const session = `agente-${now().toString(36)}`;
       await run(['new-session', '-d', '-s', session, '-c', dir, claude]);
       return { session, cwd: dir };
