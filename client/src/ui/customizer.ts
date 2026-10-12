@@ -8,6 +8,7 @@ import {
   FACIAL_HAIR,
   HAIR_STYLES,
   NAME_MAX,
+  SHOE_STYLES,
   TOP_STYLES,
   type AppearanceOverride,
 } from '../../../shared/profile';
@@ -23,7 +24,8 @@ const L = {
     long: 'Comprido', ponytail: 'Rabo de cavalo', bun: 'Coque', pigtails: 'Maria-chiquinha', mohawk: 'Moicano', bald: 'Careca', wavy: 'Ondulado',
   },
   topStyle: { tshirt: 'Camiseta', hoodie: 'Moletom', shirt_tie: 'Camisa e gravata', sweater: 'Suéter', jacket: 'Jaqueta', blouse: 'Blusa', polo: 'Polo' },
-  bottomStyle: { pants: 'Calça', shorts: 'Bermuda', skirt: 'Saia' },
+  bottomStyle: { pants: 'Calça', shorts: 'Bermuda', skirt: 'Saia', dress: 'Vestido' },
+  shoeStyle: { flat: 'Baixo', heels: 'Salto alto' },
   accessory: { none: 'Nenhum', glasses: 'Óculos', sunglasses: 'Óculos escuros', headphones: 'Fone', cap: 'Boné', beanie: 'Gorro', earrings: 'Brincos', bow: 'Laço' },
   facialHair: { none: 'Sem barba', stubble: 'Barba por fazer', beard: 'Barba', mustache: 'Bigode', goatee: 'Cavanhaque' },
 } as const;
@@ -34,7 +36,7 @@ const CLOTHES = ['#c8ff32', '#ff5cad', '#ff814a', '#6fd3ff', '#8f6ad8', '#e2604f
 const EYES = ['#2b2236', '#4a2f22', '#5a3b22', '#2f5f9e', '#3c7a52', '#8f6ad8'];
 
 type Mode = { kind: 'new' } | { kind: 'edit'; agent: AgentInfo };
-type EnumKey = 'hairStyle' | 'topStyle' | 'bottomStyle' | 'accessory' | 'facialHair';
+type EnumKey = 'hairStyle' | 'topStyle' | 'bottomStyle' | 'shoeStyle' | 'accessory' | 'facialHair';
 type ColorKey = 'skin' | 'hair' | 'eyes' | 'top' | 'topAccent' | 'bottom' | 'shoes' | 'accessoryColor';
 
 export class AgentCustomizer {
@@ -124,7 +126,8 @@ export class AgentCustomizer {
           colors('topAccent', 'Detalhe', CLOTHES),
           sel('bottomStyle', 'Parte de baixo', BOTTOM_STYLES),
           colors('bottom', 'Cor de baixo', CLOTHES),
-          colors('shoes', 'Sapatos', CLOTHES),
+          sel('shoeStyle', 'Sapatos', SHOE_STYLES),
+          colors('shoes', 'Cor dos sapatos', CLOTHES),
           sel('accessory', 'Acessório', ACCESSORIES),
           colors('accessoryColor', 'Cor do acessório', CLOTHES),
           this.socialFields(),
@@ -262,7 +265,7 @@ export class AgentCustomizer {
 
   /** Reflete o estado no formulário e redesenha a prévia. */
   private sync(): void {
-    for (const [k, s] of this.selects) s.value = String(this.ap[k] ?? 'none');
+    for (const [k, s] of this.selects) s.value = String(this.ap[k] ?? (k === 'shoeStyle' ? 'flat' : 'none'));
     for (const [k, row] of this.swatches) {
       const cur = String(this.ap[k] ?? '').toLowerCase();
       for (const b of row.children) (b as HTMLElement).classList.toggle('is-on', (b as HTMLElement).dataset.color === cur);
@@ -304,7 +307,7 @@ export class AgentCustomizer {
   private override(): AppearanceOverride {
     const a = this.ap;
     const out: AppearanceOverride = {
-      look: a.look, hairStyle: a.hairStyle, topStyle: a.topStyle, bottomStyle: a.bottomStyle ?? 'pants', accessory: a.accessory,
+      look: a.look, hairStyle: a.hairStyle, topStyle: a.topStyle, bottomStyle: a.bottomStyle ?? 'pants', shoeStyle: a.shoeStyle ?? 'flat', accessory: a.accessory,
       skin: a.skin, hair: a.hair, eyes: a.eyes, top: a.top, topAccent: a.topAccent, bottom: a.bottom, shoes: a.shoes, accessoryColor: a.accessoryColor,
     };
     if (a.look === 'm') out.facialHair = a.facialHair ?? 'none';

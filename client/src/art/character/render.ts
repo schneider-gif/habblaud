@@ -922,9 +922,11 @@ function sleeveLength(a: Appearance): number {
 
 function drawLegs(dc: Dc): void {
   const { b, p, r, a } = dc;
-  const pants = p.bottom;
-  const sh = p.shoes;
   const style = a.bottomStyle ?? 'pants';
+  // Vestido = saia mais comprida na cor de cima, emendando com o tronco (desenhado depois, por cima).
+  const pants = style === 'dress' ? p.top : p.bottom;
+  const sh = p.shoes;
+  const skirt = style === 'skirt' || style === 'dress';
   const skinLeg = style !== 'pants';
   if (r.view === 'side') {
     drawLegsSide(dc, pants, sh, skinLeg);
@@ -934,7 +936,7 @@ function drawLegs(dc: Dc): void {
     if (r.view === 'down') {
       // Colo (coxas em direção à câmera) e pontas dos sapatos.
       const y0 = 24 + r.ub;
-      const lapTop = style === 'skirt' ? p.bottom : pants;
+      const lapTop = pants;
       b.rect(8, y0, 8, 1, lapTop.lt);
       b.rect(8, y0 + 1, 8, 1, lapTop.base);
       b.set(15, y0, lapTop.base);
@@ -972,7 +974,7 @@ function drawLegs(dc: Dc): void {
   b.rect(8, top, 8, 2, pants.base);
   b.set(15, top, pants.dk);
   b.set(15, top + 1, pants.dk);
-  if (style === 'skirt') {
+  if (skirt) {
     b.rect(7, top + 2, 10, 1, pants.base);
     b.set(16, top + 2, pants.dk);
     b.rect(8, top + 2, 1, 1, pants.lt);
@@ -988,6 +990,14 @@ function drawLegs(dc: Dc): void {
       b.set(x + 1, y, c.base);
       b.set(x + 2, y, shadeRight ? c.dk : c.base);
     }
+    if (a.shoeStyle === 'heels') {
+      // Scarpin: peito do pé aparecendo entre as laterais e o salto fino no meio.
+      b.set(x, y1 + 1, sh.lt);
+      b.set(x + 1, y1 + 1, p.skin.base);
+      b.set(x + 2, y1 + 1, sh.base);
+      b.set(x + 1, y1 + 2, sh.dk);
+      return;
+    }
     // Sapato: duas linhas, ponta clara, sola escura.
     b.rect(x, y1 + 1, 3, 1, sh.base);
     b.set(x, y1 + 1, sh.lt);
@@ -997,6 +1007,12 @@ function drawLegs(dc: Dc): void {
   const b1 = r.view === 'up' ? r.legA.dy : r.legB.dy;
   leg(8, a1, true);
   leg(13, b1, true);
+  if (style === 'dress') {
+    // Barra do vestido: uma linha a mais, por cima das pernas.
+    b.rect(7, top + 3, 10, 1, pants.base);
+    b.set(7, top + 3, pants.lt);
+    b.set(16, top + 3, pants.dk);
+  }
   if (!skinLeg || style === 'shorts') {
     b.set(10, top + 2, pants.dk);
     b.set(13, top + 2, pants.base);
@@ -1031,7 +1047,7 @@ function drawLegsSide(dc: Dc, pants: Ramp, sh: Ramp, skinLeg: boolean): void {
   b.set(9, top, pants.lt);
   b.set(13, top, pants.dk);
   b.set(13, top + 1, pants.dk);
-  if (style === 'skirt') {
+  if (style === 'skirt' || style === 'dress') {
     b.rect(8, top + 1, 7, 2, pants.base);
     b.set(8, top + 1, pants.lt);
     b.set(14, top + 2, pants.dk);
@@ -1054,10 +1070,18 @@ function drawLegsSide(dc: Dc, pants: Ramp, sh: Ramp, skinLeg: boolean): void {
     const fx = Math.round(10 + dx);
     b.rect(fx - 1, y1 + 1, 4, 1, shc.base);
     b.set(fx - 1, y1 + 1, shc.lt);
-    b.rect(fx - 1, y1 + 2, 4, 1, shc.dk);
+    if (a.shoeStyle === 'heels') {
+      // De lado: bico na frente e salto atrás, com o arco vazado entre eles.
+      b.set(fx - 1, y1 + 2, shc.dk);
+      b.set(fx + 2, y1 + 2, shc.dk);
+    } else b.rect(fx - 1, y1 + 2, 4, 1, shc.dk);
   };
   leg(r.legA.dx, -r.legA.dy, true);
   leg(r.legB.dx, -r.legB.dy, false);
+  if (style === 'dress') {
+    b.rect(8, top + 3, 7, 1, pants.base);
+    b.set(14, top + 3, pants.dk);
+  }
 }
 
 function drawTorso(dc: Dc): void {

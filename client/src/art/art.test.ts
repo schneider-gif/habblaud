@@ -283,6 +283,20 @@ describe("pose 'wait' (esperando o shell) e o balde de pipoca", () => {
   });
 });
 
+describe('guarda-roupa: vestido e salto', () => {
+  const base = { ...appearanceFromSeed(7, { look: 'f' }), top: '#ff5cad', bottom: '#3f5f8c', bottomStyle: 'skirt' as const };
+  const px = (a: Appearance, dir: Dir) => Array.from(renderCharacter({ appearance: a, dir, pose: 'stand', frame: 0 }).buf.data).join(',');
+  it('vestido e salto mudam o sprite de frente e de lado', () => {
+    for (const dir of ['down', 'left'] as Dir[]) {
+      expect(px({ ...base, bottomStyle: 'dress' }, dir)).not.toBe(px(base, dir));
+      expect(px({ ...base, shoeStyle: 'heels' }, dir)).not.toBe(px(base, dir));
+    }
+  });
+  it('a chave de cache distingue o salto', () => {
+    expect(appearanceKey({ ...base, shoeStyle: 'heels' })).not.toBe(appearanceKey(base));
+  });
+});
+
 describe('vida social: poses, itens e gestos', () => {
   /** Aparência fixa (pele clara, sem acessório): cores previsíveis para contar pixels. */
   const A: Appearance = {

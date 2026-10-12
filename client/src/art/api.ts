@@ -89,8 +89,10 @@ export interface Appearance {
   look: 'f' | 'm';
   /** (Opcional, aditivo) Barba/bigode — só sorteado para look 'm'. Ausente = sem pelos faciais. */
   facialHair?: 'none' | 'stubble' | 'beard' | 'mustache' | 'goatee';
-  /** (Opcional, aditivo) Parte de baixo da roupa. Ausente = calça. */
-  bottomStyle?: 'pants' | 'shorts' | 'skirt';
+  /** (Opcional, aditivo) Parte de baixo da roupa. Ausente = calça. 'dress' = vestido: a saia sai na cor de cima. */
+  bottomStyle?: 'pants' | 'shorts' | 'skirt' | 'dress';
+  /** (Opcional, aditivo) Sapato. Ausente = baixo. Só escolhido no editor, nunca sorteado. */
+  shoeStyle?: 'flat' | 'heels';
 }
 
 export interface Rect {

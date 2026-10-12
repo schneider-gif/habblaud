@@ -73,8 +73,8 @@ const ACC_W: Record<'f' | 'm', Weights<Accessory>> = {
 
 const FACIAL_W: Weights<FacialHair> = { none: 62, stubble: 12, beard: 13, mustache: 7, goatee: 6 };
 const BOTTOM_W: Record<'f' | 'm', Weights<BottomStyle>> = {
-  m: { pants: 88, shorts: 12, skirt: 0 },
-  f: { pants: 62, shorts: 10, skirt: 28 },
+  m: { pants: 88, shorts: 12, skirt: 0, dress: 0 },
+  f: { pants: 62, shorts: 10, skirt: 28, dress: 0 },
 };
 
 export type FacialHair = NonNullable<Appearance['facialHair']>;
@@ -175,6 +175,6 @@ export function appearanceFromSeed(seed: number, opts: { look?: 'f' | 'm'; sub?:
 export function appearanceKey(a: Appearance): string {
   return [
     a.skin, a.hair, a.hairStyle, a.eyes, a.top, a.topAccent, a.topStyle, a.bottom, a.shoes, a.accessory,
-    a.accessoryColor, a.lanyard ?? '-', a.look, a.facialHair ?? '-', a.bottomStyle ?? '-',
+    a.accessoryColor, a.lanyard ?? '-', a.look, a.facialHair ?? '-', a.bottomStyle ?? '-', a.shoeStyle ?? '-',
   ].join('|');
 }

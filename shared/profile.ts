@@ -5,7 +5,8 @@ export const HAIR_STYLES = [
   'short', 'buzz', 'spiky', 'side_part', 'curly', 'afro', 'bob', 'long', 'ponytail', 'bun', 'pigtails', 'mohawk', 'bald', 'wavy',
 ] as const;
 export const TOP_STYLES = ['tshirt', 'hoodie', 'shirt_tie', 'sweater', 'jacket', 'blouse', 'polo'] as const;
-export const BOTTOM_STYLES = ['pants', 'shorts', 'skirt'] as const;
+export const BOTTOM_STYLES = ['pants', 'shorts', 'skirt', 'dress'] as const;
+export const SHOE_STYLES = ['flat', 'heels'] as const;
 export const ACCESSORIES = ['none', 'glasses', 'sunglasses', 'headphones', 'cap', 'beanie', 'earrings', 'bow'] as const;
 export const FACIAL_HAIR = ['none', 'stubble', 'beard', 'mustache', 'goatee'] as const;
 export const LOOKS = ['f', 'm'] as const;
@@ -18,6 +19,7 @@ export interface AppearanceOverride {
   hairStyle?: (typeof HAIR_STYLES)[number];
   topStyle?: (typeof TOP_STYLES)[number];
   bottomStyle?: (typeof BOTTOM_STYLES)[number];
+  shoeStyle?: (typeof SHOE_STYLES)[number];
   accessory?: (typeof ACCESSORIES)[number];
   facialHair?: (typeof FACIAL_HAIR)[number];
   skin?: string;
@@ -44,6 +46,7 @@ const ENUMS: Record<string, readonly string[]> = {
   hairStyle: HAIR_STYLES,
   topStyle: TOP_STYLES,
   bottomStyle: BOTTOM_STYLES,
+  shoeStyle: SHOE_STYLES,
   accessory: ACCESSORIES,
   facialHair: FACIAL_HAIR,
 };
