@@ -40,7 +40,8 @@ export function layoutReception(): AreaLayout {
   });
   b.wall('sign', 11, undefined, { order: 0.9 });
   b.wall('clock', 8.15, undefined, { order: 0.7 });
-  b.wall('painting', 14.25, undefined, { order: 0.6 });
+  // quadro de missões (clicável: abre o quadro na interface)
+  b.wall('mission_board', 14.25, undefined, { order: 0.6 });
 
   b.furn('plant_tall', 1, 2, 'monstera', { order: 0.2 });
   b.furn('plant_tall', 14, 4, 'ficus', { order: 0.21 });
@@ -69,6 +70,13 @@ export function layoutReception(): AreaLayout {
   const a = b.build();
   a.shade = undefined;
   return a;
+}
+
+/** Área clicável do quadro de missões (px de mundo), a partir do item de parede da recepção. */
+export function missionBoardRect(area: AreaLayout): { x: number; y: number; w: number; h: number } | null {
+  const it = area.wallItems.find((w) => w.kind === 'mission_board');
+  if (!it) return null;
+  return { x: it.cx - TILE, y: it.baseY - 2 * TILE + 2, w: 2 * TILE, h: 2 * TILE - 6 };
 }
 
 export function layoutRestroom(): AreaLayout {

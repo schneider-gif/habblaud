@@ -19,6 +19,7 @@ import { AgentCustomizer } from './customizer';
 import { HelpDialog } from './help';
 import { HistoryPopover } from './history';
 import { HoverTip } from './hovertip';
+import { MissionBoard } from './missions';
 import { hasRunningShells } from './model';
 import { Notifier } from './notify';
 import { ConnectionBanner, EmptyState, Splash } from './overlays';
@@ -179,10 +180,12 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const tip = new HoverTip(ctx);
   const splash = new Splash(ctx);
   timelapse = new TimelapsePlayer(ctx);
+  // Quadro de missões: o quadro de cortiça da recepção abre o painel; nunca modal.
+  const missions = new MissionBoard(ctx, terminal);
   const scrim = h('div', { class: 'ui-scrim', attrs: { 'aria-hidden': 'true' }, on: { click: () => ctx.togglePanel('sidebar', false) } });
 
   root.classList.add('ui-root');
-  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, drawer.el, terminal.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
+  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
   area = new FreeArea(world, { root, topbar: topbar.el, sidebar: sidebar.el, drawer: drawer.el, feed: feed.el }, () => ({
     sidebar: panels.sidebar,
     feed: panels.feed,
@@ -190,7 +193,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
     narrow: ctx.isNarrow(),
   }));
 
-  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, history, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster];
+  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, history, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, missions];
 
   // ---------------------------------------------------------------- renderização agrupada por quadro
   let rafId = 0;

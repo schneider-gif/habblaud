@@ -89,6 +89,8 @@ function build(kind: FurnitureKind, variant: string | undefined, state: number, 
       return W.mirror();
     case 'shelf_wall':
       return W.shelfWall(seed);
+    case 'mission_board':
+      return W.missionBoard();
     case 'counter':
       return C.counter(variant);
     case 'counter_sink':

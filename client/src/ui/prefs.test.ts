@@ -53,6 +53,11 @@ describe('preferências', () => {
     expect(loadPrefs(broken)).toEqual(DEFAULT_PREFS);
     expect(() => savePrefs(broken, DEFAULT_PREFS)).not.toThrow();
   });
+  it('quadro de missões: aberto por padrão; minimizar é lembrado e só aceita booleano', () => {
+    expect(DEFAULT_PREFS.missionsMinimized).toBe(false);
+    expect(sanitizePrefs({ missionsMinimized: true }).missionsMinimized).toBe(true);
+    expect(sanitizePrefs({ missionsMinimized: 'sim' }).missionsMinimized).toBe(false);
+  });
   it('extrai só as opções do mundo', () => {
     expect(worldOptionsFrom({ ...DEFAULT_PREFS, daylight: 'day' })).toEqual({ showNames: true, bubbles: 'important', liveliness: 'normal', dayNight: false, daylight: 'day' });
     expect(worldOptionsFrom({ ...DEFAULT_PREFS, daylight: 'night' })).toMatchObject({ dayNight: true, daylight: 'night' });

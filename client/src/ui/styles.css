@@ -109,7 +109,8 @@
 #ui > .ui-toasts,
 #ui > .ui-tip,
 #ui > .ui-sr,
-#ui > .ui-probe {
+#ui > .ui-probe,
+#ui > .ui-missions-fx {
   pointer-events: none;
 }
 
@@ -7217,4 +7218,414 @@ html.is-replay #world {
 .ui-cust__hint {
   color: var(--ui-muted);
   font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- quadro de missões
+   Painel no canto inferior esquerdo da área livre (nunca modal), aberto pelo quadro de cortiça da recepção.
+   Moldura de madeira + cortiça nos detalhes; bordas em pixel (sombras sem desfoque). */
+.ui-missions {
+  --ms-wood: #9a6a3c;
+  --ms-wood-dk: #6e4826;
+  --ms-cork: #c99a62;
+  --ms-gold: #ffd75e;
+  position: fixed;
+  z-index: 16;
+  left: max(var(--gap), var(--free-left));
+  bottom: max(var(--gap), var(--free-bottom));
+  width: min(330px, calc(100vw - var(--gap) * 2));
+  background: var(--ui-bg-solid);
+  color: var(--ui-text);
+  border: 2px solid var(--ms-wood);
+  box-shadow:
+    0 0 0 2px var(--ms-wood-dk),
+    4px 4px 0 0 rgba(0, 0, 0, 0.35);
+}
+.ui-missions[hidden] {
+  display: none;
+}
+.ui-missions__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: repeating-linear-gradient(90deg, var(--ms-wood) 0 6px, #a3713f 6px 12px);
+  border-bottom: 2px solid var(--ms-wood-dk);
+}
+.ui-missions.is-min .ui-missions__head {
+  border-bottom: 0;
+}
+.ui-missions__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  font: 600 14px/1.2 var(--font-px);
+  text-shadow: 1px 1px 0 var(--ms-wood-dk);
+}
+.ui-missions__level {
+  font: 600 11px/1 var(--font-ui);
+  color: #fff3d6;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.ui-missions__coins {
+  font: 700 12px/1 var(--font-ui);
+  color: var(--ms-gold);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 3px 6px;
+  cursor: help;
+  white-space: nowrap;
+}
+.ui-missions__min {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font: 700 14px/1 var(--font-ui);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+.ui-missions__min:hover,
+.ui-missions__title:hover {
+  filter: brightness(1.15);
+}
+.ui-missions.is-min {
+  width: auto;
+}
+.ui-missions__body {
+  padding: 8px 10px 10px;
+  max-height: min(62vh, 520px);
+  overflow: auto;
+}
+.ui-missions__body[hidden] {
+  display: none;
+}
+.ui-missions__xp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ui-muted);
+  margin-bottom: 8px;
+}
+.ui-missions__bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.ui-missions__bar > i {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--ui-accent) 0 4px, #a8dc22 4px 6px);
+}
+.ui-missions__streak {
+  color: var(--ui-orange);
+  font-weight: 600;
+}
+.ui-missions__track {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  padding: 8px 6px 6px;
+  margin: 0 0 8px;
+  background-color: var(--ms-cork);
+  background-image: radial-gradient(rgba(110, 72, 38, 0.35) 1px, transparent 1px);
+  background-size: 5px 5px;
+  box-shadow: inset 0 0 0 2px var(--ms-wood-dk);
+}
+.ui-missions__slot {
+  position: relative;
+  flex: 1;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  background: #f4f1e8;
+  color: #2b2f3b;
+  box-shadow: 2px 2px 0 rgba(60, 38, 18, 0.45);
+  font: 700 16px/1 var(--font-ui);
+}
+.ui-missions__slot::before {
+  /* tachinha */
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: calc(50% - 2px);
+  width: 4px;
+  height: 4px;
+  background: #e05a5a;
+}
+.ui-missions__slot-num {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  font-size: 9px;
+  opacity: 0.6;
+}
+.ui-missions__slot.is-done {
+  background: #cfe9c9;
+  color: #2f7a43;
+}
+.ui-missions__slot.is-available,
+.ui-missions__slot.is-active {
+  background: var(--ms-gold);
+  color: #8a5a00;
+  animation: ui-missions-bob 1.6s steps(2) infinite;
+}
+.ui-missions__slot.is-locked {
+  background: #3a3346;
+  color: #8f86a3;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+.ui-missions__slot.is-locked::before {
+  background: #6b6280;
+}
+@keyframes ui-missions-bob {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+.ui-missions__card {
+  display: grid;
+  gap: 6px;
+}
+.ui-missions__kicker {
+  font-size: 11px;
+  color: var(--ms-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-missions__name {
+  font: 700 16px/1.2 var(--font-ui);
+}
+.ui-missions__why {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.ui-missions__goal {
+  font-size: 12.5px;
+  background: var(--ui-bg-soft);
+  border-left: 3px solid var(--ui-accent);
+  padding: 6px 8px;
+}
+.ui-missions__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.ui-missions__steps li.is-ok {
+  color: var(--st-working);
+}
+.ui-missions__stepstext,
+.ui-missions__info,
+.ui-missions__reward {
+  font-size: 11px;
+  color: var(--ui-faint);
+}
+.ui-missions__info {
+  color: var(--st-shell);
+}
+.ui-missions__reward {
+  color: var(--ms-gold);
+}
+.ui-missions__extoggle {
+  font-size: 11px;
+  color: var(--ui-faint);
+  text-decoration: underline dotted;
+}
+.ui-missions__extoggle:hover {
+  color: var(--ui-text);
+}
+.ui-missions__extext {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ui-muted);
+}
+.ui-missions__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ui-missions__go,
+.ui-missions__done,
+.ui-missions__yes,
+.ui-missions__no {
+  padding: 6px 10px;
+  font-weight: 700;
+  box-shadow:
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+.ui-missions__go {
+  background: var(--ui-accent);
+  color: #1d2209;
+}
+.ui-missions__go:disabled {
+  filter: grayscale(0.6);
+  opacity: 0.7;
+}
+.ui-missions__done,
+.ui-missions__no {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ui-text);
+}
+.ui-missions__yes {
+  background: var(--ms-gold);
+  color: #3d2a00;
+}
+.ui-missions__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+.ui-missions__next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ui-faint);
+  border-top: 1px dashed var(--ui-line);
+  padding-top: 6px;
+}
+.ui-missions__silhouette {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  background: #3a3346;
+  color: #8f86a3;
+  font-weight: 700;
+}
+.ui-missions__go:focus-visible,
+.ui-missions__done:focus-visible,
+.ui-missions__extoggle:focus-visible,
+.ui-missions__min:focus-visible,
+.ui-missions__title:focus-visible,
+.ui-missions-balloon:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+/* Balão preso ao quadro de cortiça do canvas. */
+.ui-missions-balloon {
+  position: fixed;
+  z-index: 14;
+  left: 0;
+  top: 0;
+  padding: 4px 8px;
+  background: #fffdf5;
+  color: #2b2f3b;
+  font: 700 12px/1.2 var(--font-ui);
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 2px #2b2f3b,
+    3px 3px 0 2px rgba(0, 0, 0, 0.3);
+}
+.ui-missions-balloon::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 5px);
+  bottom: -8px;
+  width: 10px;
+  height: 8px;
+  background: #2b2f3b;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.ui-missions-balloon[hidden] {
+  display: none;
+}
+
+/* Comemoração: confete quadrado caindo + faixa; sem som. */
+.ui-missions-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ui-missions-fx__burst {
+  position: absolute;
+  inset: 0;
+}
+.ui-missions-fx__bit {
+  position: absolute;
+  top: -12px;
+  width: var(--size);
+  height: var(--size);
+  animation: ui-missions-fall 2.2s steps(22) var(--delay) forwards;
+}
+@keyframes ui-missions-fall {
+  to {
+    transform: translate(var(--dx), 105vh) rotate(0.5turn);
+  }
+}
+.ui-missions-fx__banner {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 14px 22px;
+  background: var(--ui-bg-solid);
+  border: 2px solid #ffd75e;
+  box-shadow:
+    0 0 0 2px #8a5a00,
+    6px 6px 0 rgba(0, 0, 0, 0.4);
+  font: 600 13px/1.2 var(--font-ui);
+  color: #ffd75e;
+  animation: ui-missions-pop 2.6s steps(6) forwards;
+}
+.ui-missions-fx__banner strong {
+  font: 700 18px/1.2 var(--font-ui);
+  color: var(--ui-text);
+}
+.ui-missions-fx__trophy {
+  font-size: 30px;
+}
+@keyframes ui-missions-pop {
+  0% {
+    transform: translateX(-50%) scale(0.6);
+    opacity: 0;
+  }
+  12%,
+  80% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0;
+  }
+}
+@keyframes ui-missions-fade {
+  0%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-missions__slot.is-available,
+  .ui-missions__slot.is-active {
+    animation: none;
+  }
+  .ui-missions-fx__banner {
+    animation: ui-missions-fade 2.6s linear forwards;
+  }
 }

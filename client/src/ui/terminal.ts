@@ -812,6 +812,11 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.start(sessionKey(session.account, session.sessionId), session, opener);
   }
 
+  /** Leva o foco à caixa de mensagem do agente aberto (missões: o agente abre vazio e a pessoa escreve o pedido). */
+  focusInput(): void {
+    if (this.id && !this.session) this.inputEl.focus({ preventScroll: true });
+  }
+
   close(): void {
     if (this.id === null) return;
     this.disconnect();

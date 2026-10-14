@@ -4,12 +4,13 @@ import type { StorageLike } from './social/wallet';
 import * as artModule from '../art';
 import { TILE, type ArtModule } from '../art/api';
 import type { OfficeStore } from '../net/store';
-import { DEFAULT_WORLD_OPTIONS, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldOptions, type WorldPlayback } from './api';
+import { DEFAULT_WORLD_OPTIONS, type Selection, type SocialEvent, type SoundCue, type WorldApi, type WorldObjectId, type WorldOptions, type WorldPlayback } from './api';
 import { loadWorldAssets, type WorldAssets } from './assets';
 import { Camera, overviewFrame } from './camera';
 import { createDebug, type WorldDebug } from './debug';
 import { BUILDING_H, COL_W } from './constants';
 import { inRect } from './layout/geometry';
+import { missionBoardRect, RECEPTION_ID } from './layout/core';
 import { attachInput, type Hit } from './input';
 import { rebaseSnapshot } from './playback';
 import { Overlay } from './render/overlay';
@@ -37,6 +38,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
   const hoverCbs = new Set<(id: string | null) => void>();
   const socialCbs = new Set<(e: SocialEvent) => void>();
   const soundCbs = new Set<(c: SoundCue) => void>();
+  const objectCbs = new Set<(id: WorldObjectId) => void>();
   let cues = new SoundCues(sim, camera);
   let selection: Selection = null;
   let hover: string | null = null;
@@ -161,10 +163,18 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
       }
     }
     if (best) return { type: 'agent', id: best };
+    const board = boardRect();
+    if (board && w.x >= board.x && w.x <= board.x + board.w && w.y >= board.y && w.y <= board.y + board.h) return { type: 'object', id: 'mission-board' };
     const tx = Math.floor(w.x / TILE);
     const ty = Math.floor(w.y / TILE);
     for (const room of sim.rooms.values()) if (room.present && !room.ghost && inRect(room.layout.rect, tx, ty)) return { type: 'room', id: room.id };
     return null;
+  };
+
+  /** Quadro de missões da recepção (px de mundo). */
+  const boardRect = () => {
+    const rec = sim.building.core.find((a) => a.id === RECEPTION_ID);
+    return rec ? missionBoardRect(rec) : null;
   };
 
   const setHover = (id: string | null) => {
@@ -176,7 +186,10 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
 
   const detachInput = attachInput(canvas, camera, {
     pick,
-    click: (hit) => setSelection(hit),
+    click: (hit) => {
+      if (hit?.type === 'object') objectCbs.forEach((cb) => cb(hit.id));
+      else setSelection(hit);
+    },
     doubleClick: (hit) => {
       if (hit?.type === 'agent') {
         setSelection(hit);
@@ -263,6 +276,8 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
       if (mouse) {
         const hit = pick(mouse.x, mouse.y);
         setHover(hit?.type === 'agent' ? hit.id : null);
+        if (hit?.type === 'object') canvas.style.cursor = 'pointer';
+        else if (!hover && canvas.style.cursor === 'pointer') canvas.style.cursor = 'grab';
       }
       // seleção de quem já foi embora
       if (selection?.type === 'agent' && !sim.chars.has(selection.id)) setSelection(null);
@@ -370,6 +385,18 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
       worldNow = p ? p.clock() : 0;
       rebuild();
     },
+    onObjectClick: (cb) => {
+      objectCbs.add(cb);
+      return () => void objectCbs.delete(cb);
+    },
+    objectScreenRect: (id) => {
+      const r = id === 'mission-board' ? boardRect() : null;
+      if (!r) return null;
+      const a = camera.worldToScreen(r.x, r.y);
+      const b = camera.worldToScreen(r.x + r.w, r.y + r.h);
+      if (b.x < 0 || b.y < 0 || a.x > camera.viewW || a.y > camera.viewH) return null;
+      return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+    },
     onSound: (cb) => {
       soundCbs.add(cb);
       return () => void soundCbs.delete(cb);
@@ -385,6 +412,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, stora
       hoverCbs.clear();
       socialCbs.clear();
       soundCbs.clear();
+      objectCbs.clear();
     },
     get debug() {
       return debug;
