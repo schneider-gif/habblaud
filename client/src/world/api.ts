@@ -35,6 +35,9 @@ export interface SoundCue {
   count?: number;
 }
 
+/** Objetos clicáveis do cenário (aditivo). */
+export type WorldObjectId = 'mission-board';
+
 export interface WorldApi {
   /** Seleciona (ou limpa) um agente/sala. `focus` move a câmera até ele. */
   select(sel: Selection, opts?: { focus?: boolean }): void;
@@ -71,6 +74,10 @@ export interface WorldApi {
    * snapshot do store é aplicado como carga inicial.
    */
   setPlayback?(p: WorldPlayback | null): void;
+  /** (Opcional, aditivo) Clique num objeto do cenário (ex.: o quadro de missões da recepção). Não muda a seleção. */
+  onObjectClick?(cb: (id: WorldObjectId) => void): () => void;
+  /** (Opcional, aditivo) Retângulo do objeto na tela (CSS px, relativo à viewport), ou null se fora da tela. */
+  objectScreenRect?(id: WorldObjectId): { x: number; y: number; w: number; h: number } | null;
   /** (Opcional, aditivo) Sons do ambiente: teclado de quem trabalha à vista, elevador, rodas. */
   onSound?(cb: (cue: SoundCue) => void): () => void;
   destroy(): void;

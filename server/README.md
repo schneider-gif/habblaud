@@ -72,6 +72,10 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/sessions/recent` | `RecentSessionsResponse`: sessões dos últimos 7 dias de todas as contas (até 150); mesma trava do terminal |
 | `GET /api/sessions/:conta/:sessionId/terminal` | SSE da conversa de uma sessão do histórico (mesmo protocolo do terminal); mesma trava |
 | `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`input/tmux.ts`); com `{resume: <uuid>}` roda `claude --resume <uuid>` na pasta original da sessão (o `cwd` vem do transcript via `SessionHistory.resumeTarget`, nunca do corpo), só para a conta `.claude`; UUID estrito (400), sessão aberta ou sem pasta (409), pasta fora do HOME (400); o agente que chega com o pid devolvido herda o personagem da sessão (`Office.setPendingResume`). Mesma trava do terminal |
+| `GET /api/missions` | `MissionsView` (`shared/missions.ts`): quadro de missões, Caixa do escritório, XP/nível, dias seguidos e comemorações pendentes. Mesma trava do spawn (ver "Missões") |
+| `POST /api/missions/:id/start` | `{}` → `201 MissionStartResult`: cria `~/projetos/<slug>` (só `mkdir`, nunca sobrescreve), ativa a missão e abre um agente lá **sem pedido pronto** (ou reaproveita um agente já na pasta); 404 desconhecida, 409 trancada/concluída |
+| `POST /api/missions/:id/complete` | `{confirm: true}` → "Concluí": confere antes (se a detecção achar, vale como automática); 400 sem `confirm`, 409 fora da missão ativa |
+| `POST /api/missions/:id/seen` | a comemoração da missão já foi mostrada |
 | `GET /api/stats?day=AAAA-MM-DD&tz=<IANA>&source=real\|demo` | `DayStatsResponse` do "Meu dia" (ver abaixo); padrões: hoje, fuso do servidor, demo se ligado e o dia é hoje |
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
@@ -241,6 +245,40 @@ As rotas (`permissions/http.ts`) seguem a trava do terminal somente leitura: sem
 todas; `Host` que não é local → 403. O guard já exige JSON e `Origin` local nos `POST`. Erros: 400 (corpo ou
 sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405, 409 (já respondido).
 
+## Missões
+
+`missions/catalog.ts` (textos pt-BR, moedas, XP, pasta de cada missão), `missions/detect.ts` (detectores puros),
+`missions/probe.ts` (arquivos e git), `missions/store.ts` (estado e transições), `missions/engine.ts` (motor) e
+`http/missions.ts` (rotas). Seis missões em ordem (a Missão 0, "Conecte sua conta do Claude", vem antes das cinco de criação); só a primeira não concluída fica liberada (`available`), vira
+`active` no "Começar" e as seguintes vão `locked` (o quadro recebe só número e recompensa: silhueta com "?").
+
+- **Missão 0 (conta do Claude):** ativa sozinha (sem "Começar", que nela não abre agente: um `claude` sem login no
+  tmux ficaria preso na tela de login). `missions/auth.ts` procura a credencial onde o Claude Code 2.x a guarda no
+  Linux (conferido no binário 2.1.299): `<config>/.credentials.json` com `claudeAiOauth` (Pro/Max), `primaryApiKey`
+  no `~/.claude.json` (ou `<config>/.claude.json`), `apiKeyHelper` no `<config>/settings.json` e
+  `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN`/`ANTHROPIC_AUTH_TOKEN`; `<config>` = cada conta detectada. Um
+  agente que termina um turno também prova o login (no macOS ele fica no Keychain). O `GET /api/missions` confere na
+  hora: quem já tem login vê a 0 concluída ao abrir o quadro. Depois dela, a credencial é relida no GET e a cada minuto:
+  se sumir (logout), o quadro mostra `authLost` ("Sua conta do Claude saiu"), sem desfazer missões. Só sim/não sai do
+  servidor, nunca a credencial.
+- **Estado:** `<dataDir>/missions.json` (`version: 2`; a v1 é migrada: quem já concluiu alguma missão ganha a 0 concluída
+  na data da primeira conclusão, sem moedas nem comemoração), temporário + `rename`); campos tortos são descartados e um
+  arquivo ilegível vira `missions.json.corrupt`. A Caixa do escritório guarda as missões já pagas (`credited`): o
+  crédito nunca se repete, nem se o registro da conclusão sumir.
+- **Fatos:** fim de turno = agente principal (fora do demo) `working` → `idle`/`shell`/`done`, com a pasta da
+  sala; mensagem = `POST /api/agents/:id/input` que deu certo. Só são guardados com missão ativa (os 50 mais
+  recentes) e só valem depois do "Começar".
+- **Conferência leve** a cada 30 s **só enquanto há missão ativa** (e logo depois de um fim de turno): arquivos de
+  `~/projetos/<slug>` (até 300 arquivos, 3 níveis, sem `node_modules`/`.git`; `index.html`, `<canvas>`,
+  dependências/código de servidor e de banco, `.db`/`.sqlite`), git dos projetos (`remote -v` com github.com e
+  `update by push` no reflog do ramo remoto: clone e fetch não contam) e portas escutando por pasta via `/proc`
+  (`projects/ports.ts`, só informação na Missão 5).
+- **Vários escritórios lado a lado:** nada de porta fixa (os textos pedem ao agente uma porta livre; a detecção mapeia
+  porta → processo → pasta), nada de serviço do sistema, firewall ou `0.0.0.0`: o Habblaud não abre nenhuma porta
+  nova e o estado fica no `dataDir` do usuário.
+- **Trava:** as rotas só existem com bind local (`ServerConfig.terminal`) e `Host` local (403); o guard exige
+  `Origin` local e JSON nos `POST`.
+
 ## Variáveis de ambiente
 
 | Variável | Padrão | Uso |
@@ -250,7 +288,7 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_BIND` | — (Compose: `127.0.0.1`) | só Docker: interface do host onde a porta é publicada, repassada ao container; só loopback liga o terminal somente leitura |
 | `HABBLAUD_TERMINAL` | — | `0` desliga o terminal somente leitura (não liga com a porta exposta) |
 | `HABBLAUD_CLAUDE_DIRS` | — | config dirs separados por vírgula; substitui a detecção (`~/.claude*` com `projects/` ou `sessions/` + `CLAUDE_CONFIG_DIR`) |
-| `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
+| `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (missões em `missions.json`, nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (releases do repositório do `package.json` no GitHub, a cada 6 h) |
 | `HABBLAUD_DEMO` | desligado | `1` liga o modo demonstração ao iniciar |

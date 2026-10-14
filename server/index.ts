@@ -27,6 +27,9 @@ import { UpdateChecker } from './updates/checker';
 import { createAgentInput } from './input/tmux';
 import { StateStore } from './model/state';
 import { expandHome } from './accounts/detect';
+import { PROJECTS_DIRNAME } from './missions/catalog';
+import { MissionsEngine } from './missions/engine';
+import { MissionsStore } from './missions/store';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -108,6 +111,14 @@ const permissions = config.terminal
     })
   : undefined;
 late.permissions = permissions;
+// Quadro de missões: estado em <dataDir>/missions.json; projetos em ~/projetos. Começar uma missão abre agentes,
+// então segue a mesma trava (bind local); a conferência de arquivos/git roda a cada 30 s só com missão ativa.
+const missionsStore = config.terminal ? new MissionsStore(join(config.dataDir, 'missions.json')) : undefined;
+missionsStore?.load();
+const missions = missionsStore ? new MissionsEngine({ store: missionsStore, projectsDir: join(config.home, PROJECTS_DIRNAME), home: config.home, configDirs: () => accounts.entries().map((a) => a.dir) }) : undefined;
+if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
+// Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
+const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
 
 if (config.demo) office.setDemo(true);
 watcher.start();
@@ -118,6 +129,10 @@ if (timeline) {
   timeline.ingest(hub.current());
 }
 permissions?.start();
+missions?.startTimer();
+// Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
+void missions?.evaluate();
+missions?.watchAuth();
 stats.start();
 updates.start();
 const ticker = setInterval(() => {
@@ -140,7 +155,8 @@ const api = createApiHandler({
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
-  input: process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined,
+  input,
+  missions,
   state,
   stats,
   updates,
@@ -209,6 +225,7 @@ server.listen(config.port, config.host, () => {
   if (config.terminal) log.info('   Terminal somente leitura: ligado (acesso só local).');
   else log.info(`   Terminal somente leitura: desligado (${terminalOffReason(process.env, config.host, config.inDocker)}).`);
   log.info(timeline ? `   Linha do tempo (timelapse): gravando em ${timelineDir}.` : '   Linha do tempo (timelapse): gravação desligada (HABBLAUD_TIMELINE).');
+  log.info(`   Missões: ${missions ? 'ligadas (projetos em ~/projetos)' : 'desligadas (mesma trava do terminal)'}.`);
   log.info(`   Responder pelo escritório: ${config.terminal ? 'ligado (precisa do mod: npm run mod:install; ou do hook antigo: npm run hooks:install)' : 'desligado (mesma trava do terminal)'}.`);
   log.info(
     updates.enabled
@@ -230,6 +247,8 @@ function shutdown(signal: string): void {
   terminals?.stop();
   timeline?.stop();
   permissions?.stop();
+  missions?.stop();
+  missionsStore?.flush();
   updates.stop();
   names.flush();
   state.flush();

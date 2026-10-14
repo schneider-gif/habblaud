@@ -166,6 +166,7 @@ export type FurnitureKind =
   | 'sign' // 3 tiles. Placa com o nome da sala; rects.sign = área do texto (o render escreve o nome).
   | 'mirror' // 1 tile. Espelho (acima das pias do banheiro). (Aditivo) rects.glass = área refletora (o mundo pode desenhar o reflexo de quem está na frente).
   | 'shelf_wall' // 2 tiles. Prateleira de parede com objetos.
+  | 'mission_board' // (aditivo) 2 tiles. Quadro de cortiça das missões, com bilhetes; rects.board = área dos bilhetes.
   // --- copa / café
   | 'counter' // 1x1 segmento de bancada (encostado na parede norte). variants: 'plain' | 'drawers'
   | 'counter_sink' // 1x1 bancada com pia.
@@ -243,6 +244,7 @@ export const FURNITURE: Readonly<Record<FurnitureKind, FurnitureDef>> = {
   sign: { mount: 'wall', footprint: { w: 3, h: 0 }, blocks: false },
   mirror: { mount: 'wall', footprint: { w: 1, h: 0 }, blocks: false },
   shelf_wall: { mount: 'wall', footprint: { w: 2, h: 0 }, blocks: false },
+  mission_board: { mount: 'wall', footprint: { w: 2, h: 0 }, blocks: false },
   counter: { mount: 'floor', footprint: { w: 1, h: 1 }, blocks: true, variants: ['plain', 'drawers'] },
   counter_sink: { mount: 'floor', footprint: { w: 1, h: 1 }, blocks: true },
   coffee_machine: { mount: 'floor', footprint: { w: 1, h: 1 }, blocks: true, states: 2 },

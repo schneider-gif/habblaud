@@ -22,6 +22,8 @@ export interface UiPrefs {
   feedOpen: boolean;
   /** Contas ocultas na barra lateral (AccountInfo.id). */
   hiddenAccounts: string[];
+  /** Quadro de missões recolhido (só a etiqueta no canto). */
+  missionsMinimized: boolean;
 }
 
 export const DEFAULT_PREFS: UiPrefs = {
@@ -35,6 +37,7 @@ export const DEFAULT_PREFS: UiPrefs = {
   sidebarOpen: true,
   feedOpen: true,
   hiddenAccounts: [],
+  missionsMinimized: false,
 };
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -59,6 +62,7 @@ export function sanitizePrefs(raw: unknown): UiPrefs {
     sidebarOpen: bool(o.sidebarOpen, d.sidebarOpen),
     feedOpen: bool(o.feedOpen, d.feedOpen),
     hiddenAccounts: Array.isArray(o.hiddenAccounts) ? o.hiddenAccounts.filter((x): x is string => typeof x === 'string').slice(0, 20) : [],
+    missionsMinimized: bool(o.missionsMinimized, d.missionsMinimized),
   };
 }
 

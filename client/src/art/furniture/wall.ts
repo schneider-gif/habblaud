@@ -425,3 +425,59 @@ export function shelfWall(seed: number): BufFurniture {
   b.outline();
   return { base: s };
 }
+
+/**
+ * Quadro de missões (2 tiles): cortiça com moldura de madeira, faixa "missões" no topo e bilhetes presos com
+ * tachinhas — o primeiro, dourado, com uma estrela (a missão da vez). rects.board = área dos bilhetes.
+ */
+export function missionBoard(): BufFurniture {
+  const s = wallSheet(2);
+  const b = s.buf;
+  const fr = ramp('#9a6a3c', 0.08);
+  const cork = ramp('#c99a62', 0.05);
+  const x = 2;
+  const y = -29;
+  const w = 28;
+  const h = 22;
+  b.rect(x, y, w, h, fr.base);
+  b.hline(x, x + w - 1, y, fr.hi);
+  b.vline(x, y, y + h - 1, fr.lt);
+  b.vline(x + w - 1, y, y + h - 1, fr.dk);
+  b.hline(x, x + w - 1, y + h - 1, fr.dd);
+  // Cortiça com pintinhas.
+  b.rect(x + 2, y + 2, w - 4, h - 4, cork.base);
+  const r = rngOf(7, 91);
+  for (let i = 0; i < 46; i++) b.set(x + 2 + Math.floor(r() * (w - 4)), y + 2 + Math.floor(r() * (h - 4)), r() < 0.5 ? cork.dk : cork.lt);
+  // Faixa do título (pixels claros sugerindo letras).
+  b.rect(x + 5, y + 3, w - 10, 4, '#2f5d8a');
+  b.hline(x + 5, x + w - 6, y + 3, '#4a7fb3');
+  for (let i = 0; i < w - 13; i += 2) b.set(x + 7 + i, y + 5, i % 6 === 4 ? '#2f5d8a' : '#eef3f8');
+  // Bilhetes: o dourado (missão da vez) com estrela; os outros apagados (próximas, trancadas).
+  const notes: [number, number, string, string][] = [
+    [x + 3, y + 9, '#ffd75e', '#e05a5a'],
+    [x + 11, y + 10, '#f4f1e8', '#3f7fd8'],
+    [x + 19, y + 9, '#cfe9c9', '#4cae6a'],
+  ];
+  for (const [nx, ny, paper, pin] of notes) {
+    b.rect(nx, ny, 7, 8, paper);
+    b.hline(nx, nx + 6, ny + 7, shade(paper, -0.12));
+    b.vline(nx + 6, ny + 1, ny + 7, shade(paper, -0.08));
+    b.set(nx + 3, ny, pin);
+    b.set(nx + 3, ny - 1, shade(pin, 0.2));
+  }
+  // Estrela no bilhete dourado e linhas de texto nos outros.
+  const [sx, sy] = [notes[0][0] + 3, notes[0][1] + 4];
+  b.set(sx, sy - 2, '#d1892a');
+  b.hline(sx - 2, sx + 2, sy - 1, '#d1892a');
+  b.hline(sx - 1, sx + 1, sy, '#d1892a');
+  b.set(sx - 1, sy + 1, '#d1892a');
+  b.set(sx + 1, sy + 1, '#d1892a');
+  for (const [nx, ny] of notes.slice(1)) {
+    b.hline(nx + 1, nx + 5, ny + 3, '#9aa3ad');
+    b.hline(nx + 1, nx + 4, ny + 5, '#9aa3ad');
+  }
+  b.outline();
+  wallShadow(b, x - 1, y - 1, w + 2, h + 2);
+  s.rects = { board: rectAt(s, x + 2, y + 2, w - 4, h - 4) };
+  return { base: s };
+}

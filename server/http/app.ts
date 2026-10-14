@@ -9,6 +9,8 @@ import { isJsonContentType, isLoopbackHost } from './guard';
 import { type AgentInput, cleanResumeId, InputError } from '../input/tmux';
 import { cleanProfile, ProfileError } from '../../shared/profile';
 import { type StateStore, StateError } from '../model/state';
+import { handleMissionsRoute } from './missions';
+import type { MissionsEngine } from '../missions/engine';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
@@ -39,6 +41,11 @@ export interface ApiDeps {
    * local e Host local; sem isto as rotas respondem 403.
    */
   input?: AgentInput;
+  /**
+   * Quadro de missões (GET /api/missions, POST /api/missions/:id/{start,complete,seen}; http/missions.ts). Mesma
+   * trava das rotas que abrem agentes: só com bind local (`terminal`) e Host local; sem isto, 403.
+   */
+  missions?: MissionsEngine;
   /** Vida social salva no servidor (GET/PUT /api/state). */
   state?: StateStore;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
@@ -287,9 +294,24 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         else
           readJson(req)
             .then((body) => input.send(id, (body as { text?: unknown } | undefined)?.text))
-            .then(() => sendJson(res, 200, { ok: true }))
+            .then(() => {
+              // Missão "Peça uma melhoria": a mensagem pelo escritório é um dos fatos da detecção.
+              deps.missions?.noteInput(id);
+              sendJson(res, 200, { ok: true });
+            })
             .catch((err) => failInput(res, err));
       }
+      return true;
+    }
+    if (path === '/api/missions' || path.startsWith('/api/missions/')) {
+      // Começar uma missão abre agentes: a mesma trava do spawn (bind local + Host local; Origin e JSON no guard).
+      if (!deps.terminal || !deps.missions) {
+        req.resume();
+        sendJson(res, 403, { error: 'missões desligadas: só funcionam com o Habblaud acessível apenas pelo próprio computador' });
+      } else if (!isLoopbackHost(req.headers.host)) {
+        req.resume();
+        sendJson(res, 403, { error: 'missões só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
+      } else handleMissionsRoute(req, res, url, deps.missions, deps.input);
       return true;
     }
     if (path === '/api/state') {
