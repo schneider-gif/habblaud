@@ -101,11 +101,27 @@ export class MissionBoard implements UiComponent {
       this.ctx.notify(`Quadro de missões: ${this.off ?? 'carregando…'}`, 'warn');
       return;
     }
+    this.narrowOpen = true;
     if (this.ctx.prefs.missionsMinimized) this.ctx.updatePrefs({ missionsMinimized: false });
+    else this.ctx.invalidate();
     requestAnimationFrame(() => this.el.querySelector<HTMLButtonElement>('.ui-missions__go')?.focus({ preventScroll: true }));
   }
 
+  /** Celular/tela estreita: o quadro cobriria o escritório inteiro, então começa recolhido (só a etiqueta) a cada visita. */
+  private narrowOpen = false;
+
+  private minimized(): boolean {
+    return this.ctx.prefs.missionsMinimized || (this.ctx.isNarrow() && !this.narrowOpen);
+  }
+
   private toggleMinimized(): void {
+    if (this.ctx.isNarrow()) {
+      const open = this.minimized();
+      this.narrowOpen = open;
+      if (open && this.ctx.prefs.missionsMinimized) this.ctx.updatePrefs({ missionsMinimized: false });
+      else this.ctx.invalidate();
+      return;
+    }
     this.ctx.updatePrefs({ missionsMinimized: !this.ctx.prefs.missionsMinimized });
   }
 
@@ -220,7 +236,7 @@ export class MissionBoard implements UiComponent {
     setHidden(this.el, !v);
     this.syncBalloon();
     if (!v) return;
-    const min = this.ctx.prefs.missionsMinimized;
+    const min = this.minimized();
     this.el.classList.toggle('is-min', min);
     setText(this.headLevel, `Nv ${v.level.level} · ${v.level.name}`);
     setText(this.coinsEl, `🪙 ${v.wallet.coins}`);
@@ -229,11 +245,17 @@ export class MissionBoard implements UiComponent {
     this.minBtn.setAttribute('aria-label', min ? 'Abrir o quadro de missões' : 'Recolher o quadro de missões');
     this.minBtn.title = this.minBtn.getAttribute('aria-label')!;
     setHidden(this.body, min);
-    const key = JSON.stringify([v, this.busy, this.confirming, this.exampleOf, min]);
+    const key = JSON.stringify([v, this.busy, this.confirming, this.exampleOf, min, this.ctx.isShellAvailable()]);
     if (key === this.drawn || min) return;
     this.drawn = key;
     const lost = v.authLost
-      ? h('div', { class: 'ui-missions__lost', role: 'status' }, h('b', { text: '⚠ Sua conta do Claude saiu — conecte de novo.' }), ' Rode claude no terminal e faça o login; suas missões continuam aqui.')
+      ? h(
+          'div',
+          { class: 'ui-missions__lost', role: 'status' },
+          h('b', { text: '⚠ Sua conta do Claude saiu — conecte de novo.' }),
+          ' Rode claude no terminal e faça o login; suas missões continuam aqui. ',
+          this.ctx.isShellAvailable() ? h('button', { class: 'ui-link-btn', type: 'button', text: 'Fazer login agora', on: { click: () => this.ctx.openShell({ login: true }) } }) : null,
+        )
       : null;
     this.body.replaceChildren(...[lost, this.progressRow(v), this.track(v), this.card(v)].filter((x): x is HTMLElement => !!x));
   }
@@ -281,8 +303,20 @@ export class MissionBoard implements UiComponent {
       ? h('ul', { class: 'ui-missions__steps' }, ...m.steps.map((s) => h('li', { class: s.ok ? 'is-ok' : '', text: `${s.ok ? '☑' : '☐'} ${s.label}` })))
       : null;
     const actions: HTMLElement[] = [];
-    // Missão 0 (login): nada a abrir daqui; o botão só confere de novo (o GET confere a credencial na hora).
+    // Missão 0 (login): com o terminal embutido, "Fazer login agora" abre uma aba rodando o claude (tema e login ali
+    // mesmo); o outro botão só confere de novo (o GET confere a credencial na hora).
     const login = m.project === '~';
+    if (login && this.ctx.isShellAvailable()) {
+      actions.push(
+        h('button', {
+          class: 'ui-missions__go ui-missions__go--login',
+          type: 'button',
+          text: '⌨ Fazer login agora',
+          title: 'Abre o terminal do escritório já rodando o claude: escolha o tema e entre com a sua conta',
+          on: { click: () => this.ctx.openShell({ login: true }) },
+        }),
+      );
+    }
     const go = h('button', {
       class: 'ui-missions__go',
       type: 'button',
@@ -338,7 +372,7 @@ export class MissionBoard implements UiComponent {
   private syncBalloon(): void {
     const v = this.view;
     const hint = v ? boardHint(v) : undefined;
-    const want = !!hint && (this.ctx.prefs.missionsMinimized || !!v?.celebrate.length || !!v?.authLost || currentMission(v!)?.state === 'available' || currentMission(v!)?.number === 0);
+    const want = !!hint && (this.minimized() || !!v?.celebrate.length || !!v?.authLost || currentMission(v!)?.state === 'available' || currentMission(v!)?.number === 0);
     if (!want) {
       setHidden(this.balloon, true);
       if (this.raf) cancelAnimationFrame(this.raf);

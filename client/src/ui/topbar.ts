@@ -46,6 +46,21 @@ export class TopBar implements UiComponent {
   readonly panelGroup: HTMLElement;
 
   private newAgentBtn: HTMLButtonElement;
+  /** Terminal embutido (shell): só com meta.shell. */
+  private shellBtn: HTMLButtonElement;
+  /** Link rápido (meta.links.vscode): o VS Code do escritório na nuvem. */
+  private vscodeLink: HTMLAnchorElement;
+  /** Selo no botão do painel lateral recolhido: quantos precisam de você. */
+  private sidebarBadge: HTMLElement;
+  /** "⋯": guarda os botões que não cabem na barra (do menos ao mais importante; ver fit()). */
+  private moreBtn: HTMLButtonElement;
+  private moreMenu: HTMLElement;
+  private rightEl!: HTMLElement;
+  private viewGroupEl!: HTMLElement;
+  /** Botões guardados no "⋯" e o marcador do lugar original de cada um. */
+  private parked: { el: HTMLElement; home: Comment }[] = [];
+  private fitSig = '';
+  private fitRaf = 0;
 
   /** Abre o editor de agente novo (nome, pasta e boneco). */
   private newAgent(): void {
@@ -100,7 +115,23 @@ export class TopBar implements UiComponent {
 
     this.usage = new UsageCards(ctx);
 
-    this.sidebarBtn = iconButton(ICONS.sidebar, 'Painel lateral ( [ )', () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
+    this.sidebarBtn = iconButton(ICONS.sidebar, 'Recolher ou expandir o painel lateral ( [ )', () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
+    this.sidebarBadge = h('span', { class: 'ui-badge ui-btn-sidebar__badge', hidden: true, attrs: { 'aria-hidden': 'true' } });
+    this.sidebarBtn.append(this.sidebarBadge);
+    this.shellBtn = h(
+      'button',
+      { class: 'ui-btn ui-btn-shell', type: 'button', hidden: true, title: 'Terminal: shell de verdade no seu escritório ( ` )', attrs: { 'aria-label': 'Terminal', 'aria-keyshortcuts': '`' }, on: { click: () => ctx.toggleShell() } },
+      h('span', { class: 'ui-btn-shell__icon', html: ICONS.shell }),
+      h('span', { class: 'ui-btn-shell__label', text: 'Terminal' }),
+    );
+    const link = (cls: string, icon: string, label: string, title: string) =>
+      h(
+        'a',
+        { class: `ui-btn ui-btn-link ${cls}`, hidden: true, title, attrs: { target: '_blank', rel: 'noopener noreferrer' } },
+        h('span', { class: 'ui-btn-link__icon', html: icon }),
+        h('span', { class: 'ui-btn-link__label', text: label }),
+      );
+    this.vscodeLink = link('ui-btn-vscode', ICONS.code, 'VS Code', 'Abrir o VS Code do escritório em outra aba');
     this.feedBtn = iconButton(ICONS.feed, 'Feed de atividade ( ] )', () => ctx.togglePanel('feed'));
     this.timelapseBtn = iconButton(TIMELAPSE_ICONS.timelapse, 'Timelapse: reproduzir o dia (L)', () => ctx.toggleTimelapse(), 'ui-btn-timelapse');
     this.settingsBtn = iconButton(ICONS.settings, 'Configurações', () => ctx.toggleSettings());
@@ -124,7 +155,35 @@ export class TopBar implements UiComponent {
     this.panelGroup = panelGroup;
 
     // "Novo agente": só aparece quando o servidor abre agentes no tmux (GET /api/agents/new -> {available}).
-    this.newAgentBtn = h('button', { class: 'ui-btn ui-btn--primary ui-btn-new-agent', type: 'button', hidden: true, text: '+ Novo agente', on: { click: () => this.newAgent() } });
+    this.newAgentBtn = h(
+      'button',
+      { class: 'ui-btn ui-btn--primary ui-btn-new-agent', type: 'button', hidden: true, title: 'Novo agente', attrs: { 'aria-label': 'Novo agente' }, on: { click: () => this.newAgent() } },
+      h('span', { text: '+' }),
+      h('span', { class: 'ui-btn-new-agent__label', text: ' Novo agente' }),
+    );
+    this.moreMenu = h('div', { class: 'ui-more-menu', role: 'menu', hidden: true, attrs: { 'aria-label': 'Mais opções' } });
+    this.moreBtn = h('button', {
+      class: 'ui-icon-btn ui-more-btn',
+      type: 'button',
+      hidden: true,
+      title: 'Mais opções',
+      text: '⋯',
+      attrs: { 'aria-label': 'Mais opções', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+      on: { click: () => this.toggleMore() },
+    });
+    // Clicar numa opção do "⋯" fecha o menu depois que o botão fez o dele (popovers medem a posição do botão).
+    this.moreMenu.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button, a')) setTimeout(() => this.toggleMore(false), 0);
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!this.moreMenu.hidden && !this.moreMenu.contains(e.target as Node) && e.target !== this.moreBtn) this.toggleMore(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.moreMenu.hidden) {
+        this.toggleMore(false);
+        this.moreBtn.focus();
+      }
+    });
     if (!ctx.store.mock)
       fetch('/api/agents/new')
         .then((r) => (r.ok ? r.json() : null))
@@ -147,8 +206,74 @@ export class TopBar implements UiComponent {
       ),
       counterWrap,
       this.usage.el,
-      h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, viewGroup, panelGroup),
+      (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.vscodeLink), viewGroup, panelGroup, this.moreBtn)),
+      this.moreMenu,
     );
+    this.viewGroupEl = viewGroup;
+    new ResizeObserver(() => this.scheduleFit()).observe(this.el);
+    addEventListener('resize', () => this.scheduleFit());
+  }
+
+  // ---------------------------------------------------------------- caber na largura da tela
+
+  /** Do menos ao mais importante: o que vai primeiro para o "⋯" quando a barra não cabe. */
+  private overflowCandidates(): HTMLElement[] {
+    const panel = [...this.panelGroup.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c !== this.settingsBtn);
+    return [this.viewGroupEl, ...panel, this.vscodeLink];
+  }
+
+  private scheduleFit(): void {
+    if (this.fitRaf) return;
+    this.fitRaf = requestAnimationFrame(() => {
+      this.fitRaf = 0;
+      this.fit();
+    });
+  }
+
+  /** A barra está apertada? (algo passa da borda, transborda ou invade o vizinho) */
+  private crowded(): boolean {
+    const bar = this.el;
+    if (bar.scrollWidth > bar.clientWidth + 1) return true;
+    const right = this.rightEl.getBoundingClientRect();
+    if (right.right > innerWidth - 2) return true;
+    const usage = this.usage.el;
+    if (usage.offsetParent && usage.scrollWidth > usage.clientWidth + 1) return true;
+    // na mesma linha, o que vem antes do grupo da direita não pode passar por baixo dele
+    for (const el of [usage, ...this.el.querySelectorAll<HTMLElement>('.ui-counters, .ui-topbar__left')]) {
+      if (!el.offsetParent) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width && Math.abs(r.top - right.top) < right.height && r.right > right.left + 1) return true;
+    }
+    return false;
+  }
+
+  /** Devolve tudo ao lugar e guarda no "⋯", em ordem, o que não couber. */
+  fit(): void {
+    for (const p of this.parked) p.home.replaceWith(p.el);
+    this.parked = [];
+    setHidden(this.moreBtn, true);
+    if (!this.crowded()) return this.toggleMore(false);
+    setHidden(this.moreBtn, false);
+    for (const el of this.overflowCandidates()) {
+      if (el.hidden) continue;
+      const home = document.createComment('topbar');
+      el.replaceWith(home);
+      this.moreMenu.append(el);
+      this.parked.push({ el, home });
+      if (!this.crowded()) break;
+    }
+    if (!this.parked.length) setHidden(this.moreBtn, true);
+  }
+
+  private toggleMore(open?: boolean): void {
+    const next = open ?? this.moreMenu.hidden;
+    setHidden(this.moreMenu, !next);
+    this.moreBtn.setAttribute('aria-expanded', String(next));
+    if (!next) return;
+    const r = this.moreBtn.getBoundingClientRect();
+    this.moreMenu.style.top = `${Math.round(r.bottom + 6)}px`;
+    this.moreMenu.style.right = `${Math.max(6, Math.round(innerWidth - r.right))}px`;
+    (this.moreMenu.querySelector('button:not([hidden]), a:not([hidden])') as HTMLElement | null)?.focus();
   }
 
   /** Acrescenta um botão de janela própria (ex.: Meu dia) ao começo do grupo de painéis. */
@@ -204,7 +329,25 @@ export class TopBar implements UiComponent {
     this.usage.render();
     this.version.render();
 
-    this.sidebarBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('sidebar')));
+    const sideOpen = this.ctx.isPanelOpen('sidebar');
+    this.sidebarBtn.setAttribute('aria-pressed', String(sideOpen));
+    // Recolhido, o botão avisa quem precisa de você (o contador da barra some em telas estreitas).
+    const badge = sideOpen ? 0 : c.waiting;
+    setHidden(this.sidebarBadge, badge === 0);
+    setText(this.sidebarBadge, badge > 99 ? '99+' : String(badge));
+    this.sidebarBtn.classList.toggle('has-badge', badge > 0);
+    setAttr(this.sidebarBtn, 'aria-label', badge ? `Expandir o painel lateral (${badge} ${badge === 1 ? 'precisa' : 'precisam'} de você)` : sideOpen ? 'Recolher o painel lateral' : 'Expandir o painel lateral');
+    setHidden(this.shellBtn, !this.ctx.isShellAvailable());
+    // Botões que aparecem/somem mudam o que cabe: reencaixa.
+    const sig = [this.newAgentBtn.hidden, this.ctx.isShellAvailable(), !!snap?.meta.links?.vscode, store.mock, (snap?.accounts.length ?? 0), c.waiting > 0, c.shells > 0].join();
+    if (sig !== this.fitSig) {
+      this.fitSig = sig;
+      this.scheduleFit();
+    }
+    this.shellBtn.setAttribute('aria-pressed', String(this.ctx.isShellOpen()));
+    const links = store.mock ? undefined : snap?.meta.links;
+    setAttr(this.vscodeLink, 'href', links?.vscode);
+    setHidden(this.vscodeLink, !links?.vscode);
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
     setHidden(this.timelapseBtn, store.mock);

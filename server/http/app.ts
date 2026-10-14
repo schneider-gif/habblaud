@@ -46,6 +46,10 @@ export interface ApiDeps {
    * trava das rotas que abrem agentes: só com bind local (`terminal`) e Host local; sem isto, 403.
    */
   missions?: MissionsEngine;
+  /** Terminal embutido (/api/shell*, shell/http.ts): a trava fica lá; devolve false para o resto. */
+  shell?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
+  /** Terminal embutido disponível agora (flag "shell" do /api/health). */
+  shellAvailable?: () => boolean;
   /** Vida social salva no servidor (GET/PUT /api/state). */
   state?: StateStore;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
@@ -230,6 +234,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           docker: deps.inDocker,
           terminal: !!terminals,
           permissions: !!deps.permissions,
+          shell: deps.shellAvailable?.() === true,
           updates: updatesSummary(deps.updates?.status()),
           sources: deps.sources(),
           accounts: accounts.entries().map((a) => ({ id: a.id, usageStatus: accounts.usageView(a.id).status })),
@@ -300,6 +305,13 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
               sendJson(res, 200, { ok: true });
             })
             .catch((err) => failInput(res, err));
+      }
+      return true;
+    }
+    if (path === '/api/shell' || path.startsWith('/api/shell/')) {
+      if (!deps.shell?.(req, res, url)) {
+        req.resume();
+        sendJson(res, 403, { error: 'terminal embutido desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
       }
       return true;
     }

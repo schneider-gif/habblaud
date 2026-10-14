@@ -45,7 +45,7 @@ export const MISSIONS: readonly Mission[] = [
       pt: {
         title: 'Conecte sua conta do Claude',
         why: 'Sem isso os agentes não conseguem trabalhar.',
-        goal: '1) Abra o terminal do seu escritório (no VS Code: menu Terminal › Novo terminal). 2) Rode claude e escolha o login: a sua conta Claude Pro/Max (abre um link no navegador) ou uma chave de API da Anthropic. 3) Volte aqui: o quadro confere sozinho. Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.',
+        goal: '1) Clique em Fazer login agora (ou abra o Terminal na barra de cima do escritório; no VS Code: menu Terminal › Novo terminal). 2) Rode claude e escolha o login: a sua conta Claude Pro/Max (abre um link no navegador) ou uma chave de API da Anthropic. 3) Volte aqui: o quadro confere sozinho. Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.',
         example: 'No terminal: claude → escolha "Claude account with subscription" e abra o link, ou "Anthropic Console account" para usar uma chave de API.',
       },
     },

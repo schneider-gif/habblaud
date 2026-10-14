@@ -5,8 +5,8 @@
 import http from 'node:http';
 import { basename, join, resolve } from 'node:path';
 import { AccountsService } from './accounts/service';
-import { loadConfig, terminalOffReason } from './config';
-import { createApiHandler, sendJson } from './http/app';
+import { loadConfig, shellOffReason, terminalOffReason } from './config';
+import { createApiHandler, readJson, sendJson } from './http/app';
 import { createRequestGuard } from './http/guard';
 import { Hub } from './http/sse';
 import { createStaticHandler } from './http/static';
@@ -30,6 +30,12 @@ import { expandHome } from './accounts/detect';
 import { PROJECTS_DIRNAME } from './missions/catalog';
 import { MissionsEngine } from './missions/engine';
 import { MissionsStore } from './missions/store';
+import { claudeAuth } from './missions/auth';
+import { createShellRoutes } from './shell/http';
+import { ShellService } from './shell/service';
+import { SetupWatcher } from './shell/setup';
+import { userInfo } from 'node:os';
+import { readFile } from 'node:fs/promises';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -51,6 +57,17 @@ state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
 const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry } = {};
+// Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
+// O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
+const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
+const shellState: { reason?: string } = { reason: config.shell ? 'conferindo o tmux e o script…' : shellOffReason(process.env, config.host, config.inDocker) ?? 'indisponível' };
+function safeShell(): string | undefined {
+  try {
+    return userInfo().shell ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 // Versão nova: consulta a release mais recente no GitHub a cada 6 h (HABBLAUD_UPDATE_CHECK=0 desliga).
 const updates = new UpdateChecker({
   current: config.version,
@@ -80,6 +97,8 @@ const office = new Office({
   demoLocked: config.demoLocked,
   permissions: () => late.permissions?.snapshot() ?? new Map(),
   updates: () => updates.status(),
+  shell: () => shellState.reason === undefined && !late.office?.isDemo(),
+  links: config.links,
 });
 // Ponte (ex.: Mac -> esta VM): config dirs espelhados, vivos pelo batimento e sem receber mensagens.
 const remoteDirs = new Set((process.env.HABBLAUD_REMOTE_DIRS ?? '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => resolve(expandHome(p, config.home))));
@@ -119,6 +138,41 @@ const missions = missionsStore ? new MissionsEngine({ store: missionsStore, proj
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
 const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
+const setupWatcher = shellService
+  ? new SetupWatcher({
+      list: () => shellService.agentSessions(),
+      connected: async () => (await claudeAuth({ home: config.home, configDirs: accounts.entries().map((a) => a.dir), env: process.env })).connected,
+      ready: async () => {
+        try {
+          const j = JSON.parse(await readFile(join(config.home, '.claude.json'), 'utf8')) as { hasCompletedOnboarding?: unknown };
+          return j.hasCompletedOnboarding === true;
+        } catch {
+          return false;
+        }
+      },
+      hasAgentPid: (pid) => office.list().some((a) => a.kind === 'main' && a.status !== 'offline' && a.id.endsWith(`:${pid}`)),
+      apply: (list) => office.setSetupAgents(list),
+      account: '.claude',
+      // Login feito num agente: os outros parados no onboarding são reabertos na mesma pasta (mesmo nome/boneco).
+      restart: input
+        ? async (s) => {
+            const r = await input.spawn(s.cwd);
+            if (r.pid) office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
+            await shellService.killAgentSession(s.session);
+            log.info(`Agente reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
+          }
+        : undefined,
+    })
+  : undefined;
+const shellRoutes = createShellRoutes({
+  service: shellService,
+  offReason: () => shellState.reason,
+  isDemo: () => office.isDemo(),
+  allowedHosts: config.allowedHosts,
+  sendJson,
+  readJson,
+});
 
 if (config.demo) office.setDemo(true);
 watcher.start();
@@ -133,6 +187,13 @@ missions?.startTimer();
 // Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
 void missions?.evaluate();
 missions?.watchAuth();
+setupWatcher?.start();
+if (config.shell && shellService)
+  void shellService.probe().then((why) => {
+    shellState.reason = why;
+    office.markDirty();
+    log.info(why ? `   Terminal embutido: desligado (${why}).` : '   Terminal embutido: ligado (abas = sessões tmux terminal-N).');
+  });
 stats.start();
 updates.start();
 const ticker = setInterval(() => {
@@ -155,8 +216,14 @@ const api = createApiHandler({
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
   permissions: permissions ? createPermissionRoutes(permissions) : undefined,
-  input,
+  input: input && setupWatcher ? { ...input, spawn: async (...a: Parameters<typeof input.spawn>) => {
+    const r = await input.spawn(...a);
+    void setupWatcher.scan();
+    return r;
+  } } : input,
   missions,
+  shell: shellRoutes.api,
+  shellAvailable: () => shellState.reason === undefined && !office.isDemo(),
   state,
   stats,
   updates,
@@ -205,6 +272,19 @@ server.on('request', (req, res) => {
   }
 });
 
+// WebSocket do terminal embutido (/api/shell/ws): Host, Origin e a trava conferidos em shell/http.ts. Outros upgrades
+// são do Vite (HMR) no modo dev; em produção não há nenhum.
+server.on('upgrade', (req, socket, head) => {
+  try {
+    if (shellRoutes.upgrade(req, socket, head)) return;
+  } catch (err) {
+    log.warn(`Erro no upgrade ${req.url}: ${errMsg(err)}`);
+    socket.destroy();
+    return;
+  }
+  if (!config.dev) socket.destroy();
+});
+
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') log.error(`A porta ${config.port} já está em uso (defina HABBLAUD_PORT para usar outra).`);
   else log.error(`Erro no servidor HTTP: ${errMsg(err)}`);
@@ -222,6 +302,7 @@ server.listen(config.port, config.host, () => {
     log.info(`   Conta ${a.detected.short} (${a.id}): ${src?.sessions ?? 0} sessão(ões) aberta(s) · uso: ${usage} · ${a.dir}`);
   }
   if (office.isDemo()) log.info('   Modo demonstração ligado (agentes simulados misturados aos reais).');
+  if (!config.shell) log.info(`   Terminal embutido: desligado (${shellState.reason}).`);
   if (config.terminal) log.info('   Terminal somente leitura: ligado (acesso só local).');
   else log.info(`   Terminal somente leitura: desligado (${terminalOffReason(process.env, config.host, config.inDocker)}).`);
   log.info(timeline ? `   Linha do tempo (timelapse): gravando em ${timelineDir}.` : '   Linha do tempo (timelapse): gravação desligada (HABBLAUD_TIMELINE).');
@@ -248,6 +329,7 @@ function shutdown(signal: string): void {
   timeline?.stop();
   permissions?.stop();
   missions?.stop();
+  setupWatcher?.stop();
   missionsStore?.flush();
   updates.stop();
   names.flush();

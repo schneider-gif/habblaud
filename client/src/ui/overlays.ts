@@ -71,6 +71,9 @@ export class EmptyState implements UiComponent {
   readonly el: HTMLElement;
   private hint: HTMLElement;
   private demoBtn: HTMLButtonElement;
+  private newBtn: HTMLButtonElement;
+  private shellBtn: HTMLButtonElement;
+  private canSpawn = false;
   private busy = false;
 
   constructor(private ctx: UiContext) {
@@ -91,13 +94,24 @@ export class EmptyState implements UiComponent {
     art.append(img);
     this.hint = h('p', { class: 'ui-empty__text' });
     this.demoBtn = h('button', { class: 'ui-btn ui-btn--primary', type: 'button', text: 'Ver demonstração', on: { click: () => void this.startDemo() } });
+    // Escritório do cliente (sem demonstração): o caminho é abrir um agente ou o terminal, não decorar um atalho.
+    this.newBtn = h('button', { class: 'ui-btn ui-btn--primary', type: 'button', hidden: true, text: '+ Novo agente', on: { click: () => ctx.customize() } });
+    this.shellBtn = h('button', { class: 'ui-btn', type: 'button', hidden: true, text: '⌨ Abrir o terminal', on: { click: () => ctx.openShell() } });
+    if (!ctx.store.mock)
+      fetch('/api/agents/new')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { available?: boolean } | null) => {
+          this.canSpawn = j?.available === true;
+          ctx.invalidate();
+        })
+        .catch(() => undefined);
     this.el = h(
       'section',
       { class: 'ui-empty', hidden: true, attrs: { 'aria-labelledby': 'ui-empty-title' } },
       art,
       h('h2', { class: 'ui-empty__title', text: 'O escritório está vazio', attrs: { id: 'ui-empty-title' } }),
       this.hint,
-      this.demoBtn,
+      h('div', { class: 'ui-empty__actions' }, this.newBtn, this.shellBtn, this.demoBtn),
     );
   }
 
@@ -108,7 +122,16 @@ export class EmptyState implements UiComponent {
     setHidden(this.el, !show);
     if (!show || !snap) return;
     const keys = shortcutHint(snap.accounts);
-    setText(this.hint, `Abra o Claude Code em qualquer projeto${keys ? ` (${keys})` : ''} e veja seu agente chegar.`);
+    const shell = this.ctx.isShellAvailable();
+    setText(
+      this.hint,
+      this.canSpawn || shell
+        ? `Abra um agente novo (ou rode claude no terminal) e veja ele chegar.${keys ? ` Atalho da conta: ${keys}.` : ''}`
+        : `Abra o Claude Code em qualquer projeto${keys ? ` (${keys})` : ''} e veja seu agente chegar.`,
+    );
+    setHidden(this.newBtn, !this.canSpawn);
+    setHidden(this.shellBtn, !shell);
+    this.demoBtn.classList.toggle('ui-btn--primary', !this.canSpawn);
     this.demoBtn.disabled = this.busy;
     setHidden(this.demoBtn, store.mock || snap.meta.demoLocked === true);
   }

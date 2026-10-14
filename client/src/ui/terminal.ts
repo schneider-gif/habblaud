@@ -11,6 +11,7 @@ import type { UiComponent, UiContext } from './context';
 import { copyText, h, iconButton, prefersReducedMotion, setAttr, setHidden, setText, setTitle, setVariant } from './dom';
 import { calendarDayDiff, formatClock, formatDateTime, formatDuration, formatElapsed, relativeTime } from './format';
 import { ICONS } from './icons';
+import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
 import {
@@ -400,7 +401,9 @@ type Fill = (target: HTMLElement, text: string) => void;
 type Copier = (text: string, what: string) => HTMLElement;
 
 const fillPlain: Fill = (target, text) => {
-  target.textContent = text;
+  // URLs viram links inteiros (o login do Claude Code imprime uma URL longa que antes saía cortada ao copiar/abrir).
+  target.textContent = '';
+  linkifyInto(target, text);
 };
 
 /** Diff: uma linha por elemento, com fundo verde (+) ou vermelho (-), como no Claude Code. */
