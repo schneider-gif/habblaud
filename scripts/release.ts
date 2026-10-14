@@ -5,7 +5,7 @@
 // Antes: suba a versão no package.json (npm version minor --no-git-tag-version), escreva a seção no CHANGELOG.md e
 // faça o merge na main.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -25,6 +25,17 @@ export function parseReleaseArgs(argv: string[]): ReleaseArgs {
     else throw new Error(`opção desconhecida: ${a}`);
   }
   return args;
+}
+
+/** Pacote anexado à release: o que o servidor precisa para rodar (sem node_modules: não há dependências de runtime). */
+export const TARBALL_ENTRIES = ['package.json', 'dist', 'mod', '.claude-plugin', 'templates', 'LICENSE'] as const;
+
+export function tarballName(version: string): string {
+  return `habblaud-v${version}.tgz`;
+}
+
+export function tarballEntries(exists: (p: string) => boolean): string[] {
+  return TARBALL_ENTRIES.filter((p) => exists(p));
 }
 
 /**
@@ -120,9 +131,15 @@ function main(argv: string[]): void {
   try {
     const file = join(dir, 'notas.md');
     writeFileSync(file, `${notes}\n`);
+    // npm_execpath (definido pelo `npm run`) evita depender de `npm` no PATH, que no Windows é um .cmd.
+    const npmCli = process.env.npm_execpath;
+    if (npmCli) run(process.execPath, [npmCli, 'run', 'build']);
+    else run('npm', ['run', 'build']);
+    const tgz = join(dir, tarballName(version));
+    run('tar', ['czf', tgz, ...tarballEntries((p) => existsSync(join(ROOT, p)))]);
     run('git', ['tag', '-a', tag, '-m', `Habblaud ${tag}`]);
     run('git', ['push', 'origin', tag]);
-    const url = run('gh', ['release', 'create', tag, '--verify-tag', '--title', `Habblaud ${tag}`, '--notes-file', file]);
+    const url = run('gh', ['release', 'create', tag, '--verify-tag', '--title', `Habblaud ${tag}`, '--notes-file', file, tgz]);
     console.log(`✓ Release publicada: ${url}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
