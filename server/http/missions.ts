@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { MissionStartResult } from '../../shared/missions';
 import type { AgentInput } from '../input/tmux';
 import { errMsg, log } from '../log';
+import { missionById } from '../missions/catalog';
 import type { MissionsEngine } from '../missions/engine';
 import { HttpError, readJson, sendJson } from './app';
 
@@ -16,6 +17,8 @@ async function startMission(engine: MissionsEngine, input: AgentInput | undefine
   const r = await engine.start(id);
   if (!('ok' in r)) return { status: r.status, body: { error: r.error } };
   const out: MissionStartResult = { view: engine.view(), project: r.project, spawn: 'unavailable' };
+  // Missão 0 (login): um claude sem conta aberto no tmux ficaria preso na tela de login, invisível daqui.
+  if (missionById(id)?.project === null) return { status: 201, body: { ...out, spawn: 'skipped' } };
   // Um agente já trabalhando na pasta (ou aberto num clique anterior) é reaproveitado.
   const present = engine.agentIn(r.project);
   if (present) return { status: 201, body: { ...out, agentId: present, spawn: 'reused' } };
@@ -39,7 +42,11 @@ export function handleMissionsRoute(req: IncomingMessage, res: ServerResponse, u
   };
   if (url.pathname === '/api/missions') {
     if (method !== 'GET' && method !== 'HEAD') return notAllowed('GET');
-    return sendJson(res, 200, engine.view());
+    engine.freshView().then(
+      (v) => sendJson(res, 200, v),
+      () => sendJson(res, 500, { error: 'erro interno' }),
+    );
+    return;
   }
   const m = ACTION.exec(url.pathname);
   if (!m) {

@@ -8,7 +8,8 @@ import { MISSIONS, missionById, type Mission } from './catalog';
 import type { SentMessage, TurnEnd } from './detect';
 
 export interface MissionsState {
-  version: 1;
+  /** 2: entrou a Missão 0 (conta do Claude); a v1 é migrada em sanitize(). */
+  version: 2;
   /** Quando cada missão foi começada. */
   started: Partial<Record<MissionId, number>>;
   completed: Partial<Record<MissionId, { at: number; by: 'auto' | 'manual' }>>;
@@ -28,7 +29,7 @@ const MAX_EVENTS = 50;
 const MAX_DAYS = 60;
 
 export function emptyState(): MissionsState {
-  return { version: 1, started: {}, completed: {}, wallet: { coins: 0, credited: [], ledger: [] }, xp: 0, turns: [], messages: [], days: [], celebrate: [] };
+  return { version: 2, started: {}, completed: {}, wallet: { coins: 0, credited: [], ledger: [] }, xp: 0, turns: [], messages: [], days: [], celebrate: [] };
 }
 
 export function dayKey(at: number): string {
@@ -63,16 +64,16 @@ export function currentMission(s: MissionsState): Mission | undefined {
   return MISSIONS.find((m) => !s.completed[m.id]);
 }
 
-/** A liberada, se já foi começada. */
+/** A liberada, se já foi começada (ou se ativa sozinha, como a Missão 0). */
 export function activeMission(s: MissionsState): Mission | undefined {
   const m = currentMission(s);
-  return m && s.started[m.id] !== undefined ? m : undefined;
+  return m && (m.auto || s.started[m.id] !== undefined) ? m : undefined;
 }
 
 export function missionState(s: MissionsState, id: MissionId): 'locked' | 'available' | 'active' | 'done' {
   if (s.completed[id]) return 'done';
   if (currentMission(s)?.id !== id) return 'locked';
-  return s.started[id] !== undefined ? 'active' : 'available';
+  return s.started[id] !== undefined || missionById(id)?.auto ? 'active' : 'available';
 }
 
 export function startMission(s: MissionsState, id: unknown, now: number): { ok: true } | { status: 404 | 409; error: string } {
@@ -130,7 +131,7 @@ function events(v: unknown): TurnEnd[] {
 export function sanitize(raw: unknown): MissionsState {
   const s = emptyState();
   const j = raw as Record<string, unknown> | null;
-  if (!j || typeof j !== 'object' || j.version !== 1) return s;
+  if (!j || typeof j !== 'object' || (j.version !== 1 && j.version !== 2)) return s;
   const started = (j.started ?? {}) as Record<string, unknown>;
   for (const m of MISSIONS) if (num(started[m.id])) s.started[m.id] = started[m.id] as number;
   const completed = (j.completed ?? {}) as Record<string, { at?: unknown; by?: unknown } | undefined>;
@@ -150,7 +151,19 @@ export function sanitize(raw: unknown): MissionsState {
   s.messages = events(j.messages);
   if (Array.isArray(j.days)) s.days = [...new Set(j.days.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-MAX_DAYS);
   if (Array.isArray(j.celebrate)) s.celebrate = [...new Set(j.celebrate.filter(isId))].filter((id) => !!s.completed[id]);
+  if (j.version === 1) migrateV1(s);
   return s;
+}
+
+/**
+ * v1 → v2: a Missão 0 (conta do Claude) passou a vir antes de tudo. Quem já concluiu alguma missão claramente já
+ * tinha a conta conectada: a 0 entra como concluída na data da primeira conclusão, sem pagar nem comemorar.
+ */
+function migrateV1(s: MissionsState): void {
+  const ats = Object.values(s.completed).map((c) => c!.at);
+  if (!ats.length || s.completed['conta-claude']) return;
+  s.completed['conta-claude'] = { at: Math.min(...ats), by: 'auto' };
+  if (!s.wallet.credited.includes('conta-claude')) s.wallet.credited.push('conta-claude');
 }
 
 export class MissionsStore {

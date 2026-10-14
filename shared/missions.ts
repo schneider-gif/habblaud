@@ -1,7 +1,7 @@
 // Missões no escritório (quadro de missões): o que o servidor manda para o quadro (GET /api/missions).
 // Uma missão por vez: as seguintes ficam trancadas (silhueta + "?") até a atual ser concluída.
 
-export type MissionId = 'primeiro-site' | 'peca-melhoria' | 'jogo-pixel' | 'leve-github' | 'api-banco';
+export type MissionId = 'conta-claude' | 'primeiro-site' | 'peca-melhoria' | 'jogo-pixel' | 'leve-github' | 'api-banco';
 
 /**
  * - locked: ainda não liberada (o quadro só mostra a silhueta, sem título nem objetivo);
@@ -31,7 +31,7 @@ export interface MissionView {
   goal?: string;
   /** Exemplo de pedido, mostrado só se a pessoa abrir "exemplo". */
   example?: string;
-  /** Pasta do projeto da missão (~/projetos/<slug>). */
+  /** Pasta do projeto da missão (~/projetos/<slug>; "~" na Missão 0). */
   project?: string;
   /** Passos conferidos (missão ativa). */
   steps?: MissionStep[];
@@ -60,6 +60,8 @@ export interface MissionsView {
   streak: number;
   /** Concluídas cuja comemoração ainda não foi vista (POST /api/missions/:id/seen). */
   celebrate: MissionId[];
+  /** A conta do Claude estava conectada e saiu (deslogou): aviso no quadro, sem desfazer missões. */
+  authLost?: boolean;
 }
 
 /** Resposta de POST /api/missions/:id/start. */
@@ -69,5 +71,6 @@ export interface MissionStartResult {
   project: string;
   /** Agente da missão: aberto agora ("ok"), já presente na pasta ("reused") ou nenhum. */
   agentId?: string;
-  spawn: 'ok' | 'reused' | 'unavailable' | 'failed';
+  /** skipped: a missão não abre agente (Missão 0, login). */
+  spawn: 'ok' | 'reused' | 'unavailable' | 'failed' | 'skipped';
 }

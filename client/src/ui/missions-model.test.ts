@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MissionsView, MissionView } from '../../../shared/missions';
-import { boardHint, confetti, currentMission, levelProgress, parseMissionsView, stepsText } from './missions-model';
+import { boardHint, confetti, currentMission, kicker, levelProgress, parseMissionsView, stepsText } from './missions-model';
 
 const m = (n: number, state: MissionView['state'], extra: Partial<MissionView> = {}): MissionView => ({
   id: (['primeiro-site', 'peca-melhoria', 'jogo-pixel', 'leve-github', 'api-banco'] as const)[n - 1],
@@ -41,6 +41,21 @@ describe('modelo do quadro de missões', () => {
     expect(boardHint(view(['available', 'locked']))).toBe('📋 Missão nova: Missão 1');
     expect(boardHint(view(['done', 'active']))).toBe('📋 Missão 2 em andamento');
     expect(boardHint(view(['done', 'done']))).toBeUndefined();
+  });
+
+  it('conta do Claude que saiu vira o balão (aviso, sem bloquear)', () => {
+    expect(boardHint(view(['done', 'done'], { authLost: true }))).toBe('⚠ Sua conta do Claude saiu — conecte de novo');
+  });
+
+  it('balão da Missão 0 chama para o login', () => {
+    const v = view(['active', 'locked']);
+    v.missions[0] = { ...v.missions[0], number: 0, title: 'Conecte sua conta do Claude' };
+    expect(boardHint(v)).toBe('📋 Primeiro passo: Conecte sua conta do Claude');
+  });
+
+  it('título da missão: a 0 é preparação', () => {
+    expect(kicker(m(1, 'active', { number: 0 }), 6)).toBe('Missão 0 · preparação · em andamento');
+    expect(kicker(m(2, 'available'), 6)).toBe('Missão 2 de 5');
   });
 
   it('passos conferidos', () => {

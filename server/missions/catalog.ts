@@ -20,8 +20,10 @@ export interface Mission {
   number: number;
   coins: number;
   xp: number;
-  /** Pasta em ~/projetos onde o "Começar" abre o agente. */
-  project: string;
+  /** Pasta em ~/projetos onde o "Começar" abre o agente; null = o próprio HOME (Missão 0, sem projeto). */
+  project: string | null;
+  /** Ativa sozinha, sem "Começar" (a detecção roda desde o primeiro momento). */
+  auto?: boolean;
   text: { pt: MissionText } & Partial<Record<'en' | 'es', MissionText>>;
 }
 
@@ -31,6 +33,23 @@ export const PROJECTS_DIRNAME = 'projetos';
 export const PROJECT_SLUG_RE = /^[a-z0-9-]{2,40}$/;
 
 export const MISSIONS: readonly Mission[] = [
+  {
+    // Preparação, não criatividade: aqui os passos podem ser concretos.
+    id: 'conta-claude',
+    number: 0,
+    coins: 50,
+    xp: 50,
+    project: null,
+    auto: true,
+    text: {
+      pt: {
+        title: 'Conecte sua conta do Claude',
+        why: 'Sem isso os agentes não conseguem trabalhar.',
+        goal: '1) Abra o terminal do seu escritório (no VS Code: menu Terminal › Novo terminal). 2) Rode claude e escolha o login: a sua conta Claude Pro/Max (abre um link no navegador) ou uma chave de API da Anthropic. 3) Volte aqui: o quadro confere sozinho. Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.',
+        example: 'No terminal: claude → escolha "Claude account with subscription" e abra o link, ou "Anthropic Console account" para usar uma chave de API.',
+      },
+    },
+  },
   {
     id: 'primeiro-site',
     number: 1,

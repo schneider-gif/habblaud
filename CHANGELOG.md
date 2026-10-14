@@ -12,8 +12,8 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
-- **Missões no escritório.** Um quadro de cortiça na recepção abre o quadro de missões: uma por vez (Seu primeiro
-  site, Peça uma melhoria, Um jogo em pixel art, Leve para o GitHub, Uma API com banco), cada uma com um objetivo
+- **Missões no escritório.** Um quadro de cortiça na recepção abre o quadro de missões: uma por vez (Conecte sua
+  conta do Claude, que se conclui sozinha para quem já tem login, Seu primeiro site, Peça uma melhoria, Um jogo em pixel art, Leve para o GitHub, Uma API com banco), cada uma com um objetivo
   (nunca um pedido pronto) e um exemplo escondido. **Começar missão** cria a pasta em `~/projetos` e abre um agente
   lá com a caixa de mensagem vazia. A conclusão é detectada sozinha (ou pelo botão **Concluí**), solta confete em
   pixel, sem som, paga moedas na **Caixa do escritório** (uma vez por missão) e libera a próxima. XP, nível e dias

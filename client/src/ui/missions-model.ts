@@ -24,10 +24,18 @@ export function currentMission(v: MissionsView): MissionView | undefined {
 
 /** Balão sobre o quadro de cortiça da recepção (undefined = nada a dizer). */
 export function boardHint(v: MissionsView): string | undefined {
+  if (v.authLost) return '⚠ Sua conta do Claude saiu — conecte de novo';
   if (v.celebrate.length) return '🏆 Missão concluída!';
   const c = currentMission(v);
   if (!c) return undefined;
+  if (c.number === 0) return `📋 Primeiro passo: ${c.title ?? 'conecte sua conta do Claude'}`;
   return c.state === 'available' ? `📋 Missão nova: ${c.title ?? `nº ${c.number}`}` : `📋 Missão ${c.number} em andamento`;
+}
+
+/** "Missão 2 de 5" ou "Missão 0 · preparação" (a 0 é o login, antes das missões de criação). */
+export function kicker(m: MissionView, total: number): string {
+  const base = m.number === 0 ? 'Missão 0 · preparação' : `Missão ${m.number} de ${total - 1}`;
+  return m.state === 'active' ? `${base} · em andamento` : base;
 }
 
 export function stepsText(m: MissionView): string {

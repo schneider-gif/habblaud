@@ -380,7 +380,9 @@ chega à mesa; pular para outro ponto mostra todos já no lugar.
 ### Missões
 
 Na parede da recepção há um **quadro de cortiça**: clique nele (ou no balão "Missão nova") para abrir o quadro de
-missões, no canto do escritório. É um jogo curto para aprender criando: uma missão por vez, as próximas aparecem só
+missões, no canto do escritório. A primeira, **Conecte sua conta do Claude**, mostra o passo a passo do login
+(`claude` no terminal, com a sua conta Pro/Max ou chave de API; o uso é cobrado direto pela Anthropic) e se conclui
+sozinha quando o escritório acha o login; se a conta sair depois, o quadro avisa. Depois vem um jogo curto para aprender criando: uma missão por vez, as próximas aparecem só
 como silhueta com "?". Cada missão diz o **objetivo**, não o pedido: o exemplo fica atrás de "▸ exemplo".
 **Começar missão** cria a pasta em `~/projetos` e abre um agente lá, com o cursor na caixa de mensagem para você
 escrever o seu pedido. O escritório confere sozinho quando a missão termina (arquivos da pasta, fim do turno do

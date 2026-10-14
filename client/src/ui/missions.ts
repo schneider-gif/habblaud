@@ -5,7 +5,7 @@
 import type { MissionsView, MissionStartResult, MissionView } from '../../../shared/missions';
 import type { UiComponent, UiContext } from './context';
 import { h, prefersReducedMotion, setHidden, setText } from './dom';
-import { boardHint, confetti, currentMission, levelProgress, parseMissionsView, stepsText } from './missions-model';
+import { boardHint, confetti, currentMission, kicker, levelProgress, parseMissionsView, stepsText } from './missions-model';
 
 const URL_BASE = '/api/missions';
 const POLL_MS = 10_000;
@@ -139,6 +139,15 @@ export class MissionBoard implements UiComponent {
     }
   }
 
+  private async recheck(): Promise<void> {
+    this.busy = true;
+    this.ctx.invalidate();
+    await this.load();
+    this.busy = false;
+    this.ctx.invalidate();
+    if (this.view && currentMission(this.view)?.number === 0) this.ctx.notify('Ainda não achei o login do Claude nesta máquina. Rode claude no terminal e entre com a sua conta.', 'warn');
+  }
+
   /** O agente da missão chegou: seleciona, abre o terminal e põe o cursor na caixa de mensagem (vazia). */
   private focusPending(): void {
     const p = this.pending;
@@ -223,7 +232,10 @@ export class MissionBoard implements UiComponent {
     const key = JSON.stringify([v, this.busy, this.confirming, this.exampleOf, min]);
     if (key === this.drawn || min) return;
     this.drawn = key;
-    this.body.replaceChildren(this.progressRow(v), this.track(v), this.card(v));
+    const lost = v.authLost
+      ? h('div', { class: 'ui-missions__lost', role: 'status' }, h('b', { text: '⚠ Sua conta do Claude saiu — conecte de novo.' }), ' Rode claude no terminal e faça o login; suas missões continuam aqui.')
+      : null;
+    this.body.replaceChildren(...[lost, this.progressRow(v), this.track(v), this.card(v)].filter((x): x is HTMLElement => !!x));
   }
 
   private progressRow(v: MissionsView): HTMLElement {
@@ -269,11 +281,13 @@ export class MissionBoard implements UiComponent {
       ? h('ul', { class: 'ui-missions__steps' }, ...m.steps.map((s) => h('li', { class: s.ok ? 'is-ok' : '', text: `${s.ok ? '☑' : '☐'} ${s.label}` })))
       : null;
     const actions: HTMLElement[] = [];
+    // Missão 0 (login): nada a abrir daqui; o botão só confere de novo (o GET confere a credencial na hora).
+    const login = m.project === '~';
     const go = h('button', {
       class: 'ui-missions__go',
       type: 'button',
-      text: this.busy ? 'Um instante…' : m.state === 'available' ? '▶ Começar missão' : '▶ Ir para o agente da missão',
-      on: { click: () => void this.start(m) },
+      text: this.busy ? 'Um instante…' : login ? '↻ Já fiz login: conferir' : m.state === 'available' ? '▶ Começar missão' : '▶ Ir para o agente da missão',
+      on: { click: () => void (login ? this.recheck() : this.start(m)) },
     });
     go.disabled = this.busy;
     actions.push(go);
@@ -295,7 +309,7 @@ export class MissionBoard implements UiComponent {
     return h(
       'article',
       { class: `ui-missions__card is-${m.state}` },
-      h('div', { class: 'ui-missions__kicker', text: `Missão ${m.number} de ${v.missions.length}${m.state === 'active' ? ' · em andamento' : ''}` }),
+      h('div', { class: 'ui-missions__kicker', text: kicker(m, v.missions.length) }),
       h('h3', { class: 'ui-missions__name', text: m.title ?? '' }),
       h('p', { class: 'ui-missions__why', text: m.why ?? '' }),
       h('div', { class: 'ui-missions__goal' }, h('b', { text: 'Objetivo: ' }), m.goal ?? ''),
@@ -324,7 +338,7 @@ export class MissionBoard implements UiComponent {
   private syncBalloon(): void {
     const v = this.view;
     const hint = v ? boardHint(v) : undefined;
-    const want = !!hint && (this.ctx.prefs.missionsMinimized || !!v?.celebrate.length || currentMission(v!)?.state === 'available');
+    const want = !!hint && (this.ctx.prefs.missionsMinimized || !!v?.celebrate.length || !!v?.authLost || currentMission(v!)?.state === 'available' || currentMission(v!)?.number === 0);
     if (!want) {
       setHidden(this.balloon, true);
       if (this.raf) cancelAnimationFrame(this.raf);

@@ -36,6 +36,8 @@ export interface Facts {
   db: boolean;
   /** Algum projeto de ~/projetos com remoto do GitHub (e push feito). */
   github?: { remote: boolean; pushed: boolean; project?: string };
+  /** Credencial do Claude Code encontrada nesta máquina (auth.ts). */
+  auth?: boolean;
   /** Portas TCP escutando por processos com a pasta dentro do projeto (Linux, /proc). Só informação. */
   ports?: readonly number[];
 }
@@ -88,6 +90,14 @@ export function detect(id: MissionId, f: Facts): Detection {
   const where = `~/projetos/${slug(f.dir)}`;
   const finish = (steps: MissionStep[], info?: string): Detection => ({ done: steps.every((s) => s.ok), steps, ...(info ? { info } : {}) });
   switch (id) {
+    case 'conta-claude': {
+      // Credencial nos arquivos/variáveis do Claude Code, ou um agente que já terminou um turno (login no Keychain).
+      const worked = f.turns.some((t) => t.at >= f.startedAt);
+      return finish(
+        [{ label: 'Login feito no Claude Code (conta Pro/Max ou chave de API)', ok: !!f.auth || worked }],
+        worked && !f.auth ? 'Um agente já trabalhou aqui: a conta está conectada.' : undefined,
+      );
+    }
     case 'primeiro-site':
       return finish([
         { label: `Pasta ${where} criada`, ok: f.exists },

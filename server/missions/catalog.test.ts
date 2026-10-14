@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { levelFor, MISSIONS, missionById, PROJECT_SLUG_RE } from './catalog';
 
 describe('catálogo das missões', () => {
-  it('cinco missões em ordem, com moedas e XP', () => {
+  it('seis missões em ordem (a 0 é a conta do Claude), com moedas e XP', () => {
     expect(MISSIONS.map((m) => [m.number, m.id, m.coins])).toEqual([
+      [0, 'conta-claude', 50],
       [1, 'primeiro-site', 100],
       [2, 'peca-melhoria', 100],
       [3, 'jogo-pixel', 150],
@@ -24,7 +25,9 @@ describe('catálogo das missões', () => {
   });
 
   it('pastas dos projetos: slug válido em ~/projetos', () => {
-    for (const m of MISSIONS) expect(PROJECT_SLUG_RE.test(m.project)).toBe(true);
+    for (const m of MISSIONS) if (m.project !== null) expect(PROJECT_SLUG_RE.test(m.project)).toBe(true);
+    // Missão 0: no HOME, sem pasta de projeto
+    expect(missionById('conta-claude')?.project).toBeNull();
     expect(missionById('peca-melhoria')?.project).toBe(missionById('primeiro-site')?.project);
   });
 
@@ -34,6 +37,7 @@ describe('catálogo das missões', () => {
 
   it('missionById só aceita ids conhecidos', () => {
     expect(missionById('api-banco')?.number).toBe(5);
+    expect(missionById('conta-claude')?.number).toBe(0);
     expect(missionById('x')).toBeUndefined();
     expect(missionById(undefined)).toBeUndefined();
     expect(missionById('__proto__')).toBeUndefined();
@@ -46,5 +50,16 @@ describe('catálogo das missões', () => {
     const max = levelFor(1_000_000);
     expect(max.next).toBeUndefined();
     expect(max.name.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Missão 0', () => {
+  it('passos concretos, conta própria e aviso de não afiliação; ativa sozinha', () => {
+    const m = missionById('conta-claude')!;
+    expect(m.text.pt.title).toBe('Conecte sua conta do Claude');
+    expect(m.text.pt.why).toBe('Sem isso os agentes não conseguem trabalhar.');
+    expect(m.text.pt.goal).toContain('claude');
+    expect(m.text.pt.goal).toContain('Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.');
+    expect(m.auto).toBe(true);
   });
 });

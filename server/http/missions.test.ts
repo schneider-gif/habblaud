@@ -24,7 +24,7 @@ afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-async function start(opts: { terminal?: boolean; spawn?: boolean } = {}) {
+async function start(opts: { terminal?: boolean; spawn?: boolean; auth?: boolean } = {}) {
   const tmp = tempDir();
   const dir = join(tmp.dir, '.claude');
   mkdirSync(join(dir, 'sessions'), { recursive: true });
@@ -37,8 +37,11 @@ async function start(opts: { terminal?: boolean; spawn?: boolean } = {}) {
     files: async () => ({ exists: true, index: false, canvas: false, api: false, db: false }),
     github: async () => ({ remote: false, pushed: false }),
     ports: async (dirs: readonly string[]) => new Map(dirs.map((d) => [d, [] as number[]])),
+    auth: async () => ({ connected: opts.auth ?? true }),
   };
-  const engine = new MissionsEngine({ store: new MissionsStore(null), projectsDir, probe });
+  const engine = new MissionsEngine({ store: new MissionsStore(null), projectsDir, home: tmp.dir, probe });
+  // Conta do Claude já conectada: a Missão 0 se conclui sozinha na primeira conferência.
+  if ((opts.auth ?? true) === true) await engine.evaluate();
   const spawn = vi.fn(async (cwd: unknown) => ({ session: 's', cwd: String(cwd), pid: 321 }));
   const send = vi.fn(async () => {});
   const input = { available: async () => true, send, folders: async () => [], home: async () => tmp.dir, spawn } as unknown as AgentInput;
@@ -105,7 +108,15 @@ describe('/api/missions', () => {
     const r = await req(base, 'GET', '/api/missions');
     expect(r.status).toBe(200);
     const v = r.json as MissionsView;
-    expect(v.missions.map((m) => m.state)).toEqual(['available', 'locked', 'locked', 'locked', 'locked']);
+    expect(v.missions.map((m) => m.state)).toEqual(['done', 'available', 'locked', 'locked', 'locked', 'locked']);
+  });
+
+  it('GET confere a Missão 0 na hora: quem já tem login a vê concluída ao abrir o quadro', async () => {
+    const { base } = await start({ auth: false });
+    const before = (await req(base, 'GET', '/api/missions')).json as MissionsView;
+    expect(before.missions[0]).toMatchObject({ id: 'conta-claude', state: 'active' });
+    expect(before.missions[1].state).toBe('locked');
+    expect((await req(base, 'POST', '/api/missions/primeiro-site/start', {})).status).toBe(409);
   });
 
   it('trava: desligada sem bind local; Host de rede, Origin de fora e corpo sem JSON são barrados', async () => {
@@ -129,7 +140,7 @@ describe('/api/missions', () => {
     expect(JSON.stringify(j)).not.toContain('prefill');
     expect(spawn).toHaveBeenCalledWith(join(projectsDir, 'meu-site'));
     expect(existsSync(join(projectsDir, 'meu-site'))).toBe(true);
-    expect(j.view.missions[0].state).toBe('active');
+    expect(j.view.missions[1].state).toBe('active');
   });
 
   it('Começar com um agente já na pasta: reaproveita, sem abrir outro', async () => {
@@ -148,6 +159,14 @@ describe('/api/missions', () => {
     expect(r.json.agentId).toBeUndefined();
   });
 
+  it('Missão 0 não abre agente (login no tmux ficaria invisível)', async () => {
+    const { base, spawn } = await start({ auth: false });
+    const r = await req(base, 'POST', '/api/missions/conta-claude/start', {});
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ spawn: 'skipped' });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it('trancada: 409; desconhecida: 404', async () => {
     const { base } = await start();
     expect((await req(base, 'POST', '/api/missions/jogo-pixel/start', {})).status).toBe(409);
@@ -161,11 +180,12 @@ describe('/api/missions', () => {
     expect((await req(base, 'POST', '/api/missions/primeiro-site/complete', {})).status).toBe(400);
     const ok = await req(base, 'POST', '/api/missions/primeiro-site/complete', { confirm: true });
     expect(ok.status).toBe(200);
-    expect(ok.json).toMatchObject({ coins: 100, view: { wallet: { coins: 100 }, celebrate: ['primeiro-site'] } });
+    expect(ok.json).toMatchObject({ coins: 100, view: { wallet: { coins: 150 } } });
+    expect(ok.json.view.celebrate).toContain('primeiro-site');
     expect((await req(base, 'POST', '/api/missions/primeiro-site/complete', { confirm: true })).status).toBe(409);
     const seen = await req(base, 'POST', '/api/missions/primeiro-site/seen', {});
     expect(seen.status).toBe(200);
-    expect(seen.json.view.celebrate).toEqual([]);
+    expect(seen.json.view.celebrate).not.toContain('primeiro-site');
   });
 
   it('mensagem pelo escritório vira fato da Missão 2', async () => {

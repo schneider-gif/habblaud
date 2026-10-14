@@ -3,22 +3,28 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setQuiet } from '../log';
 import { tempDir } from '../test/fixtures';
-import { activeMission, completeMission, currentMission, dayKey, emptyState, markSeen, MissionsStore, missionState, recordMessage, recordTurns, startMission, streak } from './store';
+import { activeMission, completeMission, currentMission, dayKey, emptyState, markSeen, MissionsStore, missionState, recordMessage, recordTurns, sanitize, startMission, streak } from './store';
 
 setQuiet(true);
+/** Estado com a Missão 0 (conta do Claude) já concluída. */
+const fresh = () => {
+  const s = emptyState();
+  s.completed['conta-claude'] = { at: 0, by: 'auto' };
+  return s;
+};
 let tmp: ReturnType<typeof tempDir> | undefined;
 afterEach(() => tmp?.cleanup());
 
 describe('ordem e estados', () => {
   it('só a primeira não concluída fica liberada; o resto trancado', () => {
-    const s = emptyState();
+    const s = fresh();
     expect(currentMission(s)?.id).toBe('primeiro-site');
     expect(missionState(s, 'primeiro-site')).toBe('available');
     expect(missionState(s, 'peca-melhoria')).toBe('locked');
     expect(activeMission(s)).toBeUndefined();
   });
   it('começar: só a liberada; trancada → 409; desconhecida → 404', () => {
-    const s = emptyState();
+    const s = fresh();
     expect(startMission(s, 'peca-melhoria', 1)).toEqual({ status: 409, error: expect.any(String) });
     expect(startMission(s, 'nao-existe', 1)).toEqual({ status: 404, error: expect.any(String) });
     expect(startMission(s, 'primeiro-site', 5)).toEqual({ ok: true });
@@ -29,7 +35,7 @@ describe('ordem e estados', () => {
     expect(s.started['primeiro-site']).toBe(5);
   });
   it('concluir libera a próxima, paga moedas e XP', () => {
-    const s = emptyState();
+    const s = fresh();
     startMission(s, 'primeiro-site', 1);
     expect(completeMission(s, 'primeiro-site', 10, 'auto')).toBe(100);
     expect(missionState(s, 'primeiro-site')).toBe('done');
@@ -40,7 +46,7 @@ describe('ordem e estados', () => {
     expect(s.wallet.ledger).toEqual([{ at: 10, delta: 100, mission: 'primeiro-site', text: 'Missão 1: Seu primeiro site' }]);
   });
   it('crédito idempotente por missão: concluir de novo não paga', () => {
-    const s = emptyState();
+    const s = fresh();
     startMission(s, 'primeiro-site', 1);
     completeMission(s, 'primeiro-site', 10, 'auto');
     expect(completeMission(s, 'primeiro-site', 11, 'manual')).toBe(0);
@@ -52,13 +58,13 @@ describe('ordem e estados', () => {
     expect(s.wallet.ledger).toHaveLength(1);
   });
   it('não conclui missão que não está ativa (trancada ou não começada)', () => {
-    const s = emptyState();
+    const s = fresh();
     expect(completeMission(s, 'primeiro-site', 1, 'manual')).toBe(0);
     expect(completeMission(s, 'jogo-pixel', 1, 'manual')).toBe(0);
-    expect(s.completed).toEqual({});
+    expect(s.completed['primeiro-site']).toBeUndefined();
   });
   it('comemoração pendente até ser vista', () => {
-    const s = emptyState();
+    const s = fresh();
     startMission(s, 'primeiro-site', 1);
     completeMission(s, 'primeiro-site', 2, 'auto');
     expect(s.celebrate).toEqual(['primeiro-site']);
@@ -69,7 +75,7 @@ describe('ordem e estados', () => {
 
 describe('registros da detecção', () => {
   it('fins de turno e mensagens só com missão ativa, com limite', () => {
-    const s = emptyState();
+    const s = fresh();
     recordTurns(s, [{ agentId: 'a', dir: '/d', at: 1 }]);
     recordMessage(s, { agentId: 'a', dir: '/d', at: 1 });
     expect(s.turns).toEqual([]);
@@ -94,7 +100,7 @@ describe('sequência de dias', () => {
     expect(dayKey(new Date(2026, 9, 4, 23, 59).getTime())).toBe('2026-10-04');
   });
   it('começar e concluir marcam o dia', () => {
-    const s = emptyState();
+    const s = fresh();
     const t = new Date(2026, 9, 14, 12).getTime();
     startMission(s, 'primeiro-site', t);
     expect(s.days).toEqual(['2026-10-14']);
@@ -108,10 +114,11 @@ describe('MissionsStore (missions.json)', () => {
     const a = new MissionsStore(file);
     a.load();
     a.update((s) => {
+      s.completed['conta-claude'] = { at: 0, by: 'auto' };
       startMission(s, 'primeiro-site', 1);
       completeMission(s, 'primeiro-site', 2, 'auto');
     });
-    expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(1);
+    expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(2);
     const b = new MissionsStore(file);
     b.load();
     expect(b.get().completed['primeiro-site']).toEqual({ at: 2, by: 'auto' });
@@ -138,14 +145,59 @@ describe('MissionsStore (missions.json)', () => {
     a.load();
     const s = a.get();
     expect(s.started).toEqual({});
-    expect(s.completed).toEqual({ 'primeiro-site': { at: 5, by: 'auto' } });
+    // v1 com a Missão 1 concluída: a Missão 0 entra como concluída (sem pagar nem comemorar)
+    expect(s.completed).toEqual({ 'conta-claude': { at: 5, by: 'auto' }, 'primeiro-site': { at: 5, by: 'auto' } });
+    expect(s.wallet.coins).toBe(0);
+    expect(s.celebrate).toEqual([]);
     expect(s.wallet.coins).toBe(0);
     expect(s.xp).toBe(0);
   });
   it('sem arquivo (null): só memória', () => {
     const a = new MissionsStore(null);
     a.load();
-    a.update((s) => void startMission(s, 'primeiro-site', 1));
-    expect(a.get().started['primeiro-site']).toBe(1);
+    a.update((s) => void startMission(s, 'conta-claude', 1));
+    expect(a.get().started['conta-claude']).toBe(1);
+  });
+});
+
+describe('Missão 0: conta do Claude', () => {
+  it('é a primeira, já ativa sem "Começar" (a detecção roda desde o início) e tranca a Missão 1', () => {
+    const s = emptyState();
+    expect(currentMission(s)?.id).toBe('conta-claude');
+    expect(missionState(s, 'conta-claude')).toBe('active');
+    expect(activeMission(s)?.id).toBe('conta-claude');
+    expect(missionState(s, 'primeiro-site')).toBe('locked');
+    expect(startMission(s, 'primeiro-site', 1)).toMatchObject({ status: 409 });
+  });
+  it('paga 50 e libera a Missão 1', () => {
+    const s = emptyState();
+    expect(completeMission(s, 'conta-claude', 3, 'auto')).toBe(50);
+    expect(missionState(s, 'primeiro-site')).toBe('available');
+  });
+});
+
+describe('migração do missions.json v1 → v2', () => {
+  it('v1 sem nada concluído: só sobe a versão; a Missão 0 vira a da vez', () => {
+    const s = sanitize({ version: 1, started: { 'primeiro-site': 4 } });
+    expect(s.version).toBe(2);
+    expect(s.completed).toEqual({});
+    expect(s.started['primeiro-site']).toBe(4);
+    expect(currentMission(s)?.id).toBe('conta-claude');
+  });
+  it('v1 com missões concluídas: Missão 0 concluída na data da primeira, sem moedas', () => {
+    const s = sanitize({
+      version: 1,
+      completed: { 'primeiro-site': { at: 9, by: 'auto' }, 'peca-melhoria': { at: 20, by: 'manual' } },
+      wallet: { coins: 200, credited: ['primeiro-site', 'peca-melhoria'], ledger: [] },
+      xp: 200,
+    });
+    expect(s.completed['conta-claude']).toEqual({ at: 9, by: 'auto' });
+    expect(s.wallet.credited).toContain('conta-claude');
+    expect(s.wallet.coins).toBe(200);
+    expect(currentMission(s)?.id).toBe('jogo-pixel');
+  });
+  it('v2 é lido como está', () => {
+    const s = sanitize({ version: 2, completed: { 'primeiro-site': { at: 9, by: 'auto' } } });
+    expect(s.completed['conta-claude']).toBeUndefined();
   });
 });

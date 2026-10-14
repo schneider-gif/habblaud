@@ -1,13 +1,14 @@
 // Motor das missões: acompanha os snapshots do escritório (fins de turno), as mensagens mandadas pelo escritório e,
 // só enquanto há missão ativa, confere a cada 30 s os arquivos/git do projeto. Concluir paga a recompensa uma vez.
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { MissionId, MissionsView, MissionView } from '../../shared/missions';
 import type { AgentStatus, OfficeSnapshot } from '../../shared/types';
 import { errMsg, log } from '../log';
 import { listeningPortsByDir } from '../projects/ports';
 import { levelFor, MISSIONS, missionById, type Mission } from './catalog';
 import { detect, emptyFacts, inside, turnEnds, type Detection } from './detect';
+import { claudeAuth, type ClaudeAuth } from './auth';
 import { fileFacts, githubFacts, type FileFacts } from './probe';
 import { activeMission, completeMission, dayKey, markSeen, missionState, recordMessage, recordTurns, startMission, streak, type MissionsState, type MissionsStore } from './store';
 
@@ -15,14 +16,23 @@ export interface MissionsProbe {
   files(dir: string): Promise<FileFacts>;
   github(projectsDir: string): Promise<{ remote: boolean; pushed: boolean; project?: string }>;
   ports(dirs: readonly string[]): Promise<Map<string, number[]>>;
+  /** Conta do Claude conectada? (só o sim/não, nunca a credencial). */
+  auth(): Promise<ClaudeAuth>;
 }
 
-export const defaultProbe: MissionsProbe = { files: fileFacts, github: (d) => githubFacts(d), ports: listeningPortsByDir };
+/** Sondas reais: `home`/`configDirs`/`env` dizem onde procurar a credencial do Claude Code. */
+export function defaultProbe(o: { home: string; configDirs: () => readonly string[]; env: NodeJS.ProcessEnv }): MissionsProbe {
+  return { files: fileFacts, github: (d) => githubFacts(d), ports: listeningPortsByDir, auth: () => claudeAuth({ home: o.home, configDirs: o.configDirs(), env: o.env }) };
+}
 
 export interface MissionsEngineDeps {
   store: MissionsStore;
   /** ~/projetos */
   projectsDir: string;
+  /** HOME (pasta da Missão 0); padrão: a pasta acima de projectsDir. */
+  home?: string;
+  /** Config dirs do Claude Code (credenciais da Missão 0); padrão: ~/.claude. */
+  configDirs?: () => readonly string[];
   probe?: MissionsProbe;
   now?: () => number;
   intervalMs?: number;
@@ -42,14 +52,21 @@ export class MissionsEngine {
   private last: { id: MissionId; d: Detection } | null = null;
   private readonly now: () => number;
   private readonly probe: MissionsProbe;
+  private readonly home: string;
+  private authTimer: ReturnType<typeof setInterval> | null = null;
+  /** Credencial vista nesta execução: só então "saiu" faz sentido (no Keychain do macOS nunca se vê). */
+  private authSeen = false;
+  private authOk: boolean | undefined;
 
   constructor(private readonly d: MissionsEngineDeps) {
     this.now = d.now ?? Date.now;
-    this.probe = d.probe ?? defaultProbe;
+    this.home = d.home ?? dirname(d.projectsDir);
+    this.probe = d.probe ?? defaultProbe({ home: this.home, configDirs: d.configDirs ?? (() => [join(this.home, '.claude')]), env: process.env });
   }
 
-  projectDir(slug: string): string {
-    return join(this.d.projectsDir, slug);
+  /** Pasta da missão: ~/projetos/<slug>, ou o HOME (slug null, Missão 0). */
+  projectDir(slug: string | null): string {
+    return slug === null ? this.home : join(this.d.projectsDir, slug);
   }
 
   ingest(snap: OfficeSnapshot): void {
@@ -94,7 +111,8 @@ export class MissionsEngine {
   private async detectActive(m: Mission, s: MissionsState): Promise<Detection> {
     const dir = this.projectDir(m.project);
     const f = { ...emptyFacts(dir, s.started[m.id] ?? 0), turns: s.turns, messages: s.messages };
-    if (m.id === 'leve-github') f.github = await this.probe.github(this.d.projectsDir);
+    if (m.id === 'conta-claude') f.auth = await this.checkAuth();
+    else if (m.id === 'leve-github') f.github = await this.probe.github(this.d.projectsDir);
     else Object.assign(f, await this.probe.files(dir));
     if (m.id === 'api-banco') f.ports = (await this.probe.ports([dir])).get(dir) ?? [];
     return detect(m.id, f);
@@ -126,13 +144,40 @@ export class MissionsEngine {
     this.d.onChange?.();
   }
 
+  private async checkAuth(): Promise<boolean> {
+    let ok = false;
+    try {
+      ok = (await this.probe.auth()).connected;
+    } catch {
+      // sem acesso aos arquivos: trata como não visto
+    }
+    const was = this.authOk;
+    this.authOk = ok;
+    if (ok) this.authSeen = true;
+    if (was !== undefined && was !== ok) this.d.onChange?.();
+    return ok;
+  }
+
+  /** Confere de novo a credencial (aviso "sua conta saiu" no quadro; nunca desfaz missões). */
+  async refreshAuth(): Promise<void> {
+    await this.checkAuth();
+  }
+
+  /** Confere a credencial a cada minuto (leitura de 2–3 arquivos pequenos). */
+  watchAuth(ms = 60_000): void {
+    if (this.authTimer) return;
+    void this.refreshAuth();
+    this.authTimer = setInterval(() => void this.refreshAuth(), ms);
+    this.authTimer.unref?.();
+  }
+
   /** "Começar": cria ~/projetos/<slug> (sem sobrescrever nada) e ativa a missão. */
   async start(id: unknown): Promise<{ ok: true; project: string } | Refusal> {
     const r = this.d.store.update((s) => startMission(s, id, this.now()));
     if (!('ok' in r)) return r;
     const m = missionById(id)!;
     const project = this.projectDir(m.project);
-    await mkdir(project, { recursive: true });
+    if (m.project !== null) await mkdir(project, { recursive: true });
     this.startTimer();
     await this.evaluate();
     return { ok: true, project };
@@ -152,6 +197,16 @@ export class MissionsEngine {
     return { ok: true, coins };
   }
 
+  /**
+   * Quadro para o GET: com a Missão 0 ativa, confere antes (quem já tem login vê a 0 concluída ao abrir o quadro);
+   * depois dela, só relê a credencial (aviso "sua conta saiu"). Leitura de 2–3 arquivos pequenos.
+   */
+  async freshView(): Promise<MissionsView> {
+    if (activeMission(this.d.store.get())?.auto) await this.evaluate();
+    else await this.refreshAuth();
+    return this.view();
+  }
+
   seen(id: unknown): boolean {
     const m = missionById(id);
     if (!m) return false;
@@ -166,7 +221,7 @@ export class MissionsEngine {
       const base: MissionView = { id: m.id, number: m.number, state, coins: m.coins, xp: m.xp };
       if (state === 'locked') return base;
       const t = m.text.pt;
-      const v: MissionView = { ...base, title: t.title, why: t.why, goal: t.goal, example: t.example, project: `~/projetos/${m.project}` };
+      const v: MissionView = { ...base, title: t.title, why: t.why, goal: t.goal, example: t.example, project: m.project === null ? '~' : `~/projetos/${m.project}` };
       if (s.started[m.id] !== undefined) v.startedAt = s.started[m.id];
       const c = s.completed[m.id];
       if (c) Object.assign(v, { doneAt: c.at, doneBy: c.by });
@@ -183,6 +238,7 @@ export class MissionsEngine {
       level: levelFor(s.xp),
       streak: streak(s.days, dayKey(this.now())),
       celebrate: [...s.celebrate],
+      ...(s.completed['conta-claude'] && this.authSeen && this.authOk === false ? { authLost: true } : {}),
     };
   }
 
@@ -195,6 +251,8 @@ export class MissionsEngine {
 
   stop(): void {
     this.stopTimer();
+    if (this.authTimer) clearInterval(this.authTimer);
+    this.authTimer = null;
   }
 
   private stopTimer(): void {

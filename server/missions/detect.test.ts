@@ -96,3 +96,11 @@ describe('Missão 5: Uma API com banco', () => {
     expect(d.info).toBe('Servidor no ar na porta 41873.');
   });
 });
+
+describe('Missão 0: conta do Claude', () => {
+  it('credencial encontrada ou um turno terminado em qualquer pasta (desde sempre)', () => {
+    expect(detect('conta-claude', facts({ startedAt: 0, auth: true })).done).toBe(true);
+    expect(detect('conta-claude', facts({ startedAt: 0, turns: [{ agentId: 'a', dir: '/qualquer', at: 5 }] })).done).toBe(true);
+    expect(detect('conta-claude', facts({ startedAt: 0 })).done).toBe(false);
+  });
+});

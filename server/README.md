@@ -249,10 +249,20 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 
 `missions/catalog.ts` (textos pt-BR, moedas, XP, pasta de cada missão), `missions/detect.ts` (detectores puros),
 `missions/probe.ts` (arquivos e git), `missions/store.ts` (estado e transições), `missions/engine.ts` (motor) e
-`http/missions.ts` (rotas). Cinco missões em ordem; só a primeira não concluída fica liberada (`available`), vira
+`http/missions.ts` (rotas). Seis missões em ordem (a Missão 0, "Conecte sua conta do Claude", vem antes das cinco de criação); só a primeira não concluída fica liberada (`available`), vira
 `active` no "Começar" e as seguintes vão `locked` (o quadro recebe só número e recompensa: silhueta com "?").
 
-- **Estado:** `<dataDir>/missions.json` (`version: 1`, temporário + `rename`); campos tortos são descartados e um
+- **Missão 0 (conta do Claude):** ativa sozinha (sem "Começar", que nela não abre agente: um `claude` sem login no
+  tmux ficaria preso na tela de login). `missions/auth.ts` procura a credencial onde o Claude Code 2.x a guarda no
+  Linux (conferido no binário 2.1.299): `<config>/.credentials.json` com `claudeAiOauth` (Pro/Max), `primaryApiKey`
+  no `~/.claude.json` (ou `<config>/.claude.json`), `apiKeyHelper` no `<config>/settings.json` e
+  `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN`/`ANTHROPIC_AUTH_TOKEN`; `<config>` = cada conta detectada. Um
+  agente que termina um turno também prova o login (no macOS ele fica no Keychain). O `GET /api/missions` confere na
+  hora: quem já tem login vê a 0 concluída ao abrir o quadro. Depois dela, a credencial é relida no GET e a cada minuto:
+  se sumir (logout), o quadro mostra `authLost` ("Sua conta do Claude saiu"), sem desfazer missões. Só sim/não sai do
+  servidor, nunca a credencial.
+- **Estado:** `<dataDir>/missions.json` (`version: 2`; a v1 é migrada: quem já concluiu alguma missão ganha a 0 concluída
+  na data da primeira conclusão, sem moedas nem comemoração), temporário + `rename`); campos tortos são descartados e um
   arquivo ilegível vira `missions.json.corrupt`. A Caixa do escritório guarda as missões já pagas (`credited`): o
   crédito nunca se repete, nem se o registro da conclusão sumir.
 - **Fatos:** fim de turno = agente principal (fora do demo) `working` → `idle`/`shell`/`done`, com a pasta da
