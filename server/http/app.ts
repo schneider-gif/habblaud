@@ -6,7 +6,7 @@ import type { DayStatsService } from '../history/daystats';
 import type { Office } from '../model/office';
 import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
-import { type AgentInput, InputError } from '../input/tmux';
+import { type AgentInput, cleanResumeId, InputError } from '../input/tmux';
 import { cleanProfile, ProfileError } from '../../shared/profile';
 import { type StateStore, StateError } from '../model/state';
 import { handleSessionsRoute } from './sessions';
@@ -56,7 +56,11 @@ const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
 const PROFILE_ROUTE = /^\/api\/agents\/([^/]+)\/profile$/;
 /** Conta do Claude aberto pelo escritório (CLAUDE_CONFIG_DIR padrão: ~/.claude). */
 const SPAWN_ACCOUNT = '.claude';
-/** POST {cwd?, name?, appearance?} /api/agents/new: abre um agente novo no tmux. */
+/**
+ * POST {cwd?, name?, appearance?} /api/agents/new: abre um agente novo no tmux. Com {resume: <sessionId>} retoma uma
+ * sessão encerrada da conta SPAWN_ACCOUNT (`claude --resume`) na pasta original dela, lida do transcript: o `cwd` do
+ * corpo é ignorado. GET devolve {available, folders, home}.
+ */
 const NEW_AGENT_ROUTE = '/api/agents/new';
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
 const TERMINAL_ROUTE = /^\/api\/agents\/([^/]+)\/terminal$/;
@@ -243,15 +247,30 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else if (!isLoopbackHost(req.headers.host)) {
         sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else if (!inputMatch) {
-        if (isRead) input.folders().then((folders) => sendJson(res, 200, { available: true, folders }), (err) => fail(res, err));
+        if (isRead)
+          Promise.all([input.folders(), input.home()]).then(([folders, home]) => sendJson(res, 200, { available: true, folders, home }), (err) => fail(res, err));
         else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
         else
           readJson(req)
             .then(async (body) => {
+              const b = (body ?? {}) as { cwd?: unknown; resume?: unknown };
               const profile = cleanProfile(body ?? {});
-              const r = await input.spawn((body as { cwd?: unknown } | undefined)?.cwd);
-              if (r.pid && (profile.name || profile.appearance)) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
-              return r;
+              const resume = cleanResumeId(b.resume);
+              if (resume === undefined) {
+                const r = await input.spawn(b.cwd);
+                if (r.pid && (profile.name || profile.appearance)) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
+                return r;
+              }
+              // Retomar: só sessões da conta que o spawn usa (o claude aberto aqui lê ~/.claude), na pasta do transcript.
+              if (!deps.sessions) throw new InputError(403, 'histórico de sessões desligado neste escritório');
+              const target = await deps.sessions.resumeTarget(SPAWN_ACCOUNT, resume);
+              if ('error' in target) throw new InputError(target.status, target.error);
+              const r = await input.spawn(target.cwd, { resume });
+              if (r.pid) {
+                office.setPendingResume(`${SPAWN_ACCOUNT}:${r.pid}`, resume);
+                if (profile.name || profile.appearance) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
+              }
+              return { ...r, resumed: resume };
             })
             .then((r) => sendJson(res, 201, { ok: true, ...r }))
             .catch((err) => failInput(res, err));

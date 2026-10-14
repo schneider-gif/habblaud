@@ -4409,6 +4409,17 @@
   display: grid;
 }
 
+/* Selo "envia mensagens" (agente no tmux): mesmo formato do "somente leitura", na cor de destaque. */
+.ui-term__ro--send {
+  background: var(--ui-accent-soft);
+  border-color: rgba(200, 255, 50, 0.4);
+  color: var(--ui-accent);
+}
+
+.ui-term__ro[hidden] {
+  display: none;
+}
+
 .ui-term__ro-icon .ui-px-icon {
   width: 8px;
   height: 9px;
@@ -4833,7 +4844,25 @@ button.ui-term__think:hover,
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--ui-line-strong);
+  cursor: text;
+}
+
+/* Sem .can-send a caixa só lê: o cursor diz isso (e Enter/clique mostram o porquê num aviso). */
+.ui-term:not(.can-send) .ui-term__prompt,
+.ui-term:not(.can-send) .ui-term__input {
   cursor: not-allowed;
+}
+
+.ui-term.can-send .ui-term__prompt {
+  border-color: rgba(200, 255, 50, 0.35);
+}
+
+.ui-term.can-send .ui-term__prompt:focus-within {
+  border-color: rgba(200, 255, 50, 0.7);
+}
+
+.ui-term.can-send .ui-term__input {
+  color: var(--ui-text);
 }
 
 .ui-term__caret {
@@ -4851,7 +4880,7 @@ button.ui-term__think:hover,
   font: inherit;
   color: var(--ui-muted);
   text-overflow: ellipsis;
-  cursor: not-allowed;
+  cursor: text;
 }
 
 .ui-term__input::placeholder {
@@ -5351,6 +5380,39 @@ button.ui-term__think:hover,
   padding: 7px 10px;
   border-radius: 7px;
   transition: background-color 0.12s;
+}
+
+/* Linha do histórico: a sessão (botão que abre a conversa) e, se encerrada, o "Retomar" ao lado. */
+.ui-hist__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-hist__row > .ui-hist__item {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-hist__resume {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+.ui-hist__resume.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ui-hist__resume.is-disabled:hover {
+  background: var(--ui-bg-soft);
+  border-color: var(--ui-line-strong);
+}
+
+.ui-hist__resume[aria-busy='true'] {
+  cursor: progress;
 }
 
 .ui-hist__item .ui-acc-chip {

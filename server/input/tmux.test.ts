@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanInput, createAgentInput, InputError, pidOfAgent, tmuxTargetFromEnviron } from './tmux';
+import { claudeShellCommand, cleanInput, cleanResumeId, createAgentInput, InputError, pidOfAgent, tmuxTargetFromEnviron } from './tmux';
 
 const env = (vars: Record<string, string>) => Object.entries(vars).map(([k, v]) => `${k}=${v}`).join('\0') + '\0';
 
@@ -105,5 +105,84 @@ describe('input pelo tmux', () => {
     expect(await input.available('.claude:500')).toBe(true);
     await expect(input.send('.claude-mac:500', 'oi')).rejects.toMatchObject({ status: 409 });
     expect(calls).toEqual([]);
+  });
+
+  const UUID = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+
+  it('cleanResumeId: só UUID estrito (normalizado em minúsculas), nada que o shell possa interpretar', () => {
+    expect(cleanResumeId(undefined)).toBeUndefined();
+    expect(cleanResumeId(null)).toBeUndefined();
+    expect(cleanResumeId(UUID)).toBe(UUID);
+    expect(cleanResumeId(UUID.toUpperCase())).toBe(UUID);
+    for (const bad of [
+      '',
+      'abc',
+      42,
+      {},
+      `${UUID} `,
+      ` ${UUID}`,
+      `${UUID}\n`,
+      `${UUID}; rm -rf ~`,
+      `${UUID}' && id '`,
+      '$(id)',
+      '`id`',
+      '--dangerously-skip-permissions',
+      '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4',
+      '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4dd',
+      '0a1b2c3d_4e5f_4a6b_8c7d_9e0f1a2b3c4d',
+      'g0000000-0000-4000-8000-000000000000',
+    ]) {
+      let err: unknown;
+      try {
+        cleanResumeId(bad);
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(InputError);
+      expect((err as InputError).status).toBe(400);
+    }
+  });
+
+  it('claudeShellCommand: exec claude no shell de login; --resume só com UUID validado', () => {
+    expect(claudeShellCommand()).toBe("bash -lc 'exec claude'");
+    expect(claudeShellCommand(UUID)).toBe(`bash -lc 'exec claude --resume ${UUID}'`);
+    for (const bad of [`x'; id; '`, `${UUID} --print`, '$(id)']) expect(() => claudeShellCommand(bad)).toThrow(InputError);
+  });
+
+  it('spawn com resume: claude --resume <uuid> na pasta, com a mesma checagem de HOME e confiança', async () => {
+    const home = await realpath(await mkdtemp(join(tmpdir(), 'hb-home-')));
+    await mkdir(join(home, 'projeto'));
+    const calls: string[][] = [];
+    const input = createAgentInput({ home, run: async (a) => void calls.push(a), capture: async () => '777\n', now: () => 36 ** 2 });
+    const r = await input.spawn(join(home, 'projeto'), { resume: UUID });
+    expect(r.pid).toBe(777);
+    expect(r.cwd).toBe(join(home, 'projeto'));
+    expect(calls[0]).toEqual(['new-session', '-d', '-s', 'agente-100', '-c', join(home, 'projeto'), `bash -lc 'exec claude --resume ${UUID}'`]);
+    const state = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'));
+    expect(state.projects[r.cwd].hasTrustDialogAccepted).toBe(true);
+
+    // comando trocado (testes/instalações): o --resume vai no fim
+    const custom: string[][] = [];
+    const other = createAgentInput({ home, run: async (a) => void custom.push(a), claudeCommand: 'claude' });
+    await other.spawn('projeto', { resume: UUID });
+    expect(custom[0].at(-1)).toBe(`claude --resume ${UUID}`);
+  });
+
+  it('spawn com resume inválido ou pasta fora do HOME: 400 sem rodar nada nem marcar confiança', async () => {
+    const home = await realpath(await mkdtemp(join(tmpdir(), 'hb-home-')));
+    const outside = await realpath(await mkdtemp(join(tmpdir(), 'hb-fora-')));
+    const calls: string[][] = [];
+    const input = createAgentInput({ home, run: async (a) => void calls.push(a), capture: async () => '1\n' });
+    await expect(input.spawn(home, { resume: `${UUID}; rm -rf ~` })).rejects.toMatchObject({ status: 400 });
+    await expect(input.spawn(home, { resume: 'nao-e-uuid' })).rejects.toMatchObject({ status: 400 });
+    await expect(input.spawn(outside, { resume: UUID })).rejects.toMatchObject({ status: 400 });
+    await expect(input.spawn(join(home, 'sumiu'), { resume: UUID })).rejects.toMatchObject({ status: 400 });
+    expect(calls).toEqual([]);
+    await expect(readFile(join(home, '.claude.json'), 'utf8')).rejects.toThrow();
+  });
+
+  it('home: GET de agente novo informa o HOME para o histórico saber o que dá para retomar', async () => {
+    const home = await realpath(await mkdtemp(join(tmpdir(), 'hb-home-')));
+    expect(await createAgentInput({ home }).home()).toBe(home);
   });
 });

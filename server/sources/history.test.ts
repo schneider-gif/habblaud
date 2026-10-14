@@ -212,6 +212,30 @@ describe('SessionHistory.resolve', () => {
   });
 });
 
+describe('SessionHistory.resumeTarget (Retomar)', () => {
+  it('pasta original da sessão encerrada, lida do transcript (não do pedido)', async () => {
+    const { acc } = setup();
+    const c = acc('.claude');
+    session(c, '/projetos/loja', sid(1), [withCwd(L.prompt('oi', { at: NOW - HOUR }), '/projetos/loja')], NOW - HOUR);
+    expect(await history([c]).resumeTarget('.claude', sid(1))).toEqual({ cwd: '/projetos/loja' });
+  });
+
+  it('id inválido 400; conta ou sessão desconhecida 404; ainda aberta ou sem pasta 409', async () => {
+    const { acc } = setup();
+    const c = acc('.claude');
+    session(c, '/projetos/loja', sid(1), [withCwd(L.prompt('oi', { at: NOW - HOUR }), '/projetos/loja')], NOW - HOUR);
+    // Sem nenhuma linha com cwd: não dá para saber onde retomar.
+    const noCwd = JSON.stringify({ type: 'user', timestamp: new Date(NOW - HOUR).toISOString(), message: { role: 'user', content: 'oi' } });
+    session(c, '/projetos/x', sid(2), [noCwd], NOW - HOUR);
+    const h = history([c], { openAgentOf: (account, id) => (account === '.claude' && id === sid(1) ? '.claude:42' : undefined) });
+    expect(await h.resumeTarget('.claude', `${sid(1)}; id`)).toMatchObject({ status: 400 });
+    expect(await h.resumeTarget('.claude-outra', sid(3))).toMatchObject({ status: 404 });
+    expect(await h.resumeTarget('.claude', sid(9))).toMatchObject({ status: 404 });
+    expect(await h.resumeTarget('.claude', sid(1))).toMatchObject({ status: 409 });
+    expect(await h.resumeTarget('.claude', sid(2))).toMatchObject({ status: 409 });
+  });
+});
+
 describe('utilitários', () => {
   it('isSessionId: só o formato de UUID', () => {
     expect(isSessionId(sid(1))).toBe(true);

@@ -162,6 +162,25 @@ export class SessionHistory {
     return notFound;
   }
 
+  /**
+   * Onde retomar a sessão (botão "Retomar" do histórico): a pasta original, lida do próprio transcript (nunca do
+   * pedido). 400 = id inválido; 404 = conta/sessão desconhecida; 409 = ainda aberta no escritório ou sem pasta.
+   * A pasta ainda passa pelas checagens do spawn (existir e ficar dentro do HOME) em input/tmux.ts.
+   */
+  async resumeTarget(account: string, sessionId: string): Promise<{ cwd: string } | { status: 400 | 404 | 409; error: string }> {
+    const found = this.resolve(account, sessionId);
+    if ('error' in found) return found;
+    if (this.opts.openAgentOf(account, sessionId)) return { status: 409, error: 'esta sessão ainda está aberta no escritório' };
+    let meta: SessionMeta;
+    try {
+      meta = await readSessionMeta(found.path, (await stat(found.path)).size);
+    } catch {
+      return { status: 404, error: 'sessão não encontrada' };
+    }
+    if (!meta.project) return { status: 409, error: 'não deu para descobrir a pasta desta sessão' };
+    return { cwd: meta.project };
+  }
+
   /** Transcripts de primeiro nível (um por sessão) modificados dentro da janela. */
   private async candidates(acc: HistoryAccount, now: number): Promise<Candidate[]> {
     const projects = join(acc.dir, 'projects');

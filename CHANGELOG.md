@@ -10,6 +10,21 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.5.0] - 2026-10-14
+
+### Adicionado
+
+- **Retomar sessões encerradas.** No histórico, as sessões encerradas da conta principal têm o botão **Retomar**: abre
+  um agente novo no tmux com `claude --resume`, na pasta original da sessão, com o mesmo nome e boneco, e a câmera vai
+  até ele quando chegar. Depois de reiniciar a máquina, dá para trazer os agentes de volta sem abrir terminal.
+
+### Alterado
+
+- **Mensagens pelo terminal com aviso visível.** "Mensagem enviada para …" ou o motivo da falha aparecem como aviso na
+  tela (antes, só para leitores de tela). Num agente fora do tmux, `Enter` na caixa explica por que ele não recebe
+  mensagens daqui. O selo **somente leitura** e o cursor de bloqueio só aparecem quando a caixa não envia; nos agentes
+  que recebem mensagens, o selo vira **envia mensagens**.
+
 ## [0.4.0] - 2026-10-08
 
 ### Alterado
@@ -93,7 +108,8 @@ Primeira versão publicada.
   Subagentes chegam, trabalham e entregam ao principal. Mostra as duas contas, com o uso de 5 horas e semanal de
   cada uma (tap de statusline), além de feed de atividade, avisos e modo demonstração. Roda no Node ou no Docker local.
 
-[Não lançado]: https://github.com/marmottajr/habblaud/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/schneider-gif/habblaud/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/schneider-gif/habblaud/releases/tag/v0.5.0
 [0.4.0]: https://github.com/marmottajr/habblaud/releases/tag/v0.4.0
 [0.3.2]: https://github.com/marmottajr/habblaud/releases/tag/v0.3.2
 [0.3.1]: https://github.com/marmottajr/habblaud/releases/tag/v0.3.1

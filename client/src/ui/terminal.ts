@@ -44,6 +44,38 @@ const SESSION_OPEN_ERROR = 'Não foi possível abrir a sessão. O histórico só
 const INPUT_PLACEHOLDER = 'Somente leitura — responda no terminal do Claude Code';
 /** Agente rodando no tmux: a caixa do rodapé manda mensagens (POST /api/agents/:id/input). */
 const SEND_PLACEHOLDER = 'Mensagem para o agente — Enter envia';
+/** Por que um agente não recebe mensagens daqui (resposta 409 e a caixa travada). */
+export const NOT_IN_TMUX_HINT =
+  'Este agente não foi aberto pelo escritório (fora do tmux), então não recebe mensagens daqui. Abra um agente novo pelo botão do escritório ou use Retomar.';
+/** Selo da barra quando a caixa do rodapé envia mensagens. */
+const SEND_BADGE_TITLE = 'Este agente roda no tmux: o que você digitar aqui embaixo vai para ele (Enter envia)';
+/** Repetir o aviso de caixa travada no máximo a cada tanto (Enter seguido ou vários cliques). */
+const BLOCKED_NOTICE_MS = 4_000;
+
+/** Aviso de mensagem enviada (toast). */
+export function sentText(name: string | undefined): string {
+  return name ? `Mensagem enviada para ${name}.` : 'Mensagem enviada.';
+}
+
+/** Aviso de falha ao enviar, pelo status HTTP (0 = sem resposta) e o erro devolvido pelo servidor. */
+export function sendErrorText(status: number, error?: string): string {
+  if (status === 409) return NOT_IN_TMUX_HINT;
+  if (status === 502) return 'Mensagem não enviada: tmux indisponível na máquina.';
+  if (status === 0) return 'Não foi possível falar com o escritório: a mensagem não foi enviada.';
+  const e = error?.trim().replace(/[.\s]+$/, '');
+  return e ? `Mensagem não enviada: ${e}.` : 'Não foi possível enviar a mensagem.';
+}
+
+/** Por que a caixa do rodapé não envia agora (Enter ou clique nela travada). */
+export function sendBlockedText(s: { session: boolean; mock: boolean; checked: boolean; reason?: string }): string {
+  if (s.session) return 'Esta sessão já foi encerrada: só dá para ler. Para continuar a conversa, use Retomar no histórico de sessões.';
+  if (s.mock) return 'Na demonstração os agentes não recebem mensagens.';
+  // 403 da consulta: o recurso está desligado neste escritório (acesso que não é local, sistema sem /proc...).
+  if (s.reason) return `Este escritório não manda mensagens aos agentes (${s.reason.trim().replace(/[.\s]+$/, '')}).`;
+  if (!s.checked) return 'Verificando se este agente recebe mensagens daqui… tente de novo em um instante.';
+  return NOT_IN_TMUX_HINT;
+}
+
 /** Sem conversa gravada ainda, mas dá para mandar a primeira mensagem. */
 const FIRST_MESSAGE = 'Este agente ainda não tem conversa. Mande a primeira mensagem aqui embaixo.';
 /** Espera depois da última tecla antes de buscar (a busca percorre toda a conversa na tela). */
@@ -602,7 +634,15 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private inputEl!: HTMLInputElement;
   /** O agente aberto recebe mensagens (roda no tmux). */
   private canSend = false;
+  /** A consulta de GET /api/agents/:id/input já respondeu para o agente aberto. */
+  private inputChecked = false;
+  /** Motivo do 403 da consulta (recurso desligado neste escritório), para o aviso da caixa travada. */
+  private inputOff: string | undefined;
   private sending = false;
+  /** Último aviso de caixa travada (não repete a cada Enter/clique). */
+  private blockedAt = -Infinity;
+  private roEl!: HTMLElement;
+  private sendBadge!: HTMLElement;
 
   private kindEl: HTMLElement;
   private accEl: HTMLElement;
@@ -643,6 +683,14 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     const lock = h('span', { class: 'ui-term__ro-icon', attrs: { 'aria-hidden': 'true' } });
     lock.innerHTML = ICONS.lock;
     const ro = h('span', { class: 'ui-term__ro', title: 'Só para ler: para responder, use o terminal do Claude Code' }, lock, h('span', { text: 'somente leitura' }));
+    this.roEl = ro;
+    // Agente no tmux: no lugar do "somente leitura", um selo dizendo que a caixa do rodapé manda mensagens.
+    this.sendBadge = h(
+      'span',
+      { class: 'ui-term__ro ui-term__ro--send', title: SEND_BADGE_TITLE, hidden: true },
+      h('span', { class: 'ui-term__ro-icon', text: '>', attrs: { 'aria-hidden': 'true' } }),
+      h('span', { text: 'envia mensagens' }),
+    );
     const close = iconButton(ICONS.close, 'Fechar terminal (Esc)', () => this.close(), 'ui-icon-btn--sm ui-term__close');
     const bar = h(
       'div',
@@ -653,6 +701,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       this.reconnEl,
       this.findBtn,
       ro,
+      this.sendBadge,
       close,
     );
 
@@ -710,7 +759,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.statusText = h('span', { class: 'ui-term__status-text' });
     this.statusTime = h('span', { class: 'ui-term__status-time' });
     this.status = h('p', { class: 'ui-term__status' }, this.glyph, this.statusText, this.statusTime);
-    const input = h('input', { class: 'ui-term__input', type: 'text', attrs: { disabled: true, placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' } });
+    // Travada = readonly + aria-disabled (e não disabled): continua focável, e Enter ou um clique explicam o porquê.
+    const input = h('input', {
+      class: 'ui-term__input',
+      type: 'text',
+      attrs: { readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
+    });
     this.inputEl = input;
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -718,6 +772,9 @@ export class TerminalPanel implements UiComponent, TerminalControl {
         e.stopPropagation();
         void this.sendInput();
       }
+    });
+    input.addEventListener('click', () => {
+      if (!this.canSend) this.explainBlocked(false);
     });
 
     this.el = h(
@@ -813,6 +870,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.lastEntryAt = 0;
     this.el.hidden = false;
     this.el.classList.toggle('is-session', !!session);
+    this.inputChecked = false;
+    this.inputOff = undefined;
     this.setCanSend(false);
     if (!session) void this.checkInput(id);
     this.connect();
@@ -837,7 +896,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     setText(this.roomEl, room ? `sala ${room.name}` : '');
     setTitle(this.roomEl, room?.path ?? '');
     setHidden(this.roomEl, !room);
-    setAttr(this.el, 'aria-label', `Terminal somente leitura de ${name}`);
+    setAttr(this.el, 'aria-label', `${this.canSend ? 'Terminal' : 'Terminal somente leitura'} de ${name}`);
     this.el.classList.toggle('is-gone', !live);
   }
 
@@ -1306,34 +1365,56 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private async checkInput(id: string, retry = true): Promise<void> {
     if (this.ctx.store.mock) return;
     let ok = false;
+    let off: string | undefined;
     try {
       const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`, { cache: 'no-store' });
-      const j = (await r.json()) as { available?: boolean };
+      const j = (await r.json()) as { available?: boolean; error?: string };
       ok = r.ok && j.available === true;
+      // 403 = recurso desligado neste escritório: resposta definitiva, sem tentar de novo
+      if (r.status === 403) off = j.error?.trim() || 'recurso desligado';
     } catch {
       // rede ou proxy no meio do caminho: tenta mais uma vez abaixo
     }
     if (this.id !== id) return;
-    if (ok || !retry) this.setCanSend(ok);
-    else setTimeout(() => void (this.id === id && !this.canSend && this.checkInput(id, false)), 1500);
+    if (ok || !retry || off) {
+      this.inputChecked = true;
+      this.inputOff = off;
+      this.setCanSend(ok);
+    } else setTimeout(() => void (this.id === id && !this.canSend && this.checkInput(id, false)), 1500);
   }
 
   private setCanSend(on: boolean): void {
     this.canSend = on;
     const label = on ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
-    this.inputEl.disabled = !on || this.sending;
+    this.inputEl.disabled = on && this.sending;
+    this.inputEl.readOnly = !on;
+    setAttr(this.inputEl, 'aria-disabled', on ? null : 'true');
     setAttr(this.inputEl, 'placeholder', label);
     setAttr(this.inputEl, 'aria-label', label);
     this.el.classList.toggle('can-send', on);
+    setHidden(this.roEl, on);
+    setHidden(this.sendBadge, !on);
+    if (this.id && !this.session) this.renderAgentHead();
     this.renderState();
+  }
+
+  /** Caixa travada: diz por quê num aviso visível (Enter sempre avisa; cliques, no máximo a cada BLOCKED_NOTICE_MS). */
+  private explainBlocked(force: boolean): void {
+    const now = performance.now();
+    if (!force && now - this.blockedAt < BLOCKED_NOTICE_MS) return;
+    this.blockedAt = now;
+    this.ctx.notify(sendBlockedText({ session: !!this.session, mock: this.ctx.store.mock || !!this.id?.startsWith('demo:'), checked: this.inputChecked, reason: this.inputOff }), 'warn');
   }
 
   private async sendInput(): Promise<void> {
     const id = this.id;
     const text = this.inputEl.value.trim();
-    if (!id || !this.canSend || this.sending || !text) return;
+    if (!id || this.sending) return;
+    if (!this.canSend) return this.explainBlocked(true);
+    if (!text) return;
     this.sending = true;
     this.inputEl.disabled = true;
+    const name = this.ctx.agent(id)?.name ?? this.last?.name;
     try {
       const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`, {
         method: 'POST',
@@ -1341,18 +1422,23 @@ export class TerminalPanel implements UiComponent, TerminalControl {
         body: JSON.stringify({ text }),
       });
       const j = (await r.json().catch(() => ({}))) as { error?: string };
+      // notify também anuncia aos leitores de tela (região viva), então o aviso vale para os dois.
       if (r.ok) {
         this.inputEl.value = '';
-        this.ctx.announce('Mensagem enviada.');
+        this.ctx.notify(sentText(name));
         // primeira mensagem: o transcript nasce agora, então o stream que falhou tenta de novo
         if (this.conn === 'failed') setTimeout(() => this.id === id && this.connect(), 1500);
-      } else this.ctx.announce(j.error ?? 'Não foi possível enviar a mensagem.');
+      } else {
+        this.ctx.notify(sendErrorText(r.status, j.error), 'warn');
+        // 409: o agente deixou de receber mensagens (saiu do tmux, pid trocou): a caixa trava e explica.
+        if (r.status === 409 && this.id === id) this.setCanSend(false);
+      }
     } catch {
-      this.ctx.announce('Não foi possível enviar a mensagem.');
+      this.ctx.notify(sendErrorText(0), 'warn');
     } finally {
       this.sending = false;
       if (this.id === id) {
-        this.inputEl.disabled = !this.canSend;
+        this.inputEl.disabled = false;
         this.inputEl.focus({ preventScroll: true });
       }
     }
