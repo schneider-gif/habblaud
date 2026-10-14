@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ModSummary, OfficeSnapshot, PermissionRequestInfo, UpdateStatus } from '../../shared/types';
@@ -13,6 +14,7 @@ import { createApiHandler, type ApiDeps } from './app';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
 import { Hub } from './sse';
 import { createAgentInput } from '../input/tmux';
+import { SessionHistory } from '../sources/history';
 import { createStaticHandler, IMMUTABLE, REVALIDATE } from './static';
 
 setQuiet(true);
@@ -405,6 +407,133 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
       await off.close();
       off.cleanup();
     }
+  });
+
+  describe('Retomar (POST /api/agents/new com {resume})', () => {
+    const OLD = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+    const OPEN = '11111111-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+    const FORA = '22222222-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+
+    /** HOME falso com ~/.claude/projects/<x>/<uuid>.jsonl cujas linhas trazem o cwd. */
+    function fakeHome() {
+      const tmp = tempDir();
+      const home = realpathSync.native(tmp.dir);
+      mkdirSync(join(home, 'projeto'));
+      const transcript = (id: string, cwd: string) => {
+        mkdirSync(join(home, '.claude', 'projects', 'p-' + id.slice(0, 4)), { recursive: true });
+        const line = JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), cwd, message: { role: 'user', content: 'oi' } });
+        writeFileSync(join(home, '.claude', 'projects', 'p-' + id.slice(0, 4), `${id}.jsonl`), `${line}\n`);
+      };
+      transcript(OLD, join(home, 'projeto'));
+      transcript(OPEN, join(home, 'projeto'));
+      transcript(FORA, tmpdir());
+      return { home, cleanup: tmp.cleanup };
+    }
+
+    const request = (base: string, method: string, path: string, body: unknown, headers: Record<string, string> = {}) =>
+      new Promise<{ status: number; json: Record<string, unknown> }>((ok, fail) => {
+        const data = body === undefined ? '' : JSON.stringify(body);
+        const req = http.request(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), ...headers } }, (res) => {
+          let s = '';
+          res.on('data', (c) => (s += c));
+          res.on('end', () => {
+            let json: Record<string, unknown> = {};
+            try {
+              json = JSON.parse(s || '{}');
+            } catch {
+              // a trava de borda (guard.ts) responde texto puro
+            }
+            ok({ status: res.statusCode ?? 0, json });
+          });
+        });
+        req.on('error', fail);
+        req.end(data);
+      });
+
+    async function setup(terminal = true, names = new NameStore(null)) {
+      const fh = fakeHome();
+      const calls: string[][] = [];
+      const input = createAgentInput({ home: fh.home, run: async (a) => void calls.push(a), capture: async () => '4242\n' });
+      const sessions = new SessionHistory({
+        accounts: () => [{ id: '.claude', dir: join(fh.home, '.claude') }],
+        openAgentOf: (acc, sid) => (acc === '.claude' && sid === OPEN ? '.claude:77' : undefined),
+      });
+      const env = await start({ terminal, input, sessions }, { names });
+      return {
+        ...env,
+        home: fh.home,
+        calls,
+        done: async () => {
+          await env.close();
+          env.cleanup();
+          fh.cleanup();
+        },
+      };
+    }
+
+    it('abre claude --resume <uuid> na pasta original da sessão e devolve o pid', async () => {
+      const env = await setup();
+      try {
+        const r = await request(env.base, 'POST', '/api/agents/new', { resume: OLD, cwd: '/etc' });
+        expect(r.status).toBe(201);
+        expect(r.json).toMatchObject({ ok: true, pid: 4242, resumed: OLD, cwd: join(env.home, 'projeto') });
+        // a pasta vem do transcript, nunca do corpo do pedido
+        expect(env.calls[0]).toEqual(['new-session', '-d', '-s', expect.stringMatching(/^agente-/), '-c', join(env.home, 'projeto'), `bash -lc 'exec claude --resume ${OLD}'`]);
+        const get = await fetch(`${env.base}/api/agents/new`);
+        expect(await get.json()).toMatchObject({ available: true, home: env.home });
+      } finally {
+        await env.done();
+      }
+    });
+
+    it('recusa id inválido (400), sessão aberta (409), desconhecida (404) e pasta fora do HOME (400), sem rodar o tmux', async () => {
+      const env = await setup();
+      try {
+        for (const bad of [`${OLD}; rm -rf ~`, "x' && id '", '$(id)', 42, '']) expect((await request(env.base, 'POST', '/api/agents/new', { resume: bad })).status).toBe(400);
+        expect((await request(env.base, 'POST', '/api/agents/new', { resume: OPEN })).status).toBe(409);
+        expect((await request(env.base, 'POST', '/api/agents/new', { resume: '33333333-4e5f-4a6b-8c7d-9e0f1a2b3c4d' })).status).toBe(404);
+        expect((await request(env.base, 'POST', '/api/agents/new', { resume: FORA })).status).toBe(400);
+        expect(env.calls).toEqual([]);
+      } finally {
+        await env.done();
+      }
+    });
+
+    it('mesma trava do agente novo: Host da rede, Origin de fora, corpo sem JSON e recurso desligado', async () => {
+      const env = await setup();
+      try {
+        for (const body of [{ cwd: 'projeto' }, { resume: OLD }]) {
+          expect((await request(env.base, 'POST', '/api/agents/new', body, { Host: 'habblaud.lan' })).status).toBe(403);
+          expect((await request(env.base, 'POST', '/api/agents/new', body, { Origin: 'http://attacker.example' })).status).toBe(403);
+          expect((await request(env.base, 'POST', '/api/agents/new', body, { 'Content-Type': 'text/plain' })).status).toBe(415);
+        }
+        expect(env.calls).toEqual([]);
+      } finally {
+        await env.done();
+      }
+      const off = await setup(false);
+      try {
+        expect((await request(off.base, 'POST', '/api/agents/new', { resume: OLD })).status).toBe(403);
+        expect((await request(off.base, 'POST', '/api/agents/new', { cwd: 'projeto' })).status).toBe(403);
+        expect(off.calls).toEqual([]);
+      } finally {
+        await off.done();
+      }
+    });
+
+    it('o agente que chega com o pid devolvido herda o personagem da sessão retomada', async () => {
+      const names = new NameStore(null);
+      names.setProfile(OLD, { name: 'Zé', look: 'm' });
+      const env = await setup(true, names);
+      try {
+        expect((await request(env.base, 'POST', '/api/agents/new', { resume: OLD })).status).toBe(201);
+        // simula o registry vendo o Claude retomado (aqui com um sessionId novo, o caso que precisa do mapeamento)
+        env.office.addMain({ id: '.claude:4242', account: '.claude', sessionId: 'novo-id', cwd: join(env.home, 'projeto'), role: 'Agente principal', startedAt: Date.now(), status: 'idle' });
+        expect(env.office.get('.claude:4242')).toMatchObject({ name: 'Zé', look: 'm' });
+      } finally {
+        await env.done();
+      }
+    });
   });
 });
 

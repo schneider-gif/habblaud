@@ -298,3 +298,45 @@ describe('Office', () => {
     expect(new Office({ ...deps, terminal: false }).commit().snapshot.meta.terminal).toBe(false);
   });
 });
+
+describe('Retomar sessão encerrada (setPendingResume)', () => {
+  const OLD = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+  const NEW = 'ffffffff-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+  const make = () => {
+    const names = new NameStore(null);
+    const deps = { names, version: 't', startedAt: 0, accounts: () => [], sources: () => [], accountName: () => undefined };
+    return { names, office: new Office(deps) };
+  };
+  const main = (id: string, sessionId: string) => ({ id, account: '.claude', sessionId, cwd: '/p/loja', role: 'Agente principal', startedAt: 0, status: 'idle' as const });
+
+  it('mesmo sessionId (claude --resume mantém o id): volta com o nome e o boneco guardados', () => {
+    const { names, office } = make();
+    names.setProfile(OLD, { name: 'Zé', look: 'm', appearance: { look: 'm', hairStyle: 'bald' } });
+    office.setPendingResume('.claude:9', OLD);
+    office.addMain(main('.claude:9', OLD));
+    expect(office.get('.claude:9')).toMatchObject({ name: 'Zé', look: 'm', appearance: { look: 'm', hairStyle: 'bald' } });
+  });
+
+  it('sessionId novo: o perfil da sessão antiga passa para a nova (e continua lá se depois trocar para a antiga)', () => {
+    const { names, office } = make();
+    names.setProfile(OLD, { name: 'Zé', look: 'm', appearance: { look: 'm', hairStyle: 'bald' } });
+    office.setPendingResume('.claude:9', OLD);
+    office.addMain(main('.claude:9', NEW));
+    expect(office.get('.claude:9')).toMatchObject({ name: 'Zé', look: 'm', appearance: { look: 'm', hairStyle: 'bald' } });
+    expect(names.get(NEW)).toEqual({ name: 'Zé', look: 'm' });
+    office.switchSession('.claude:9', OLD);
+    expect(names.get(OLD)).toEqual({ name: 'Zé', look: 'm' });
+    expect(names.appearance(OLD)).toEqual({ look: 'm', hairStyle: 'bald' });
+  });
+
+  it('só vale para o pid esperado e uma vez; sem perfil guardado, nada muda', () => {
+    const { names, office } = make();
+    names.setProfile(OLD, { name: 'Zé', look: 'm' });
+    office.setPendingResume('.claude:9', OLD);
+    office.addMain(main('.claude:8', NEW));
+    expect(office.get('.claude:8')?.name).not.toBe('Zé');
+    office.setPendingResume('.claude:7', 'aaaaaaaa-0000-4000-8000-000000000000');
+    office.addMain(main('.claude:7', 'bbbbbbbb-0000-4000-8000-000000000000'));
+    expect(names.get('bbbbbbbb-0000-4000-8000-000000000000')?.name).toBe(office.get('.claude:7')?.name);
+  });
+});

@@ -167,6 +167,8 @@ export class Office {
   private last: OfficeSnapshot | null = null;
   private demo: DemoSimulator | null = null;
   private pendingProfiles = new Map<string, AgentProfile>();
+  /** Agentes retomados pelo escritório (claude --resume): id esperado -> sessionId da sessão encerrada. */
+  private pendingResumes = new Map<string, string>();
   private demoSnap: OfficeSnapshot | null = null;
   private booting = false;
   private bootFeed: FeedItem[] = [];
@@ -263,6 +265,14 @@ export class Office {
     }
     const roomId = normalizeCwd(p.cwd);
     this.ensureRoom(roomId, now);
+    // Retomada: o Claude Code atual mantém o sessionId no --resume (o perfil guardado já vale), mas se chegar com
+    // outro id o personagem da sessão antiga passa para ele, em vez de sortear um nome novo.
+    const resumedFrom = this.pendingResumes.get(p.id);
+    if (resumedFrom !== undefined) {
+      this.pendingResumes.delete(p.id);
+      const old = resumedFrom !== p.sessionId ? this.deps.names.get(resumedFrom) : undefined;
+      if (old) this.deps.names.remember(p.sessionId, old, resumedFrom);
+    }
     const person = this.deps.names.assign(p.sessionId, this.usedNames());
     const info: AgentInfo = {
       id: p.id,
@@ -708,6 +718,12 @@ export class Office {
   setPendingProfile(id: string, profile: AgentProfile): void {
     if (this.pendingProfiles.size > 50) this.pendingProfiles.clear();
     this.pendingProfiles.set(id, profile);
+  }
+
+  /** Agente que vai chegar retomando a sessão `fromSessionId` (Retomar do histórico): herda o personagem dela. */
+  setPendingResume(id: string, fromSessionId: string): void {
+    if (this.pendingResumes.size > 50) this.pendingResumes.clear();
+    this.pendingResumes.set(id, fromSessionId);
   }
 
   /** Muda nome e/ou aparência de um agente principal presente. Devolve false se ele não existe. */
