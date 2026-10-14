@@ -10,6 +10,19 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Retomar sessões encerradas.** No histórico, as sessões encerradas da conta principal têm o botão **Retomar**: abre
+  um agente novo no tmux com `claude --resume`, na pasta original da sessão, com o mesmo nome e boneco, e a câmera vai
+  até ele quando chegar. Depois de reiniciar a máquina, dá para trazer os agentes de volta sem abrir terminal.
+
+### Alterado
+
+- **Mensagens pelo terminal com aviso visível.** "Mensagem enviada para …" ou o motivo da falha aparecem como aviso na
+  tela (antes, só para leitores de tela). Num agente fora do tmux, `Enter` na caixa explica por que ele não recebe
+  mensagens daqui. O selo **somente leitura** e o cursor de bloqueio só aparecem quando a caixa não envia; nos agentes
+  que recebem mensagens, o selo vira **envia mensagens**.
+
 ## [0.4.0] - 2026-10-08
 
 ### Alterado

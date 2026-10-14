@@ -330,9 +330,9 @@ Há volume geral e cada categoria liga e desliga à parte. Com a aba oculta, só
 ### Terminal somente leitura
 
 Clique num agente e use **Abrir terminal** para ver a conversa da sessão como o Claude Code mostra: os prompts, as
-respostas, cada ferramenta chamada (com o comando ou o diff) e o resultado, atualizados ao vivo. É só para ler: não
-dá para digitar nem interferir no agente. Vale para agentes principais e subagentes; no modo demonstração, a conversa
-é fictícia.
+respostas, cada ferramenta chamada (com o comando ou o diff) e o resultado, atualizados ao vivo. Por padrão é só para
+ler (selo **somente leitura**); agentes que rodam no tmux também recebem mensagens pela caixa do rodapé (veja abaixo).
+Vale para agentes principais e subagentes; no modo demonstração, a conversa é fictícia.
 
 - **Busca:** com o terminal em foco, `Ctrl+F` (`⌘F` no Mac) ou a lupa do cabeçalho abre a busca na conversa, sem
   diferenciar maiúsculas nem acentos. O contador mostra a posição ("3/17"); `Enter` e `Shift+Enter` vão para o próximo
@@ -344,6 +344,17 @@ dá para digitar nem interferir no agente. Vale para agentes principais e subage
 - **Histórico:** o relógio da barra superior lista as sessões dos últimos 7 dias de todas as contas (até 150), agrupadas
   por dia, com busca por título, projeto ou conta. Uma sessão encerrada abre no terminal com projeto, título e data no
   cabeçalho e "Sessão encerrada às …" no rodapé; uma sessão ainda aberta abre o terminal ao vivo do agente.
+- **Mandar mensagens (Linux):** o escritório só consegue digitar num agente que roda **dentro do tmux** (é pelo tmux que
+  o texto chega ao Claude Code). Os agentes abertos pelo botão **+ Novo agente** ou por **Retomar** já nascem assim:
+  o selo do terminal vira **envia mensagens** e `Enter` na caixa do rodapé envia, com um aviso "Mensagem enviada para
+  …" (ou o motivo da falha). Um Claude aberto num terminal comum (fora do tmux) continua **somente leitura**; `Enter`
+  na caixa explica isso num aviso.
+- **Retomar:** no histórico, cada sessão encerrada da conta principal (`~/.claude`) tem o botão **Retomar**, que abre
+  um agente novo no tmux com `claude --resume <sessão>`, na pasta original da sessão (lida do transcript), e leva a
+  câmera até ele quando chegar. Útil depois de reiniciar a máquina: os agentes somem do escritório, mas as conversas
+  continuam no histórico. O personagem (nome e boneco) da sessão volta junto. O botão fica travado, com o motivo na
+  dica, para sessões de outra conta, sem pasta conhecida ou com a pasta fora do seu HOME, e quando o escritório não abre
+  agentes (sem tmux ou fora do Linux).
 
 Como o terminal (e o histórico) mostra a conversa inteira, ele só existe quando o Habblaud está acessível **apenas pelo
 próprio computador** (o padrão) e só abre por `http://localhost` ou `http://127.0.0.1`. Com a porta liberada para a rede
@@ -557,6 +568,8 @@ mod/      o mod do Habblaud e o plugin de permissões (plugins do Claude Code; m
 | `GET /api/agents/:id/terminal` | SSE do terminal somente leitura (eventos `init` e `append`); só com acesso local. |
 | `GET /api/sessions/recent` | Histórico: sessões dos últimos 7 dias de todas as contas (até 150); só com acesso local. |
 | `GET /api/sessions/:conta/:sessionId/terminal` | SSE da conversa de uma sessão do histórico (mesmo protocolo do terminal); só com acesso local. |
+| `GET`/`POST /api/agents/:id/input` | O agente recebe mensagens (roda no tmux)? / `{text}` envia uma mensagem; só com acesso local. |
+| `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`{cwd?, name?, appearance?}`) ou retoma uma sessão encerrada da conta `~/.claude` (`{resume: <sessionId>}`, na pasta original); só com acesso local. |
 | `GET /api/stats?day=AAAA-MM-DD` | Estatísticas do Meu dia (tempo por status, projetos, contas, horas, esperas, tokens e custo). |
 | `GET /api/stats/days` | Dias com estatísticas (os últimos 30). |
 | `GET /api/timeline/days` | Dias gravados para o timelapse, com tamanho e horário do primeiro e do último registro. |

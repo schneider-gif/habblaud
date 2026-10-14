@@ -71,6 +71,7 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/agents/:id/terminal` | SSE do terminal somente leitura: eventos `init` e `append` (`TerminalMessage`); só com bind local (ver abaixo) |
 | `GET /api/sessions/recent` | `RecentSessionsResponse`: sessões dos últimos 7 dias de todas as contas (até 150); mesma trava do terminal |
 | `GET /api/sessions/:conta/:sessionId/terminal` | SSE da conversa de uma sessão do histórico (mesmo protocolo do terminal); mesma trava |
+| `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`input/tmux.ts`); com `{resume: <uuid>}` roda `claude --resume <uuid>` na pasta original da sessão (o `cwd` vem do transcript via `SessionHistory.resumeTarget`, nunca do corpo), só para a conta `.claude`; UUID estrito (400), sessão aberta ou sem pasta (409), pasta fora do HOME (400); o agente que chega com o pid devolvido herda o personagem da sessão (`Office.setPendingResume`). Mesma trava do terminal |
 | `GET /api/stats?day=AAAA-MM-DD&tz=<IANA>&source=real\|demo` | `DayStatsResponse` do "Meu dia" (ver abaixo); padrões: hoje, fuso do servidor, demo se ligado e o dia é hoje |
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
