@@ -67,9 +67,11 @@ export function sendErrorText(status: number, error?: string): string {
 }
 
 /** Por que a caixa do rodapé não envia agora (Enter ou clique nela travada). */
-export function sendBlockedText(s: { session: boolean; mock: boolean; checked: boolean }): string {
+export function sendBlockedText(s: { session: boolean; mock: boolean; checked: boolean; reason?: string }): string {
   if (s.session) return 'Esta sessão já foi encerrada: só dá para ler. Para continuar a conversa, use Retomar no histórico de sessões.';
   if (s.mock) return 'Na demonstração os agentes não recebem mensagens.';
+  // 403 da consulta: o recurso está desligado neste escritório (acesso que não é local, sistema sem /proc...).
+  if (s.reason) return `Este escritório não manda mensagens aos agentes (${s.reason.trim().replace(/[.\s]+$/, '')}).`;
   if (!s.checked) return 'Verificando se este agente recebe mensagens daqui… tente de novo em um instante.';
   return NOT_IN_TMUX_HINT;
 }
@@ -634,6 +636,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private canSend = false;
   /** A consulta de GET /api/agents/:id/input já respondeu para o agente aberto. */
   private inputChecked = false;
+  /** Motivo do 403 da consulta (recurso desligado neste escritório), para o aviso da caixa travada. */
+  private inputOff: string | undefined;
   private sending = false;
   /** Último aviso de caixa travada (não repete a cada Enter/clique). */
   private blockedAt = -Infinity;
@@ -867,6 +871,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.el.hidden = false;
     this.el.classList.toggle('is-session', !!session);
     this.inputChecked = false;
+    this.inputOff = undefined;
     this.setCanSend(false);
     if (!session) void this.checkInput(id);
     this.connect();
@@ -1360,16 +1365,20 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private async checkInput(id: string, retry = true): Promise<void> {
     if (this.ctx.store.mock) return;
     let ok = false;
+    let off: string | undefined;
     try {
       const r = await fetch(`/api/agents/${encodeURIComponent(id)}/input`, { cache: 'no-store' });
-      const j = (await r.json()) as { available?: boolean };
+      const j = (await r.json()) as { available?: boolean; error?: string };
       ok = r.ok && j.available === true;
+      // 403 = recurso desligado neste escritório: resposta definitiva, sem tentar de novo
+      if (r.status === 403) off = j.error?.trim() || 'recurso desligado';
     } catch {
       // rede ou proxy no meio do caminho: tenta mais uma vez abaixo
     }
     if (this.id !== id) return;
-    if (ok || !retry) {
+    if (ok || !retry || off) {
       this.inputChecked = true;
+      this.inputOff = off;
       this.setCanSend(ok);
     } else setTimeout(() => void (this.id === id && !this.canSend && this.checkInput(id, false)), 1500);
   }
@@ -1394,7 +1403,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     const now = performance.now();
     if (!force && now - this.blockedAt < BLOCKED_NOTICE_MS) return;
     this.blockedAt = now;
-    this.ctx.notify(sendBlockedText({ session: !!this.session, mock: this.ctx.store.mock || !!this.id?.startsWith('demo:'), checked: this.inputChecked }), 'warn');
+    this.ctx.notify(sendBlockedText({ session: !!this.session, mock: this.ctx.store.mock || !!this.id?.startsWith('demo:'), checked: this.inputChecked, reason: this.inputOff }), 'warn');
   }
 
   private async sendInput(): Promise<void> {
