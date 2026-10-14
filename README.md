@@ -377,6 +377,18 @@ limite de tamanho por dia e os últimos **7 dias** guardados. Para não gravar: 
 
 Os personagens andam mais rápido no replay, mas nas velocidades altas quem fica pouco tempo no escritório quase não
 chega à mesa; pular para outro ponto mostra todos já no lugar.
+### Missões
+
+Na parede da recepção há um **quadro de cortiça**: clique nele (ou no balão "Missão nova") para abrir o quadro de
+missões, no canto do escritório. É um jogo curto para aprender criando: uma missão por vez, as próximas aparecem só
+como silhueta com "?". Cada missão diz o **objetivo**, não o pedido: o exemplo fica atrás de "▸ exemplo".
+**Começar missão** cria a pasta em `~/projetos` e abre um agente lá, com o cursor na caixa de mensagem para você
+escrever o seu pedido. O escritório confere sozinho quando a missão termina (arquivos da pasta, fim do turno do
+agente, mensagem mandada pelo escritório, push para o GitHub); se preferir, **Concluí** marca na hora (com
+confirmação). Cada missão paga moedas uma vez na **Caixa do escritório** e dá XP. O estado fica em
+`~/.habblaud/missions.json`. Como abre agentes, o quadro só aparece com o Habblaud acessível apenas pelo próprio
+computador.
+
 ### Responder pelo escritório
 
 Com o plugin de permissões instalado (`npm run mod:install`, que o instala junto com o mod; no Claude Code anterior
