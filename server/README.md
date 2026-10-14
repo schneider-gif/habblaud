@@ -80,7 +80,11 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
 | `GET /api/timeline/:dia` | o arquivo do dia (`AAAA-MM-DD`) em JSONL (`application/x-ndjson`, gzip se aceito); 400 para dia inválido, 404 sem gravação |
-| `GET /api/health` | `{ok, version, demo, docker, terminal, permissions, updates:{state, latest, available}, sources, accounts:[{id, usageStatus}]}` |
+| `GET /api/health` | `{ok, version, demo, docker, terminal, permissions, shell, updates:{state, latest, available}, sources, accounts:[{id, usageStatus}]}` |
+| `GET /api/shell` | terminal embutido: `{available, reason?, tabs:[{id, n, command, cwd, createdAt, attached}]}` (abas = sessões tmux `terminal-N`) |
+| `POST /api/shell/tabs` | `{login?, cols?, rows?}` → `201 {tab}`: sessão `terminal-N` nova no HOME (shell de login; `login` roda o `claude` antes); 409 acima de 12 abas |
+| `POST /api/shell/tabs/:id/close` | encerra a aba (`tmux kill-session`) |
+| `GET /api/shell/ws?session=&cols=&rows=` | **WebSocket** do PTY anexado a `terminal-N` ou `agente-*` (ver "Terminal embutido") |
 | `POST /api/demo` | `{enabled: boolean}` liga/desliga agentes simulados (misturados aos reais) |
 | `GET /api/mod/summary?account=&session=` | `ModSummary` para o mod do Claude Code: `{version, agents, working, waiting:[{id, name, room, account, waitingFor, since, answerable}]}`, sem o demo e sem a sessão de quem pergunta (ver abaixo) |
 | `GET /api/updates` | `{version, ...UpdateStatus}`: versão em uso e o resultado da verificação de versão nova (ver abaixo) |
@@ -138,6 +142,37 @@ nomes de `HABBLAUD_ALLOWED_HOSTS` (proxies, túneis) recebem 403. O estado sai e
 `terminal` no `/api/health`. Erros antes do stream respondem JSON `{error}`: 403 (desligado ou acesso que não é
 local), 404 (agente ou transcript desconhecido), 405 (método que não é `GET`), 429 (terminais demais) e 500
 (transcript ilegível).
+
+
+## Terminal embutido (`shell/`)
+
+Shell de verdade no navegador (`client/src/ui/shell.ts`, xterm.js carregado sob demanda), como o usuário que roda o
+servidor.
+
+- **PTY sem dependência nativa.** O pacote da release é um tgz sem `node_modules` (nada de `node-pty`, que exigiria
+  compilar no destino). O pseudo-terminal vem do `script(1)` do util-linux (`bsdutils`, essencial no Debian/Ubuntu):
+  `script -qfec "stty rows R cols C; exec tmux -u attach-session -t '=terminal-N'" /dev/null`, ligado aos pipes do Node.
+  Redimensionar = `stty -F /dev/pts/N rows/cols` no PTY do cliente tmux (fd 0 do filho do `script`): o kernel manda
+  `SIGWINCH` e o tmux redesenha.
+- **Abas = sessões tmux `terminal-N`** no servidor tmux padrão do usuário (sessão por aba, não janelas de uma sessão:
+  clientes de uma mesma sessão dividem a "janela atual"). Barra de status e mouse do tmux desligados: a seleção é a do
+  navegador e a roda manda `{t:'s'}`, que vira `copy-mode -e` + `send-keys -X scroll-up/down`. Fechar o WebSocket só
+  mata o cliente tmux; a sessão continua.
+- **WebSocket mínimo** em `http/ws.ts` (RFC 6455: handshake, texto/binário, fragmentação, ping/pong, close; sem
+  extensões). Saída do PTY em quadros binários; o navegador manda JSON `{t:'i', d}` (teclas), `{t:'r', c, r}`
+  (tamanho) e `{t:'s', n}` (roda). Contrapressão: acima de 1 MB esperando no socket, o PTY pausa.
+- **Trava** (`shell/http.ts`, conferida no GET/POST e no upgrade): `ServerConfig.shell` (`shellOffReason`:
+  `HABBLAUD_SHELL`, a mesma trava do terminal somente leitura, Linux, `uid != 0`, sem `HABBLAUD_DEMO`), `tmux` e
+  `script` presentes (conferidos na partida), demonstração desligada agora, `Host` aceito pelo guard **e** local
+  (`isLoopbackHost`: localhost/127.x ou `HABBLAUD_LOCAL_HOSTS`). No upgrade o guard HTTP não roda e WebSocket não tem
+  CORS: o `Origin` é obrigatório e precisa ser exatamente `http(s)://<Host>`. O ambiente do shell perde `TMUX*`,
+  `CODER_AGENT_TOKEN*`, `HB_AGENT_INIT` e `HABBLAUD_*`.
+- **Agentes em configuração** (`shell/setup.ts`): a cada 3 s, sessões tmux `agente-*` vivas cujo pid do pane não é de
+  nenhum agente principal viram bonecos provisórios (`Office.setSetupAgents`, `AgentInfo.setup.session`): "precisa de
+  você: conectar sua conta do Claude" sem credencial, "abrindo o Claude…" nos primeiros 15 s e depois "terminar a
+  configuração". Quando a conta fica pronta (credencial + `hasCompletedOnboarding` no `~/.claude.json`), as sessões
+  `agente-*` ainda sem agente e sem cliente anexado são reabertas na mesma pasta (o perfil escolhido passa para o pid
+  novo, `Office.movePendingProfile`), porque um `claude` já aberto não relê a credencial nova.
 
 ## Linha do tempo (timelapse)
 
@@ -287,6 +322,8 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_HOST` | `127.0.0.1` | interface (o Docker usa `0.0.0.0`); fora do loopback, o terminal somente leitura fica desligado |
 | `HABBLAUD_BIND` | — (Compose: `127.0.0.1`) | só Docker: interface do host onde a porta é publicada, repassada ao container; só loopback liga o terminal somente leitura |
 | `HABBLAUD_TERMINAL` | — | `0` desliga o terminal somente leitura (não liga com a porta exposta) |
+| `HABBLAUD_SHELL` | ligado (com a trava do terminal) | `0` desliga o terminal embutido (`shell/`); também fica desligado fora do Linux, como root, com `HABBLAUD_DEMO` ou sem `tmux`/`script` |
+| `HABBLAUD_VSCODE_URL` | — | URL `http(s)` do botão **VS Code** (`meta.links.vscode`); ausente = sem botão |
 | `HABBLAUD_CLAUDE_DIRS` | — | config dirs separados por vírgula; substitui a detecção (`~/.claude*` com `projects/` ou `sessions/` + `CLAUDE_CONFIG_DIR`) |
 | `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (missões em `missions.json`, nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |

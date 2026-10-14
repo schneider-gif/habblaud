@@ -340,3 +340,37 @@ describe('Retomar sessão encerrada (setPendingResume)', () => {
     expect(names.get('bbbbbbbb-0000-4000-8000-000000000000')?.name).toBe(office.get('.claude:7')?.name);
   });
 });
+
+describe('agentes em configuração (setSetupAgents: Claude aberto pelo escritório ainda sem sessão)', () => {
+  const setup = { id: 'acc:4242', session: 'agente-abc', cwd: '/home/u/projetos/meu-site', createdAt: 1_000_000, status: 'waiting' as const, waitingFor: 'conectar sua conta do Claude' };
+
+  it('aparece na sala da pasta, precisa de você e aponta a sessão tmux', () => {
+    const { office } = makeOffice();
+    office.setPendingProfile('acc:4242', { name: 'Bia' });
+    office.setSetupAgents([setup]);
+    const snap = office.commit().snapshot;
+    expect(snap.rooms.map((r) => r.id)).toContain(normalizeCwd(setup.cwd));
+    const a = snap.agents.find((x) => x.id === 'acc:4242')!;
+    expect(a).toMatchObject({ name: 'Bia', status: 'waiting', waitingFor: 'conectar sua conta do Claude', setup: { session: 'agente-abc' }, kind: 'main' });
+    expect(office.detail('acc:4242')?.agent.setup).toEqual({ session: 'agente-abc' });
+  });
+
+  it('some quando o agente de verdade chega com o mesmo id (e herda o nome escolhido)', () => {
+    const { office } = makeOffice();
+    office.setPendingProfile('acc:4242', { name: 'Bia' });
+    office.setSetupAgents([setup]);
+    office.addMain({ id: 'acc:4242', account: 'acc', sessionId: 's-real', cwd: setup.cwd, role: 'Agente principal', startedAt: 1_000_000, status: 'idle' });
+    const agents = office.commit().snapshot.agents.filter((x) => x.id === 'acc:4242');
+    expect(agents).toHaveLength(1);
+    expect(agents[0].setup).toBeUndefined();
+    expect(agents[0].name).toBe('Bia');
+  });
+
+  it('meta.shell e meta.links vêm das dependências', () => {
+    const deps = { names: new NameStore(null), version: 't', startedAt: 0, accounts: () => [], sources: () => [], accountName: () => undefined };
+    expect(new Office(deps).commit().snapshot.meta).toMatchObject({ shell: false });
+    expect(new Office(deps).commit().snapshot.meta.links).toBeUndefined();
+    const meta = new Office({ ...deps, shell: () => true, links: { vscode: 'https://x/vs' } }).commit().snapshot.meta;
+    expect(meta).toMatchObject({ shell: true, links: { vscode: 'https://x/vs' } });
+  });
+});

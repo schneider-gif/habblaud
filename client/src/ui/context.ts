@@ -55,4 +55,13 @@ export interface UiContext {
   /** Abre/fecha o timelapse do dia (ui/timelapse.ts). */
   toggleTimelapse(): void;
   isTimelapseOpen(): boolean;
+  /**
+   * Abre o terminal embutido (ui/shell.ts). `login`: aba nova rodando o claude (Missão 0); `session`: anexa à sessão
+   * tmux de um agente em configuração (agente-*).
+   */
+  openShell(opts?: { login?: boolean; session?: string; label?: string }): void;
+  toggleShell(): void;
+  isShellOpen(): boolean;
+  /** O servidor oferece o terminal embutido agora (meta.shell)? */
+  isShellAvailable(): boolean;
 }

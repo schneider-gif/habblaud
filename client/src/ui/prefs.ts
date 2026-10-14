@@ -18,8 +18,15 @@ export interface UiPrefs {
   sounds: SoundSettings;
   /** Notification do navegador para alertas com a aba oculta. */
   browserNotifications: boolean;
+  /** Painel lateral expandido. Vem recolhido na primeira visita (ver panelsChosen). */
   sidebarOpen: boolean;
+  /** Feed de atividade (painel inferior) expandido. Vem recolhido na primeira visita. */
   feedOpen: boolean;
+  /**
+   * O usuário já abriu/fechou um dos painéis por conta própria. Até isso acontecer os dois ficam recolhidos (desde a
+   * 0.7.0, inclusive para quem já tinha preferências salvas com os padrões antigos, que eram "abertos").
+   */
+  panelsChosen: boolean;
   /** Contas ocultas na barra lateral (AccountInfo.id). */
   hiddenAccounts: string[];
   /** Quadro de missões recolhido (só a etiqueta no canto). */
@@ -34,8 +41,9 @@ export const DEFAULT_PREFS: UiPrefs = {
   sound: false,
   sounds: DEFAULT_SOUND_SETTINGS,
   browserNotifications: false,
-  sidebarOpen: true,
-  feedOpen: true,
+  sidebarOpen: false,
+  feedOpen: false,
+  panelsChosen: false,
   hiddenAccounts: [],
   missionsMinimized: false,
 };
@@ -59,8 +67,9 @@ export function sanitizePrefs(raw: unknown): UiPrefs {
     sound: bool(o.sound, d.sound),
     sounds: sanitizeSoundSettings(o.sounds),
     browserNotifications: bool(o.browserNotifications, d.browserNotifications),
-    sidebarOpen: bool(o.sidebarOpen, d.sidebarOpen),
-    feedOpen: bool(o.feedOpen, d.feedOpen),
+    sidebarOpen: o.panelsChosen === true ? bool(o.sidebarOpen, d.sidebarOpen) : false,
+    feedOpen: o.panelsChosen === true ? bool(o.feedOpen, d.feedOpen) : false,
+    panelsChosen: o.panelsChosen === true,
     hiddenAccounts: Array.isArray(o.hiddenAccounts) ? o.hiddenAccounts.filter((x): x is string => typeof x === 'string').slice(0, 20) : [],
     missionsMinimized: bool(o.missionsMinimized, d.missionsMinimized),
   };

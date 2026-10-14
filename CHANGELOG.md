@@ -10,6 +10,44 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.7.0] - 2026-10-14
+
+### Adicionado
+
+- **Terminal embutido: um shell de verdade dentro do escritório.** O botão **Terminal** da barra superior (ou a tecla
+  à esquerda do `1`: `` ` `` no teclado americano, `'` no ABNT2) abre uma janela com um terminal completo, como o seu
+  usuário (nunca root). Cada aba é uma sessão tmux (`terminal-1`, `terminal-2`…): recarregar a página ou fechar o
+  navegador não mata nada, e a mesma aba abre no VS Code com `tmux attach -t terminal-1`. Abas, cópia e cola
+  (`Ctrl+C` com texto selecionado copia, sem seleção interrompe como sempre; `Ctrl+V`, `Ctrl+Shift+V`, `⌘C`/`⌘V` no
+  Mac e menu do botão direito), roda do mouse rolando o histórico, janela que se arrasta, redimensiona e maximiza
+  lembrando a posição, tema do escritório e, no celular, tela cheia com uma barra de teclas (Esc, Tab, Ctrl+C, setas,
+  copiar e colar). Só existe com o Habblaud acessível apenas pelo próprio computador (a mesma trava do terminal da
+  conversa), no Linux, fora do modo demonstração; `HABBLAUD_SHELL=0` desliga.
+- **Links longos inteiros.** No terminal embutido, uma URL quebrada em várias linhas (como a do login do Claude Code)
+  é reconhecida inteira: clicar em qualquer pedaço abre a URL completa em outra aba, e o botão direito tem **Copiar
+  link**. No terminal da conversa, as URLs viram links clicáveis com o endereço completo (antes saíam cortadas ao
+  copiar ou abrir).
+- **Agentes novos aparecem na hora, mesmo sem login.** Um agente aberto pelo **+ Novo agente** que ainda está na
+  primeira execução do Claude Code (escolha de tema, login) aparece na mesa como "precisa de você: conectar sua conta
+  do Claude"; clicar nele abre o terminal embutido já anexado à sessão dele, para terminar ali mesmo. Antes o
+  escritório continuava "vazio" e não dava para saber que faltava o login.
+- **Login vale para todos os agentes.** Quando o login (e a configuração inicial do Claude) termina num agente, os
+  outros que estavam parados pedindo login são reabertos sozinhos na mesma pasta, com o mesmo nome e boneco, já
+  prontos. Agentes com conversa e a sessão que você está olhando nunca são reiniciados.
+- **Missão 0 com "Fazer login agora":** abre o terminal embutido já rodando o `claude` para escolher o tema e entrar
+  com a conta. O escritório vazio também oferece **+ Novo agente** e **Abrir o terminal**.
+- **Botão VS Code** na barra superior quando o escritório na nuvem informa o endereço (`HABBLAUD_VSCODE_URL`); sem a
+  variável, o botão não aparece.
+
+### Alterado
+
+- **Painel lateral e feed vêm recolhidos.** Na primeira visita (e no celular, sempre) os dois começam recolhidos; a
+  escolha fica salva. Recolhido, o botão do painel lateral mostra quantos agentes precisam de você. Atalhos `[` e `]`.
+  No celular, o quadro de missões começa recolhido na etiqueta do canto.
+- **Barra superior que cabe na tela.** O que não cabe vai para o menu **⋯** (com o nome de cada botão), na ordem: câmera,
+  timelapse, Meu dia, histórico, feed, ajuda. Nada se sobrepõe em 1280, 1024, 768 ou 390 px.
+- **Abrir terminal** de um agente em configuração abre o terminal embutido da sessão dele (não há conversa ainda).
+
 ## [0.6.0] - 2026-10-14
 
 ### Adicionado

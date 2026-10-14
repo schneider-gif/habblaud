@@ -4,6 +4,8 @@ type Child = Node | string | null | undefined | false;
 type Props = {
   class?: string;
   text?: string;
+  /** HTML fixo do próprio código (ícones SVG); nunca dados do servidor. */
+  html?: string;
   title?: string;
   style?: string;
   role?: string;
@@ -20,6 +22,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = 
   const el = document.createElement(tag);
   if (props.class) el.className = props.class;
   if (props.text !== undefined) el.textContent = props.text;
+  else if (props.html !== undefined) el.innerHTML = props.html;
   if (props.title) el.title = props.title;
   if (props.style) el.setAttribute('style', props.style);
   if (props.role) el.setAttribute('role', props.role);

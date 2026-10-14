@@ -118,3 +118,19 @@ describe('migração do nome antigo (CodeTown)', () => {
     expect(Object.fromEntries(full.data)).toEqual({ 'codetown:prefs': '{}' });
   });
 });
+
+describe('painéis recolhidos por padrão (0.7.0)', () => {
+  it('primeira visita: painel lateral e feed recolhidos', () => {
+    expect(DEFAULT_PREFS).toMatchObject({ sidebarOpen: false, feedOpen: false, panelsChosen: false });
+    expect(loadPrefs(memoryStorage())).toMatchObject({ sidebarOpen: false, feedOpen: false });
+  });
+  it('preferências antigas (padrão "aberto", sem escolha explícita) passam a vir recolhidas', () => {
+    const st = memoryStorage({ [PREFS_KEY]: JSON.stringify({ sidebarOpen: true, feedOpen: true, bubbles: 'none' }) });
+    expect(loadPrefs(st)).toMatchObject({ sidebarOpen: false, feedOpen: false, bubbles: 'none' });
+  });
+  it('a escolha do usuário fica salva', () => {
+    const st = memoryStorage();
+    savePrefs(st, { ...DEFAULT_PREFS, sidebarOpen: true, panelsChosen: true });
+    expect(loadPrefs(st)).toMatchObject({ sidebarOpen: true, feedOpen: false, panelsChosen: true });
+  });
+});

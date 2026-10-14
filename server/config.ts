@@ -36,6 +36,13 @@ export interface ServerConfig {
    * Habblaud acessível apenas pelo próprio computador (ver terminalOffReason).
    */
   terminal: boolean;
+  /**
+   * Terminal embutido (shell de verdade, ver server/shell/service.ts) permitido: mesma trava do terminal (bind local),
+   * só no Linux, nunca como root, nunca com a demonstração ligada na partida; HABBLAUD_SHELL=0 desliga. Ver shellOffReason.
+   */
+  shell: boolean;
+  /** Link rápido da barra superior (HABBLAUD_VSCODE_URL): só URL http(s); sem a variável, o botão não aparece. */
+  links: { vscode?: string };
   /** Grava a linha do tempo do escritório para o timelapse (<dataDir>/timeline); HABBLAUD_TIMELINE=0 desliga. */
   timeline: boolean;
   /** Raiz do projeto (onde fica o package.json); serve dist/client a partir daqui. */
@@ -126,6 +133,43 @@ export function terminalOffReason(env: NodeJS.ProcessEnv, host: string, inDocker
   return isLoopbackBind(host) ? undefined : `a porta está exposta na rede: HABBLAUD_HOST=${host}`;
 }
 
+/**
+ * Por que o terminal embutido fica desligado (undefined = permitido; o tmux e o script(1) ainda são conferidos na
+ * partida). É um shell como o usuário do Habblaud, então exige tudo o que o terminal somente leitura exige e mais:
+ * - HABBLAUD_SHELL com valor "desligado" (0, false, off...) desliga;
+ * - mesma trava do terminal (terminalOffReason: acessível só pelo próprio computador ou pelo proxy de HABBLAUD_LOCAL_HOSTS);
+ * - Linux (tmux + script do util-linux);
+ * - nunca como root (o shell herdaria o root);
+ * - nada de shell com a demonstração ligada (HABBLAUD_DEMO; ligar o demo depois também recusa, em shell/http.ts).
+ */
+export function shellOffReason(
+  env: NodeJS.ProcessEnv,
+  host: string,
+  inDocker: boolean,
+  sys: { platform: NodeJS.Platform; uid: number | undefined } = { platform: process.platform, uid: process.getuid?.() },
+): string | undefined {
+  const flag = env.HABBLAUD_SHELL?.trim();
+  if (flag && !isTruthy(flag)) return `HABBLAUD_SHELL=${flag}`;
+  const term = terminalOffReason(env, host, inDocker);
+  if (term) return term;
+  if (sys.platform !== 'linux') return 'o terminal embutido só funciona no Linux';
+  if (sys.uid === 0) return 'o Habblaud está rodando como root (o shell seria root): rode como um usuário comum';
+  if (isTruthy(env.HABBLAUD_DEMO)) return 'modo demonstração ligado';
+  return undefined;
+}
+
+/** URL http(s) do link rápido (HABBLAUD_VSCODE_URL); qualquer outra coisa é ignorada. */
+export function cleanLink(raw: string | undefined): string | undefined {
+  const v = raw?.trim();
+  if (!v) return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv): ServerConfig {
   const home = env.HOME || homedir();
   const inDocker = detectDocker(env);
@@ -146,6 +190,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     usageDir: resolve(env.HABBLAUD_USAGE_DIR?.trim() || join(home, '.habblaud', 'usage')),
     allowedHosts: parseAllowedHosts(env.HABBLAUD_ALLOWED_HOSTS),
     terminal: terminalOffReason(env, host, inDocker) === undefined,
+    shell: shellOffReason(env, host, inDocker) === undefined,
+    links: { vscode: cleanLink(env.HABBLAUD_VSCODE_URL) },
     timeline: !env.HABBLAUD_TIMELINE?.trim() || isTruthy(env.HABBLAUD_TIMELINE),
     rootDir,
     version: pkg.version,

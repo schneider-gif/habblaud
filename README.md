@@ -309,9 +309,13 @@ um **chip colorido com a letra da conta** (C, D…).
 
 **Câmera:** arraste para mover, role para dar zoom, clique duplo num personagem para segui-lo.
 
-**Atalhos:** `/` busca · `F` seguir o selecionado · `T` terminal · `L` timelapse · `M` meu dia · `P` próximo pedido
-de permissão · `O` ou `0` visão geral · `Esc` limpar seleção · `[` painel lateral · `]` feed · setas/`WASD` mover ·
-`+` `-` zoom · `?` ajuda.
+**Atalhos:** `/` busca · `F` seguir o selecionado · `T` terminal da conversa · `` ` `` terminal embutido (no ABNT2, a
+tecla `'` à esquerda do `1`) · `L` timelapse · `M` meu dia · `P` próximo pedido de permissão · `O` ou `0` visão geral ·
+`Esc` limpar seleção · `[` painel lateral · `]` feed · setas/`WASD` mover · `+` `-` zoom · `?` ajuda.
+
+O **painel lateral** e o **feed** começam recolhidos (no celular, sempre); a escolha fica salva no navegador. Recolhido,
+o botão do painel lateral mostra quantos agentes precisam de você. Em telas estreitas, os botões que não cabem na barra
+superior vão para o menu **⋯**.
 
 ### Dia, noite e sons
 
@@ -360,6 +364,31 @@ Como o terminal (e o histórico) mostra a conversa inteira, ele só existe quand
 próprio computador** (o padrão) e só abre por `http://localhost` ou `http://127.0.0.1`. Com a porta liberada para a rede
 (`HABBLAUD_BIND=0.0.0.0` ou `HABBLAUD_HOST=0.0.0.0`), ele fica desligado. Detalhes em
 [Privacidade e segurança](#privacidade-e-segurança).
+
+### Terminal embutido
+
+O botão **Terminal** da barra superior (ou a tecla à esquerda do `1`) abre um **shell de verdade** dentro do escritório,
+como o seu usuário — sem precisar sair para o VS Code. Cada aba é uma sessão tmux (`terminal-1`, `terminal-2`…) que
+continua rodando quando você fecha a janela, recarrega a página ou fecha o navegador; ela também abre no VS Code com
+`tmux attach -t terminal-1`.
+
+- **Copiar e colar:** arraste para selecionar; `Ctrl+C` copia quando há seleção (sem seleção, interrompe o comando como
+  sempre), `Ctrl+V` / `Ctrl+Shift+V` colam, `⌘C`/`⌘V` no Mac; o botão direito abre o menu (copiar, colar, selecionar
+  tudo e, sobre um link, **Abrir link** e **Copiar link**).
+- **Links longos:** uma URL quebrada em várias linhas (como a do login do Claude Code) vale inteira: clique em qualquer
+  pedaço para abrir a URL completa.
+- **Histórico:** a roda do mouse rola o histórico (modo cópia do tmux; `q` ou digitar volta ao fim).
+- **Janela:** arraste pelo cabeçalho, redimensione pelo canto, clique duplo maximiza; a posição fica salva.
+- **Celular:** a janela ocupa a tela e ganha uma barra com Esc, Tab, Ctrl+C, Ctrl+D, setas, copiar e colar.
+- **Agentes em configuração:** um agente aberto pelo **+ Novo agente** que ainda está na primeira execução do Claude
+  (tema, login) aparece na mesa como "precisa de você"; clicar nele abre o terminal embutido anexado à sessão dele. A
+  Missão 0 tem **Fazer login agora**, que abre uma aba já rodando o `claude`. Quando o login termina num agente, os
+  outros que estavam parados no login são reabertos sozinhos, já prontos (nunca os que têm conversa).
+
+Como é um shell com o seu usuário, ele segue a trava do terminal da conversa e mais um pouco: só com o Habblaud
+acessível **apenas pelo próprio computador** (ou pelo proxy do escritório na nuvem, `HABBLAUD_LOCAL_HOSTS`), só no
+Linux (precisa de `tmux` e do `script` do util-linux, presentes em qualquer Ubuntu/Debian), nunca como root, nunca no
+modo demonstração. `HABBLAUD_SHELL=0` desliga.
 
 ### Timelapse do dia
 
@@ -529,6 +558,8 @@ Tudo funciona sem configurar nada. Se precisar ajustar, use variáveis de ambien
 | `HABBLAUD_DEMO` | desligado | `1` liga o modo demonstração ao iniciar. |
 | `HABBLAUD_ALLOWED_HOSTS` | — | Nomes extras aceitos no endereço (ex.: `meu-mac.local`), além de `localhost` e IPs. |
 | `HABBLAUD_TERMINAL` | ligado (só com acesso local) | `0` desliga o terminal somente leitura. Com a porta exposta ele já fica desligado, sem opção de ligar. |
+| `HABBLAUD_SHELL` | ligado (só com acesso local, Linux, sem root) | `0` desliga o terminal embutido (shell de verdade). Com a porta exposta, rodando como root ou no modo demonstração ele já fica desligado. |
+| `HABBLAUD_VSCODE_URL` | — | Endereço do VS Code do escritório (só `http(s)`): mostra o botão **VS Code** na barra superior. Sem a variável, o botão não aparece. |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (uma consulta às releases do repositório no GitHub a cada 6 h). |
 | `HABBLAUD_ACCOUNTS` | — | JSON para personalizar nome, letra ou cor, casado pelo nome da pasta da conta. Ex.: `[{"id":".claude-conta2","name":"Trabalho","short":"T","color":"#5cc97b"}]`. |
 

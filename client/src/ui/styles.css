@@ -7637,3 +7637,474 @@ html.is-replay #world {
   background: var(--st-waiting);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
 }
+
+/* ------------------------------------------------------------------ terminal embutido (0.7.0) */
+
+.ui-topbar__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-btn-shell,
+.ui-btn-link {
+  height: 30px;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.ui-btn-shell {
+  border-color: rgba(200, 255, 50, 0.45);
+  color: var(--ui-accent);
+  background: rgba(200, 255, 50, 0.08);
+}
+
+.ui-btn-shell:hover {
+  background: rgba(200, 255, 50, 0.16);
+}
+
+.ui-btn-shell[aria-pressed='true'] {
+  background: var(--ui-accent);
+  color: #211735;
+}
+
+.ui-btn-shell__icon,
+.ui-btn-link__icon {
+  display: inline-flex;
+}
+
+.ui-btn-link:hover {
+  background: var(--ui-bg-hover);
+}
+
+.ui-btn-sidebar {
+  position: relative;
+}
+
+.ui-btn-sidebar__badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--st-waiting);
+  color: #211735;
+  font: 700 11px/17px var(--font-ui);
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(24, 22, 33, 0.95);
+  animation: ui-badge-pulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ui-badge-pulse {
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.ui-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ui-shell {
+  --shell-w: min(980px, calc(100vw - var(--gap) * 2));
+  --shell-h: min(560px, calc(100vh - var(--top-h) - var(--gap) * 3));
+  position: fixed;
+  z-index: 31;
+  right: var(--gap);
+  bottom: var(--gap);
+  width: var(--shell-w);
+  height: var(--shell-h);
+  min-width: 320px;
+  min-height: 200px;
+  max-width: calc(100vw - var(--gap) * 2);
+  max-height: calc(100vh - var(--top-h) - var(--gap) * 2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+  border-radius: var(--radius);
+  background: #0b0a12;
+  border: 1px solid var(--ui-line-strong);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 28px 70px rgba(5, 7, 12, 0.62);
+  animation: ui-term-in 0.22s var(--ease);
+}
+
+.ui-shell[hidden] {
+  display: none;
+}
+
+.ui-shell.is-max {
+  top: calc(var(--top-h) + var(--gap));
+  left: var(--gap);
+  right: var(--gap);
+  bottom: var(--gap);
+  width: auto !important;
+  height: auto !important;
+  max-height: none;
+  resize: none;
+}
+
+.ui-shell__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 36px;
+  padding: 0 6px 0 10px;
+  background: var(--ui-bg-solid);
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.ui-shell__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-family: var(--font-px);
+  font-size: 14px;
+  color: var(--ui-accent);
+}
+
+.ui-shell__icon {
+  display: inline-flex;
+}
+
+.ui-shell__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  height: 100%;
+  padding-top: 5px;
+}
+
+.ui-shell__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 200px;
+  padding: 0 4px 0 10px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font: 12px/1 var(--font-mono);
+  color: var(--ui-muted);
+  cursor: pointer;
+}
+
+.ui-shell__tab:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+.ui-shell__tab.is-active {
+  background: #0b0a12;
+  border-color: var(--ui-line-strong);
+  color: var(--ui-text);
+}
+
+.ui-shell__tab.is-agent {
+  color: var(--st-waiting);
+}
+
+.ui-shell__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-shell__tab-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.ui-shell__tab-x:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ui-shell__tab-x svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ui-shell__add {
+  flex: none;
+}
+
+.ui-shell__actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  flex: none;
+}
+
+.ui-shell__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 4px 4px 8px;
+}
+
+.ui-shell__screen {
+  position: absolute;
+  inset: 6px 4px 4px 8px;
+}
+
+.ui-shell__screen .xterm {
+  height: 100%;
+}
+
+.ui-shell__screen .xterm-viewport {
+  background-color: transparent !important;
+}
+
+.ui-shell__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(11, 10, 18, 0.88);
+  text-align: center;
+  z-index: 2;
+}
+
+.ui-shell__overlay[hidden] {
+  display: none;
+}
+
+.ui-shell__msg {
+  margin: 0;
+  max-width: 460px;
+  color: var(--ui-muted);
+}
+
+.ui-shell__keys {
+  display: none;
+  flex: none;
+  gap: 4px;
+  padding: 5px 6px;
+  overflow-x: auto;
+  background: var(--ui-bg-solid);
+  border-top: 1px solid var(--ui-line);
+}
+
+.ui-shell__key {
+  flex: none;
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--ui-bg-soft);
+  font: 13px/1 var(--font-mono);
+}
+
+.ui-shell__key:active {
+  background: var(--ui-accent-soft);
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+  .ui-shell__keys {
+    display: flex;
+  }
+}
+
+@media (max-width: 1200px) {
+  .ui-btn-link__label {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ui-shell,
+  .ui-shell.is-max {
+    top: calc(var(--top-h) + 4px);
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0;
+    max-height: none;
+    resize: none;
+  }
+
+  .ui-shell__title > span:last-child,
+  .ui-btn-shell__label {
+    display: none;
+  }
+
+  .ui-btn-shell,
+  .ui-btn-link {
+    padding: 0 7px;
+  }
+}
+
+.ui-shell.is-max {
+  top: calc(var(--top-h) + var(--gap)) !important;
+  left: var(--gap) !important;
+  right: var(--gap) !important;
+  bottom: var(--gap) !important;
+}
+
+.ui-shell__head {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.ui-shell.is-dragging .ui-shell__head {
+  cursor: grabbing;
+}
+
+.ui-shell.is-dragging {
+  transition: none;
+  opacity: 0.94;
+}
+
+.ui-shell__head button,
+.ui-shell__tab {
+  cursor: pointer;
+}
+
+.ui-shell__menu {
+  position: absolute;
+  z-index: 5;
+  min-width: 190px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-solid);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.ui-shell__menu[hidden] {
+  display: none;
+}
+
+.ui-shell__menu-item {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.ui-shell__menu-item:hover:not([disabled]),
+.ui-shell__menu-item:focus-visible {
+  background: var(--ui-bg-hover);
+  outline: none;
+}
+
+.ui-shell__menu-item[disabled] {
+  opacity: 0.45;
+}
+
+/* URLs inteiras como link (conversa e markdown): quebram em qualquer ponto na tela, mas o href é a URL completa. */
+.ui-link-url {
+  color: var(--ui-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.ui-link-url:hover {
+  color: #e2ff8a;
+}
+
+/* ------------------------------------------------------------------ barra superior: "⋯" para o que não cabe (0.7.0) */
+
+.ui-more-btn {
+  font: 700 18px/1 var(--font-ui);
+  letter-spacing: 1px;
+}
+
+.ui-more-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  max-height: calc(100vh - var(--top-h) - 20px);
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ui-bg-solid);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.ui-more-menu[hidden] {
+  display: none;
+}
+
+.ui-more-menu .ui-btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+/* No menu, cada botão de ícone vira uma linha com o nome dele (o mesmo da dica). */
+.ui-more-menu .ui-icon-btn,
+.ui-more-menu .ui-btn-link {
+  display: flex !important;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: left;
+}
+
+.ui-more-menu .ui-icon-btn::after {
+  content: attr(aria-label);
+  font: 13px/1.2 var(--font-ui);
+  white-space: nowrap;
+}
+
+.ui-more-menu .ui-btn-link__label {
+  display: inline !important;
+}
+
+.ui-more-menu .ui-icon-btn:hover,
+.ui-more-menu .ui-btn-link:hover {
+  background: var(--ui-bg-hover);
+}
+
+@media (max-width: 1100px) {
+  .ui-btn-new-agent__label {
+    display: none;
+  }
+
+  .ui-btn-new-agent {
+    padding: 0 12px;
+  }
+}

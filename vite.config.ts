@@ -20,7 +20,7 @@ export default defineConfig({
   server: {
     port: Number(process.env.VITE_PORT ?? 5173),
     proxy: {
-      '/api': { target: `http://127.0.0.1:${process.env.HABBLAUD_PORT ?? 4747}` },
+      '/api': { target: `http://127.0.0.1:${process.env.HABBLAUD_PORT ?? 4747}`, ws: true },
     },
   },
 });

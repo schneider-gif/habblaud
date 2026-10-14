@@ -26,6 +26,7 @@ import { ConnectionBanner, EmptyState, Splash } from './overlays';
 import { focusPermission, nextPermissionAgent } from './permission';
 import { loadPrefs, safeLocalStorage, savePrefs, worldOptionsFrom, type UiPrefs } from './prefs';
 import { SettingsPopover } from './settings';
+import { SHELL_UNAVAILABLE_HINT, ShellPanel } from './shell';
 import { Sidebar } from './sidebar';
 import { SoundControl } from './sound';
 import { TERMINAL_UNAVAILABLE_HINT, TerminalPanel } from './terminal';
@@ -107,6 +108,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       } finally {
         uiSelecting = false;
       }
+      // Seleção pela lista/feed/avisos também abre o terminal de um agente em configuração (o clique no mapa vem pelo onSelect).
+      if (sel?.type === 'agent' && (prev?.type !== 'agent' || prev.id !== sel.id)) openSetupTerminal(sel.id);
     },
     focusSelection() {
       if (selection) ctx.select(selection, { focus: true });
@@ -121,7 +124,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       const next = open ?? !panels[name];
       if (panels[name] === next) return;
       panels[name] = next;
-      if (!ctx.isNarrow()) ctx.updatePrefs(name === 'sidebar' ? { sidebarOpen: next } : { feedOpen: next });
+      // No celular os painéis viram gavetas e sempre começam recolhidos: a escolha só vale na tela larga.
+      if (!ctx.isNarrow()) ctx.updatePrefs(name === 'sidebar' ? { sidebarOpen: next, panelsChosen: true } : { feedOpen: next, panelsChosen: true });
       applyLayout();
       invalidate();
     },
@@ -153,6 +157,10 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       timelapse.toggle();
     },
     isTimelapseOpen: () => timelapse.isOpen,
+    openShell: (opts) => void shell.open(opts),
+    toggleShell: () => shell.toggle(),
+    isShellOpen: () => shell.isOpen,
+    isShellAvailable: () => shell.available(),
   };
 
   // ---------------------------------------------------------------- componentes
@@ -161,6 +169,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   topbar = new TopBar(ctx);
   sidebar = new Sidebar(ctx);
   const terminal = new TerminalPanel(ctx);
+  // Terminal embutido (shell de verdade, abas = sessões tmux terminal-N no servidor).
+  const shell = new ShellPanel(ctx);
   // Histórico de sessões (terminal somente leitura): botão no grupo dos painéis da barra superior.
   const history = new HistoryPopover(ctx, terminal);
   topbar.panelGroup.prepend(history.button);
@@ -185,7 +195,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const scrim = h('div', { class: 'ui-scrim', attrs: { 'aria-hidden': 'true' }, on: { click: () => ctx.togglePanel('sidebar', false) } });
 
   root.classList.add('ui-root');
-  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
+  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, shell.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
   area = new FreeArea(world, { root, topbar: topbar.el, sidebar: sidebar.el, drawer: drawer.el, feed: feed.el }, () => ({
     sidebar: panels.sidebar,
     feed: panels.feed,
@@ -193,7 +203,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
     narrow: ctx.isNarrow(),
   }));
 
-  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, history, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, missions];
+  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, shell, history, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, missions];
 
   // ---------------------------------------------------------------- renderização agrupada por quadro
   let rafId = 0;
@@ -246,7 +256,19 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
     if (!uiSelecting) area.selectionChangedExternally(prev, sel);
     applyLayout(uiSelecting ? { refocus: false } : {});
     invalidate();
+    if (sel?.type === 'agent' && (prev?.type !== 'agent' || prev.id !== sel.id)) openSetupTerminal(sel.id);
   });
+
+  /**
+   * Agente em configuração (aberto pelo escritório, parado no tema/login do Claude): clicar nele abre o terminal
+   * embutido já anexado à sessão tmux dele, para terminar ali mesmo.
+   */
+  function openSetupTerminal(id: string): void {
+    const a = ctx.agent(id);
+    if (!a?.setup) return;
+    if (shell.available()) void shell.open({ session: a.setup.session, label: `Configurar · ${a.name}` });
+    else ctx.notify(`${a.name} espera você terminar a configuração do Claude. ${SHELL_UNAVAILABLE_HINT}; no VS Code, rode: tmux attach -t ${a.setup.session}`, 'warn');
+  }
   narrowMq?.addEventListener('change', (e) => {
     if (e.matches) {
       panels.sidebar = false;
@@ -278,6 +300,10 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       if (terminal.isOpen) {
         terminal.escape();
         e.preventDefault();
+      } else if (shell.isOpen) {
+        // Dentro do terminal o Esc é do shell (vim, Claude...): o xterm nem deixa chegar aqui. Fora dele, fecha o painel.
+        shell.close();
+        e.preventDefault();
       } else if (ctx.isNarrow() && panels.sidebar) {
         ctx.togglePanel('sidebar', false);
         e.preventDefault();
@@ -288,6 +314,13 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
       return;
     }
     if (isTypingTarget(e.target) || help.isOpen) return;
+    // Terminal embutido: a tecla à esquerda do 1 (` no teclado americano, ' no ABNT2), pela posição física.
+    if (e.code === 'Backquote' && !e.shiftKey) {
+      e.preventDefault();
+      if (shell.isOpen || shell.available()) shell.toggle();
+      else ctx.announce(`${SHELL_UNAVAILABLE_HINT}.`);
+      return;
+    }
     switch (e.key) {
       case '/':
         e.preventDefault();

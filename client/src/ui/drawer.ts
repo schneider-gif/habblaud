@@ -393,6 +393,9 @@ class AgentView {
 
   /** Abre (ou fecha) o terminal somente leitura deste agente; desligado sem acesso local ou depois que ele saiu. */
   toggleTerminal(): void {
+    // Agente em configuração (primeira execução do Claude): não há conversa; o terminal de verdade é o da sessão tmux.
+    const setup = this.ctx.agent(this.id)?.setup;
+    if (setup) return this.ctx.openShell({ session: setup.session, label: `Configurar · ${this.ctx.agent(this.id)?.name ?? 'agente'}` });
     if (!this.id || this.termBtn.getAttribute('aria-disabled') === 'true') return;
     this.terminal.toggle(this.id, this.termBtn);
   }
@@ -533,7 +536,7 @@ class AgentView {
     this.termBtn.classList.toggle('is-disabled', !enabled);
     setAttr(this.termBtn, 'aria-pressed', String(open));
     this.termBtn.classList.toggle('is-on', open);
-    setText(this.termLabel, open ? 'Fechar terminal' : 'Abrir terminal');
+    setText(this.termLabel, open ? 'Fechar terminal' : this.ctx.agent(this.id)?.setup ? 'Abrir terminal (configurar o Claude)' : 'Abrir terminal');
     setTitle(
       this.termBtn,
       open

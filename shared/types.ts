@@ -148,6 +148,11 @@ export interface AgentInfo {
    * houver vários). Enquanto existe, o agente aparece como 'waiting'. Ver PermissionRequestInfo.
    */
   permission?: PermissionRequestInfo;
+  /**
+   * Boneco provisório de um agente aberto pelo escritório que ainda não tem sessão (primeira execução do Claude
+   * Code: tema e login no terminal). `session` é a sessão tmux (agente-*) a anexar no terminal embutido.
+   */
+  setup?: { session: string };
 }
 
 export interface RoomInfo {
@@ -307,6 +312,13 @@ export interface OfficeSnapshot {
     terminal?: boolean;
     /** Verificação de versão nova no GitHub (ausente nos testes e no timelapse). */
     updates?: UpdateStatus;
+    /**
+     * Terminal embutido (shell de verdade em /api/shell/ws) disponível: mesma trava do terminal, mais Linux, sem root,
+     * sem demonstração e HABBLAUD_SHELL ligado. Ausente/false = sem o botão "Terminal".
+     */
+    shell?: boolean;
+    /** Link rápido "VS Code" da barra superior (HABBLAUD_VSCODE_URL, passado pelo template); ausente = sem o botão. */
+    links?: { vscode?: string };
   };
 }
 

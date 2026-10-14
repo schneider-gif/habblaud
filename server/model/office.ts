@@ -26,6 +26,7 @@ import type { AgentProfile } from '../../shared/profile';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
+import type { SetupAgent } from '../shell/setup';
 import type { NameStore } from './names';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
 
@@ -66,6 +67,10 @@ export interface OfficeDeps {
   permissions?: () => ReadonlyMap<string, PermissionRequestInfo>;
   /** Verificação de versão nova no GitHub (ver OfficeSnapshot.meta.updates). */
   updates?: () => UpdateStatus;
+  /** Terminal embutido disponível agora (ver OfficeSnapshot.meta.shell). */
+  shell?: () => boolean;
+  /** Links rápidos da barra superior (ver OfficeSnapshot.meta.links). */
+  links?: { vscode?: string };
   now?: () => number;
 }
 
@@ -170,6 +175,8 @@ export class Office {
   /** Agentes retomados pelo escritório (claude --resume): id esperado -> sessionId da sessão encerrada. */
   private pendingResumes = new Map<string, string>();
   private demoSnap: OfficeSnapshot | null = null;
+  /** Agentes abertos pelo escritório que ainda não têm sessão (primeira execução do Claude): bonecos provisórios. */
+  private setup: SetupAgent[] = [];
   private booting = false;
   private bootFeed: FeedItem[] = [];
   /** Festa/alarme das salas (eventos do GitHub). */
@@ -240,6 +247,8 @@ export class Office {
   detail(id: string): AgentDetail | undefined {
     const rec = this.agents.get(id);
     if (rec) return { agent: cloneAgent(rec.info), history: rec.history.slice() };
+    const setup = this.setupInfos().find((a) => a.id === id);
+    if (setup) return { agent: setup, history: setup.recent.slice() };
     const demo = this.demoSnap?.agents.find((a) => a.id === id);
     return demo ? { agent: cloneAgent(demo), history: demo.recent.slice() } : undefined;
   }
@@ -712,12 +721,67 @@ export class Office {
     return this.demoSnap?.agents.find((a) => a.permission?.id === requestId)?.permission;
   }
 
+  // ---------------------------------------------------------------- agentes em configuração
+
+  /** Troca a lista de agentes em configuração (shell/setup.ts); só marca mudança se algo mudou. */
+  setSetupAgents(list: readonly SetupAgent[]): void {
+    const next = list.filter((a) => !this.agents.has(a.id));
+    if (JSON.stringify(next) === JSON.stringify(this.setup)) return;
+    this.setup = next.map((a) => ({ ...a }));
+    this.markDirty();
+  }
+
+  /** Bonecos provisórios: na sala da pasta escolhida, com o nome/aparência escolhidos no "+ Novo agente". */
+  private setupInfos(): AgentInfo[] {
+    return this.setup
+      .filter((s) => !this.agents.has(s.id))
+      .map((s) => {
+        const profile = this.pendingProfiles.get(s.id);
+        const waiting = s.status === 'waiting';
+        const activity: Activity = waiting
+          ? { id: `${s.id}#setup-wait`, at: s.createdAt, ...SPECIAL.waiting(s.waitingFor) }
+          : { id: `${s.id}#setup-open`, at: s.createdAt, kind: 'other', icon: '⏳', text: 'Abrindo o Claude…' };
+        const info: AgentInfo = {
+          id: s.id,
+          kind: 'main',
+          roomId: normalizeCwd(s.cwd),
+          name: profile?.name ?? 'Novo agente',
+          look: profile?.appearance?.look ?? 'f',
+          role: 'Agente principal',
+          title: waiting ? 'Primeira execução do Claude: termine no terminal' : 'Abrindo o Claude…',
+          sessionId: `setup:${s.session}`,
+          account: s.id.slice(0, s.id.lastIndexOf(':')),
+          status: s.status,
+          activity,
+          recent: [activity],
+          tasks: [],
+          startedAt: s.createdAt,
+          lastEventAt: s.createdAt,
+          statusSince: s.createdAt,
+          stats: zeroStats(),
+          seed: hash32(s.id),
+          setup: { session: s.session },
+        };
+        if (waiting) info.waitingFor = s.waitingFor;
+        if (profile?.appearance) info.appearance = profile.appearance;
+        return info;
+      });
+  }
+
   // ---------------------------------------------------------------- demonstração
 
   /** Perfil para um agente que ainda vai chegar (aberto pelo escritório: o id sai do pid do pane do tmux). */
   setPendingProfile(id: string, profile: AgentProfile): void {
     if (this.pendingProfiles.size > 50) this.pendingProfiles.clear();
     this.pendingProfiles.set(id, profile);
+  }
+
+  /** O agente esperado mudou de id (reaberto depois do login): o nome/boneco escolhidos vão junto. */
+  movePendingProfile(from: string, to: string): void {
+    const p = this.pendingProfiles.get(from);
+    if (!p) return;
+    this.pendingProfiles.delete(from);
+    this.pendingProfiles.set(to, p);
   }
 
   /** Agente que vai chegar retomando a sessão `fromSessionId` (Retomar do histórico): herda o personagem dela. */
@@ -808,6 +872,8 @@ export class Office {
     const now = this.now();
     const entries = new Map(this.rooms);
     for (const r of this.demoSnap?.rooms ?? []) entries.set(r.id, { path: r.path, createdAt: r.createdAt });
+    const setup = this.setupInfos();
+    for (const a of setup) if (!entries.has(a.roomId)) entries.set(a.roomId, { path: a.roomId, createdAt: a.startedAt });
     this.slots.sync(entries.keys(), now);
     const rooms: RoomInfo[] = [...entries]
       .map(([id, r]) => ({
@@ -825,7 +891,7 @@ export class Office {
       if (effect) room.effect = { ...effect };
     }
     const perms = this.deps.permissions?.();
-    const real = [...this.agents.values()].map((r) => applyPermission(cloneAgent(r.info), perms?.get(r.info.id)));
+    const real = [...[...this.agents.values()].map((r) => applyPermission(cloneAgent(r.info), perms?.get(r.info.id))), ...setup];
     const trim = (a: AgentInfo): AgentInfo => (a.recent.length > SNAPSHOT_RECENT ? { ...a, recent: a.recent.slice(-SNAPSHOT_RECENT) } : a);
     const sessions = new Map<string, number>();
     for (const a of real) if (a.kind === 'main' && a.status !== 'offline') sessions.set(a.account, (sessions.get(a.account) ?? 0) + 1);
@@ -844,6 +910,8 @@ export class Office {
         build: this.deps.build?.(),
         terminal: this.deps.terminal === true,
         updates: this.deps.updates?.(),
+        shell: this.deps.shell?.() === true,
+        links: this.deps.links?.vscode ? { vscode: this.deps.links.vscode } : undefined,
       },
     };
   }
