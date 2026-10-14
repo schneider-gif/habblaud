@@ -10,6 +10,8 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.6.0] - 2026-10-14
+
 ### Adicionado
 
 - **Missões no escritório.** Um quadro de cortiça na recepção abre o quadro de missões: uma por vez (Conecte sua
@@ -118,7 +120,8 @@ Primeira versão publicada.
   Subagentes chegam, trabalham e entregam ao principal. Mostra as duas contas, com o uso de 5 horas e semanal de
   cada uma (tap de statusline), além de feed de atividade, avisos e modo demonstração. Roda no Node ou no Docker local.
 
-[Não lançado]: https://github.com/schneider-gif/habblaud/compare/v0.5.0...HEAD
+[Não lançado]: https://github.com/schneider-gif/habblaud/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/schneider-gif/habblaud/releases/tag/v0.6.0
 [0.5.0]: https://github.com/schneider-gif/habblaud/releases/tag/v0.5.0
 [0.4.0]: https://github.com/marmottajr/habblaud/releases/tag/v0.4.0
 [0.3.2]: https://github.com/marmottajr/habblaud/releases/tag/v0.3.2
