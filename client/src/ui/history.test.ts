@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RecentSession } from '../../../shared/types';
-import { dayLabel, filterSessions, formatSize, groupSessionsByDay, parseRecentSessions } from './history';
+import { dayLabel, filterSessions, formatSize, groupSessionsByDay, insideHome, parseRecentSessions, parseSpawnInfo, resumeBlock, SPAWN_ACCOUNT } from './history';
 
 const NOW = new Date(2026, 9, 8, 15, 0, 0).getTime();
 const at = (day: number, hour: number, min = 0) => new Date(2026, 9, day, hour, min).getTime();
@@ -82,5 +82,38 @@ describe('utilitários', () => {
     expect(formatSize(10)).toBe('1 KB');
     expect(formatSize(820 * 1024)).toBe('820 KB');
     expect(formatSize(3.4 * 1024 * 1024)).toBe('3,4 MB');
+  });
+});
+
+describe('Retomar', () => {
+  const spawn = { available: true, home: '/home/ana' };
+  const ended = (p: Partial<RecentSession> = {}) => session({ sessionId: 'a', lastAt: NOW, project: '/home/ana/loja', ...p });
+
+  it('insideHome: a própria pasta ou abaixo dela (sem confundir /home/ana2)', () => {
+    expect(insideHome('/home/ana', '/home/ana')).toBe(true);
+    expect(insideHome('/home/ana/loja/api', '/home/ana')).toBe(true);
+    expect(insideHome('/home/ana/loja', '/home/ana/')).toBe(true);
+    expect(insideHome('/home/ana2/loja', '/home/ana')).toBe(false);
+    expect(insideHome('/etc', '/home/ana')).toBe(false);
+    expect(insideHome('/home/ana/../bob', '/home/ana')).toBe(false);
+  });
+
+  it('resumeBlock: liberado só para sessão encerrada da conta principal, com pasta no HOME e tmux disponível', () => {
+    expect(SPAWN_ACCOUNT).toBe('.claude');
+    expect(resumeBlock(ended(), spawn)).toBeUndefined();
+    expect(resumeBlock(ended(), null)).toMatch(/tmux/);
+    expect(resumeBlock(ended(), { available: false })).toMatch(/tmux/);
+    expect(resumeBlock(ended({ account: '.claude-trabalho' }), spawn)).toMatch(/conta principal/);
+    expect(resumeBlock(ended({ project: undefined }), spawn)).toMatch(/pasta/);
+    expect(resumeBlock(ended({ project: '/srv/app' }), spawn)).toMatch(/fora do seu HOME/);
+    // sem o HOME (servidor antigo): o servidor ainda confere ao retomar
+    expect(resumeBlock(ended({ project: '/srv/app' }), { available: true })).toBeUndefined();
+  });
+
+  it('parseSpawnInfo: {available, home} de GET /api/agents/new; o resto vira indisponível', () => {
+    expect(parseSpawnInfo({ available: true, folders: [], home: '/home/ana' })).toEqual({ available: true, home: '/home/ana' });
+    expect(parseSpawnInfo({ available: true })).toEqual({ available: true });
+    expect(parseSpawnInfo({ error: 'x' })).toEqual({ available: false });
+    expect(parseSpawnInfo(null)).toEqual({ available: false });
   });
 });

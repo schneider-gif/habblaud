@@ -18,6 +18,10 @@ import {
   TerminalLog,
   terminalFooter,
   terminalUrl,
+  NOT_IN_TMUX_HINT,
+  sendBlockedText,
+  sendErrorText,
+  sentText,
 } from './terminal';
 
 const user = (id: string, text = 'oi'): TerminalEntry => ({ kind: 'user', id, at: 1, text });
@@ -264,5 +268,30 @@ describe('utilitários', () => {
     expect(entryTimeTitle(new Date(2026, 9, 8, 14, 30, 5).getTime(), now)).toMatch(/14:30:05/);
     expect(entryTimeTitle(new Date(2026, 9, 6, 9, 5).getTime(), now)).toMatch(/06.*09:05/);
     expect(entryTimeTitle(NaN, now)).toBe('');
+  });
+});
+
+describe('mensagens pelo terminal: avisos visíveis', () => {
+  it('sentText: diz para quem foi', () => {
+    expect(sentText('Ana')).toBe('Mensagem enviada para Ana.');
+    expect(sentText(undefined)).toBe('Mensagem enviada.');
+  });
+
+  it('sendErrorText: 409 explica o tmux, 502 é tmux indisponível, o resto usa o erro do servidor', () => {
+    expect(sendErrorText(409, 'este agente não roda no tmux')).toBe(NOT_IN_TMUX_HINT);
+    expect(NOT_IN_TMUX_HINT).toBe(
+      'Este agente não foi aberto pelo escritório (fora do tmux), então não recebe mensagens daqui. Abra um agente novo pelo botão do escritório ou use Retomar.',
+    );
+    expect(sendErrorText(502, 'o tmux não respondeu')).toBe('Mensagem não enviada: tmux indisponível na máquina.');
+    expect(sendErrorText(413, 'mensagem longa demais (máx. 8000 caracteres)')).toBe('Mensagem não enviada: mensagem longa demais (máx. 8000 caracteres).');
+    expect(sendErrorText(500)).toBe('Não foi possível enviar a mensagem.');
+    expect(sendErrorText(0)).toBe('Não foi possível falar com o escritório: a mensagem não foi enviada.');
+  });
+
+  it('sendBlockedText: por que a caixa não envia (sessão encerrada, demo, verificando, fora do tmux)', () => {
+    expect(sendBlockedText({ session: true, mock: false, checked: true })).toMatch(/encerrada.*Retomar/);
+    expect(sendBlockedText({ session: false, mock: true, checked: true })).toMatch(/demonstração/);
+    expect(sendBlockedText({ session: false, mock: false, checked: false })).toMatch(/Verificando/);
+    expect(sendBlockedText({ session: false, mock: false, checked: true })).toBe(NOT_IN_TMUX_HINT);
   });
 });

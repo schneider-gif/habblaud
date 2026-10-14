@@ -96,6 +96,44 @@ export function groupSessionsByDay(list: readonly RecentSession[], now: number):
   return [...days.values()].sort((a, b) => b.key - a.key);
 }
 
+// ---------------------------------------------------------------- Retomar (puro)
+
+/** Conta do Claude aberto pelo escritório (igual a SPAWN_ACCOUNT em server/http/app.ts). */
+export const SPAWN_ACCOUNT = '.claude';
+/** Abre agentes no tmux (GET e POST /api/agents/new); POST com {resume} retoma uma sessão encerrada. */
+export const SPAWN_URL = '/api/agents/new';
+/** Quanto tempo esperar o agente retomado aparecer no escritório para focá-lo. */
+const RESUME_FOCUS_MS = 60_000;
+
+/** O que GET /api/agents/new diz: o escritório abre agentes no tmux? E qual é o HOME (para conferir a pasta). */
+export interface SpawnInfo {
+  available: boolean;
+  home?: string;
+}
+
+export function parseSpawnInfo(raw: unknown): SpawnInfo {
+  const o = raw && typeof raw === 'object' ? (raw as { available?: unknown; home?: unknown }) : {};
+  if (o.available !== true) return { available: false };
+  const home = str(o.home);
+  return home ? { available: true, home } : { available: true };
+}
+
+/** `path` é o HOME ou fica dentro dele (comparação de caminho, sem `.`/`..`; o servidor confere de novo com realpath). */
+export function insideHome(path: string, home: string): boolean {
+  const base = home.replace(/\/+$/, '');
+  if (path.split('/').some((seg) => seg === '..' || seg === '.')) return false;
+  return path === base || path.startsWith(`${base}/`);
+}
+
+/** Por que a sessão encerrada não pode ser retomada pelo escritório (undefined = pode). */
+export function resumeBlock(s: RecentSession, spawn: SpawnInfo | null): string | undefined {
+  if (!spawn?.available) return 'Retomar precisa do tmux nesta máquina: este escritório não abre agentes';
+  if (s.account !== SPAWN_ACCOUNT) return 'Só dá para retomar pelo escritório sessões da conta principal (~/.claude)';
+  if (!s.project) return 'Não deu para descobrir a pasta desta sessão';
+  if (spawn.home && !insideHome(s.project, spawn.home)) return 'A pasta desta sessão fica fora do seu HOME';
+  return undefined;
+}
+
 /** Tamanho do transcript para a dica: "820 KB", "3,4 MB". */
 export function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -124,6 +162,12 @@ export class HistoryPopover implements UiComponent {
   private closedAt = -Infinity;
   /** O que está desenhado na lista (evita refazer o DOM a cada quadro). */
   private drawn = '';
+  /** GET /api/agents/new (null = ainda não respondeu): decide se "Retomar" fica liberado. */
+  private spawn: SpawnInfo | null = null;
+  /** Sessões com um pedido de Retomar em andamento ("conta:id"). */
+  private resuming = new Set<string>();
+  /** Agente retomado que ainda vai chegar: quando aparecer, é selecionado e a câmera vai até ele. */
+  private pendingFocus: { id: string; until: number } | null = null;
 
   constructor(
     private ctx: UiContext,
@@ -173,7 +217,10 @@ export class HistoryPopover implements UiComponent {
       'div',
       { class: 'ui-popover ui-hist', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': 'Histórico de sessões', id: 'ui-history', popover: 'auto' } },
       h('div', { class: 'ui-popover__head' }, h('h2', { text: 'Histórico de sessões' }), close),
-      h('p', { class: 'ui-hist__hint', text: 'Últimos 7 dias, de todas as contas. Clique para ler a conversa no terminal (somente leitura).' }),
+      h('p', {
+        class: 'ui-hist__hint',
+        text: 'Últimos 7 dias, de todas as contas. Clique para ler a conversa no terminal (somente leitura); “Retomar” reabre uma sessão encerrada num agente novo, que recebe mensagens pelo escritório.',
+      }),
       h('label', { class: 'ui-search ui-hist__search' }, searchIcon, this.input),
       this.stateEl,
       this.listEl,
@@ -220,6 +267,7 @@ export class HistoryPopover implements UiComponent {
     this.input.focus();
     this.input.select();
     void this.load();
+    void this.loadSpawn();
   }
 
   hide(): void {
@@ -231,6 +279,7 @@ export class HistoryPopover implements UiComponent {
   }
 
   render(): void {
+    this.focusResumed();
     const available = this.available;
     // aria-disabled (e não disabled): o botão continua focável e a dica do porquê aparece no hover.
     setAttr(this.button, 'aria-disabled', available ? null : 'true');
@@ -287,7 +336,11 @@ export class HistoryPopover implements UiComponent {
     setHidden(this.footEl, !this.sessions.length);
 
     // Refaz o DOM só quando o conteúdo muda (a lista é pequena: no máximo ~150 sessões).
-    const sig = JSON.stringify([days.map((d) => [d.key, d.label]), shown.map((s) => [s.account, s.sessionId, s.title, s.lastAt, s.open, s.agentId && !!this.ctx.agent(s.agentId)])]);
+    const sig = JSON.stringify([
+      days.map((d) => [d.key, d.label]),
+      shown.map((s) => [s.account, s.sessionId, s.title, s.lastAt, s.open, s.agentId && !!this.ctx.agent(s.agentId), this.resuming.has(`${s.account}:${s.sessionId}`)]),
+      this.spawn,
+    ]);
     if (sig === this.drawn) return;
     const focusedKey = (document.activeElement as HTMLElement | null)?.dataset?.session;
     this.drawn = sig;
@@ -301,7 +354,7 @@ export class HistoryPopover implements UiComponent {
     if (focusedKey) this.items().find((b) => b.dataset.session === focusedKey)?.focus();
   }
 
-  private item(s: RecentSession, now: number): HTMLButtonElement {
+  private item(s: RecentSession, now: number): HTMLElement {
     const account = this.ctx.account(s.account);
     const chip = createAccountChip('sm');
     updateAccountChip(chip, account, s.account);
@@ -322,7 +375,78 @@ export class HistoryPopover implements UiComponent {
       this.hide();
       this.terminal.openSession(s, this.button);
     });
+    if (live) return h('div', { class: 'ui-hist__row' }, btn);
+    return h('div', { class: 'ui-hist__row' }, btn, this.resumeButton(s, title));
+  }
+
+  /** "Retomar" de uma sessão encerrada: travado (aria-disabled, com o porquê na dica) quando não dá. */
+  private resumeButton(s: RecentSession, title: string): HTMLButtonElement {
+    const block = resumeBlock(s, this.spawn);
+    const busy = this.resuming.has(`${s.account}:${s.sessionId}`);
+    const btn = h('button', { class: `ui-btn ui-btn--sm ui-hist__resume${block ? ' is-disabled' : ''}`, type: 'button', text: busy ? 'Retomando…' : 'Retomar' });
+    if (block) {
+      setAttr(btn, 'aria-disabled', 'true');
+      setTitle(btn, `${block}.`);
+      setAttr(btn, 'aria-label', `Retomar “${title}”: indisponível. ${block}.`);
+    } else {
+      setTitle(btn, 'Reabre esta conversa num agente novo (claude --resume), na pasta original, que recebe mensagens pelo escritório');
+      setAttr(btn, 'aria-label', `Retomar “${title}” num agente novo`);
+      if (busy) setAttr(btn, 'aria-busy', 'true');
+    }
+    btn.addEventListener('click', () => {
+      if (block) return this.ctx.notify(`${block}.`, 'warn');
+      void this.resume(s, title);
+    });
     return btn;
+  }
+
+  /** GET /api/agents/new: o escritório abre agentes no tmux? Com que HOME? */
+  private async loadSpawn(): Promise<void> {
+    let info: SpawnInfo = { available: false };
+    try {
+      const r = await fetch(SPAWN_URL, { cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (r.ok) info = parseSpawnInfo(await r.json());
+    } catch {
+      // sem resposta: Retomar fica travado
+    }
+    this.spawn = info;
+    if (this.isOpen) this.renderList();
+  }
+
+  /** POST {resume} em /api/agents/new; o agente novo é focado quando chegar ao escritório. */
+  private async resume(s: RecentSession, title: string): Promise<void> {
+    const key = `${s.account}:${s.sessionId}`;
+    if (this.resuming.has(key)) return;
+    this.resuming.add(key);
+    this.renderList();
+    try {
+      const r = await fetch(SPAWN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: s.sessionId }) });
+      const j = (await r.json().catch(() => ({}))) as { error?: string; pid?: unknown };
+      if (!r.ok) {
+        const why = r.status === 502 ? 'tmux indisponível na máquina' : (j.error ?? 'o escritório recusou o pedido');
+        this.ctx.notify(`Não foi possível retomar “${title}”: ${why}.`, 'warn');
+        return;
+      }
+      const pid = typeof j.pid === 'number' && Number.isSafeInteger(j.pid) ? j.pid : undefined;
+      if (pid) this.pendingFocus = { id: `${SPAWN_ACCOUNT}:${pid}`, until: Date.now() + RESUME_FOCUS_MS };
+      this.ctx.notify(`Retomando “${title}”: o agente aparece no escritório em alguns segundos.`);
+      this.hide();
+    } catch {
+      this.ctx.notify(`Não foi possível retomar “${title}”: o escritório não respondeu.`, 'warn');
+    } finally {
+      this.resuming.delete(key);
+      if (this.isOpen) this.renderList();
+    }
+  }
+
+  /** O agente retomado chegou: seleciona e leva a câmera até ele (uma vez). */
+  private focusResumed(): void {
+    const p = this.pendingFocus;
+    if (!p) return;
+    if (this.ctx.agent(p.id)) {
+      this.pendingFocus = null;
+      this.ctx.select({ type: 'agent', id: p.id }, { focus: true });
+    } else if (Date.now() > p.until) this.pendingFocus = null;
   }
 
   private items(): HTMLButtonElement[] {
