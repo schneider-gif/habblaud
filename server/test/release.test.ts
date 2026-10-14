@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changelogSection, parseReleaseArgs, tarballEntries, tarballName, TARBALL_ENTRIES, unwrapMarkdown } from '../../scripts/release';
+import { changelogSection, parseReleaseArgs, tarballArgs, tarballEntries, tarballName, TARBALL_ENTRIES, unwrapMarkdown } from '../../scripts/release';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 
@@ -76,6 +76,9 @@ describe('pacote da release', () => {
   it('leva só o que o servidor precisa para rodar', () => {
     expect(TARBALL_ENTRIES).toEqual(['package.json', 'dist', 'mod', '.claude-plugin', 'templates', 'LICENSE']);
     expect(TARBALL_ENTRIES).not.toContain('node_modules');
+  });
+  it('tar escreve no stdout (um caminho C:\... vira host remoto no tar do Git Bash)', () => {
+    expect(tarballArgs(['package.json', 'dist'])).toEqual(['czf', '-', 'package.json', 'dist']);
   });
   it('pula o que não existe (templates antes da Fase 1)', () => {
     expect(tarballEntries((p) => p !== 'templates')).toEqual(['package.json', 'dist', 'mod', '.claude-plugin', 'LICENSE']);

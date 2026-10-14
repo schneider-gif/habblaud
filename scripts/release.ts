@@ -5,7 +5,7 @@
 // Antes: suba a versão no package.json (npm version minor --no-git-tag-version), escreva a seção no CHANGELOG.md e
 // faça o merge na main.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -36,6 +36,11 @@ export function tarballName(version: string): string {
 
 export function tarballEntries(exists: (p: string) => boolean): string[] {
   return TARBALL_ENTRIES.filter((p) => exists(p));
+}
+
+/** Argumentos do tar: escreve no stdout, porque um caminho `C:\...` vira "host remoto" no tar do Git Bash. */
+export function tarballArgs(entries: string[]): string[] {
+  return ['czf', '-', ...entries];
 }
 
 /**
@@ -136,7 +141,12 @@ function main(argv: string[]): void {
     if (npmCli) run(process.execPath, [npmCli, 'run', 'build']);
     else run('npm', ['run', 'build']);
     const tgz = join(dir, tarballName(version));
-    run('tar', ['czf', tgz, ...tarballEntries((p) => existsSync(join(ROOT, p)))]);
+    const out = openSync(tgz, 'w');
+    try {
+      execFileSync('tar', tarballArgs(tarballEntries((p) => existsSync(join(ROOT, p)))), { cwd: ROOT, stdio: ['ignore', out, 'inherit'] });
+    } finally {
+      closeSync(out);
+    }
     run('git', ['tag', '-a', tag, '-m', `Habblaud ${tag}`]);
     run('git', ['push', 'origin', tag]);
     const url = run('gh', ['release', 'create', tag, '--verify-tag', '--title', `Habblaud ${tag}`, '--notes-file', file, tgz]);
