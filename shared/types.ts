@@ -346,7 +346,7 @@ export interface OfficeSnapshot {
      */
     github?: boolean;
     /** Link rápido "VS Code" da barra superior (HABBLAUD_VSCODE_URL, passado pelo template); ausente = sem o botão. */
-    links?: { vscode?: string };
+    links?: { vscode?: string; bug?: string };
   };
 }
 

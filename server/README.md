@@ -328,6 +328,7 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_TERMINAL` | — | `0` desliga o terminal somente leitura (não liga com a porta exposta) |
 | `HABBLAUD_SHELL` | ligado (com a trava do terminal) | `0` desliga o terminal embutido (`shell/`); também fica desligado fora do Linux, como root, com `HABBLAUD_DEMO` ou sem `tmux`/`script` |
 | `HABBLAUD_VSCODE_URL` | — | URL `http(s)` do botão **VS Code** (`meta.links.vscode`); ausente = sem botão |
+| `HABBLAUD_BUG_URL` | — | URL `http(s)` do botão **🐞 Bug** (`meta.links.bug`), ex.: formulário de bug do serviço que hospeda o escritório; ausente = sem botão |
 | `HABBLAUD_CLAUDE_DIRS` | — | config dirs separados por vírgula; substitui a detecção (`~/.claude*` com `projects/` ou `sessions/` + `CLAUDE_CONFIG_DIR`) |
 | `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (missões em `missions.json`, nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |
