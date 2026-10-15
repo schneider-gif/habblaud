@@ -17,6 +17,15 @@ import { bondBetween, personaFor, setSocialOverride, socialOverride, TRAITS, typ
 import type { UiContext } from './context';
 import { h, iconButton } from './dom';
 import { ICONS } from './icons';
+import { arrivingText, ENGINE_KEY, ENGINE_LABEL, pickEngine, type Engine } from './engine';
+
+function safeGetEngine(): string | null {
+  try {
+    return localStorage.getItem(ENGINE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 const L = {
   hairStyle: {
@@ -63,6 +72,33 @@ export class AgentCustomizer {
   private traits = new Set<TraitId>();
   private bondsBox!: HTMLElement;
   private bonds = new Map<string, 'amizade' | 'rivalidade' | null>();
+  private engine: Engine = 'claude';
+  private engines: Partial<Record<Engine, boolean>> | undefined;
+  private engineBtns = new Map<Engine, HTMLButtonElement>();
+  private engineRow!: HTMLElement;
+  private engineHint!: HTMLElement;
+
+  private setEngine(e: Engine): void {
+    if (this.engines && this.engines[e] === false) return;
+    this.engine = e;
+    try {
+      localStorage.setItem(ENGINE_KEY, e);
+    } catch {
+      // navegador sem localStorage: só não lembra
+    }
+    this.syncEngine();
+  }
+
+  private syncEngine(): void {
+    for (const [e, b] of this.engineBtns) {
+      b.setAttribute('aria-checked', String(this.engine === e));
+      b.setAttribute('aria-pressed', String(this.engine === e));
+      const missing = this.engines?.[e] === false;
+      b.disabled = missing;
+      b.title = missing ? `${ENGINE_LABEL[e]} não está instalado neste escritório` : e === 'codex' ? 'Codex CLI (OpenAI): usa a sua conta ChatGPT Plus/Pro ou chave de API' : 'Claude Code (Anthropic)';
+    }
+    this.engineHint.textContent = this.engine === 'codex' ? 'Sem login? Ele aparece pedindo para conectar a conta OpenAI.' : '';
+  }
 
   constructor(private ctx: UiContext) {
     this.titleEl = h('h2', { attrs: { id: 'ui-cust-title' } });
@@ -74,6 +110,15 @@ export class AgentCustomizer {
     this.folderInput = h('input', { class: 'ui-cust__input', type: 'text', attrs: { placeholder: 'vazio = pasta inicial', list: 'ui-cust-folders', autocomplete: 'off', id: 'ui-cust-folder' } });
     this.folderList = h('datalist', { attrs: { id: 'ui-cust-folders' } });
     this.folderRow = h('label', { class: 'ui-cust__field' }, h('span', { text: 'Pasta do projeto' }), this.folderInput, this.folderList);
+    // Claude ou Codex (só no agente novo): a última escolha fica lembrada no navegador.
+    const engineSeg = h('div', { class: 'ui-cust__seg', role: 'radiogroup', attrs: { 'aria-label': 'Ferramenta' } });
+    for (const e of ['claude', 'codex'] as const) {
+      const b = h('button', { class: 'ui-btn', type: 'button', text: ENGINE_LABEL[e], attrs: { role: 'radio', 'data-engine': e }, on: { click: () => this.setEngine(e) } });
+      this.engineBtns.set(e, b);
+      engineSeg.append(b);
+    }
+    this.engineHint = h('span', { class: 'ui-cust__hint' });
+    this.engineRow = h('div', { class: 'ui-cust__field' }, h('span', { text: 'Ferramenta' }), engineSeg, this.engineHint);
 
     const look = h('div', { class: 'ui-cust__seg', role: 'group', attrs: { 'aria-label': 'Estilo' } });
     for (const [k, label] of [['f', 'Feminino'], ['m', 'Masculino']] as const) {
@@ -114,6 +159,7 @@ export class AgentCustomizer {
           'div',
           { class: 'ui-cust__form' },
           h('label', { class: 'ui-cust__field' }, h('span', { text: 'Nome' }), this.nameInput),
+          this.engineRow,
           this.folderRow,
           h('div', { class: 'ui-cust__field' }, h('span', { text: 'Estilo' }), look),
           colors('skin', 'Pele', SKIN),
@@ -215,6 +261,7 @@ export class AgentCustomizer {
       this.titleEl.textContent = `Personalizar ${agent.name}`;
       this.saveBtn.textContent = 'Salvar';
       this.folderRow.hidden = true;
+      this.engineRow.hidden = true;
     } else {
       this.mode = { kind: 'new' };
       this.randomize(false);
@@ -223,6 +270,9 @@ export class AgentCustomizer {
       this.titleEl.textContent = 'Novo agente';
       this.saveBtn.textContent = 'Abrir agente';
       this.folderRow.hidden = false;
+      this.engineRow.hidden = false;
+      this.engine = pickEngine(safeGetEngine(), this.engines);
+      this.syncEngine();
       void this.loadFolders();
     }
     this.sync();
@@ -234,8 +284,13 @@ export class AgentCustomizer {
 
   private async loadFolders(): Promise<void> {
     try {
-      const j = (await (await fetch('/api/agents/new', { cache: 'no-store' })).json()) as { folders?: string[] };
+      const j = (await (await fetch('/api/agents/new', { cache: 'no-store' })).json()) as { folders?: string[]; engines?: Partial<Record<Engine, boolean>> };
       this.folderList.replaceChildren(...(j.folders ?? []).map((f) => h('option', { attrs: { value: f } })));
+      if (j.engines) {
+        this.engines = j.engines;
+        this.engine = pickEngine(safeGetEngine(), this.engines);
+        this.syncEngine();
+      }
     } catch {
       // sem sugestões: o campo continua livre
     }
@@ -323,7 +378,10 @@ export class AgentCustomizer {
     const body: Record<string, unknown> = { appearance: this.override() };
     if (name) body.name = name;
     const isNew = this.mode.kind === 'new';
-    if (isNew) body.cwd = this.folderInput.value.trim();
+    if (isNew) {
+      body.cwd = this.folderInput.value.trim();
+      body.engine = this.engine;
+    }
     const url = this.mode.kind === 'edit' ? `/api/agents/${encodeURIComponent(this.mode.agent.id)}/profile` : '/api/agents/new';
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -341,7 +399,7 @@ export class AgentCustomizer {
           rivals: [...this.bonds].filter(([, k]) => k === 'rivalidade').map(([n]) => n),
         });
       this.el.close();
-      this.ctx.notify(isNew ? `${name || 'O novo agente'} está chegando: aparece no escritório em alguns segundos.` : 'Agente atualizado.');
+      this.ctx.notify(isNew ? arrivingText(name, this.engine) : 'Agente atualizado.');
     } catch {
       this.errEl.textContent = 'Não foi possível falar com o escritório.';
       this.errEl.hidden = false;

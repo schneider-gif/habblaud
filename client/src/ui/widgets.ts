@@ -34,7 +34,14 @@ export function createRoleBadge(): HTMLElement {
   return h('span', { class: 'ui-role' });
 }
 
-export function updateRoleBadge(badge: HTMLElement, agent: Pick<AgentInfo, 'kind' | 'role' | 'background'>): void {
+export function updateRoleBadge(badge: HTMLElement, agent: Pick<AgentInfo, 'kind' | 'role' | 'background'> & { engine?: AgentInfo['engine'] }): void {
+  // Agente do Codex (OpenAI): selo verde "Codex" no lugar de "Principal" (o Claude é o padrão, sem selo próprio).
+  if (agent.kind === 'main' && agent.engine === 'codex') {
+    setText(badge, 'Codex');
+    setVariant(badge, 'ui-role--', 'codex');
+    setTitle(badge, 'Agente principal do Codex (OpenAI)');
+    return;
+  }
   setText(badge, agent.kind === 'main' ? 'Principal' : agent.role || 'Subagente');
   setVariant(badge, 'ui-role--', agent.kind);
   setTitle(badge, agent.kind === 'main' ? 'Agente principal' : `Subagente: ${agent.role}${agent.background ? ' (em segundo plano)' : ''}`);

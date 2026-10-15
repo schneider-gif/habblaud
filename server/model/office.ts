@@ -7,6 +7,7 @@ import type {
   AgentDetail,
   AgentInfo,
   AgentStats,
+  AgentEngine,
   AgentStatus,
   FeedItem,
   Notice,
@@ -69,6 +70,8 @@ export interface OfficeDeps {
   updates?: () => UpdateStatus;
   /** Terminal embutido disponível agora (ver OfficeSnapshot.meta.shell). */
   shell?: () => boolean;
+  /** Painel do GitHub disponível agora (ver OfficeSnapshot.meta.github). */
+  github?: () => boolean;
   /** Links rápidos da barra superior (ver OfficeSnapshot.meta.links). */
   links?: { vscode?: string };
   now?: () => number;
@@ -96,6 +99,8 @@ export interface MainInput {
   startedAt: number;
   status: AgentStatus;
   waitingFor?: string;
+  /** Codex CLI (ausente = Claude Code). */
+  engine?: AgentEngine;
 }
 
 export interface SubInput {
@@ -301,6 +306,7 @@ export class Office {
       stats: zeroStats(),
       seed: hash32(p.id),
     };
+    if (p.engine === 'codex') info.engine = 'codex';
     const pending = this.pendingProfiles.get(p.id);
     if (pending) {
       this.pendingProfiles.delete(p.id);
@@ -724,8 +730,10 @@ export class Office {
   // ---------------------------------------------------------------- agentes em configuração
 
   /** Troca a lista de agentes em configuração (shell/setup.ts); só marca mudança se algo mudou. */
-  setSetupAgents(list: readonly SetupAgent[]): void {
-    const next = list.filter((a) => !this.agents.has(a.id));
+  setSetupAgents(list: readonly SetupAgent[], engine?: 'codex'): void {
+    // Cada ferramenta (Claude, Codex) tem o seu observador: troca só os bonecos dela.
+    const others = this.setup.filter((a) => a.engine !== engine);
+    const next = [...others, ...list.filter((a) => !this.agents.has(a.id)).map((a) => (engine ? { ...a, engine } : a))];
     if (JSON.stringify(next) === JSON.stringify(this.setup)) return;
     this.setup = next.map((a) => ({ ...a }));
     this.markDirty();
@@ -738,9 +746,10 @@ export class Office {
       .map((s) => {
         const profile = this.pendingProfiles.get(s.id);
         const waiting = s.status === 'waiting';
+        const tool = s.engine === 'codex' ? 'Codex' : 'Claude';
         const activity: Activity = waiting
           ? { id: `${s.id}#setup-wait`, at: s.createdAt, ...SPECIAL.waiting(s.waitingFor) }
-          : { id: `${s.id}#setup-open`, at: s.createdAt, kind: 'other', icon: '⏳', text: 'Abrindo o Claude…' };
+          : { id: `${s.id}#setup-open`, at: s.createdAt, kind: 'other', icon: '⏳', text: `Abrindo o ${tool}…` };
         const info: AgentInfo = {
           id: s.id,
           kind: 'main',
@@ -748,7 +757,7 @@ export class Office {
           name: profile?.name ?? 'Novo agente',
           look: profile?.appearance?.look ?? 'f',
           role: 'Agente principal',
-          title: waiting ? 'Primeira execução do Claude: termine no terminal' : 'Abrindo o Claude…',
+          title: waiting ? `Primeira execução do ${tool}: termine no terminal` : `Abrindo o ${tool}…`,
           sessionId: `setup:${s.session}`,
           account: s.id.slice(0, s.id.lastIndexOf(':')),
           status: s.status,
@@ -762,6 +771,7 @@ export class Office {
           seed: hash32(s.id),
           setup: { session: s.session },
         };
+        if (s.engine === 'codex') info.engine = 'codex';
         if (waiting) info.waitingFor = s.waitingFor;
         if (profile?.appearance) info.appearance = profile.appearance;
         return info;
@@ -911,6 +921,7 @@ export class Office {
         terminal: this.deps.terminal === true,
         updates: this.deps.updates?.(),
         shell: this.deps.shell?.() === true,
+        github: this.deps.github?.() === true,
         links: this.deps.links?.vscode ? { vscode: this.deps.links.vscode } : undefined,
       },
     };

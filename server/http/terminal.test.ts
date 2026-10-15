@@ -266,15 +266,53 @@ describe('terminal somente leitura: rota', () => {
         expect(r.status).toBe(404);
         expect(JSON.parse(r.body)).toEqual({ error: 'agente não encontrado' });
       }
-      const noPath = await open(env.base, route(MAIN));
-      expect(noPath.status).toBe(404);
-      expect(JSON.parse(noPath.body)).toEqual({ error: 'transcript do agente não encontrado' });
       const post = await open(env.base, route(MAIN), { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       expect(post.status).toBe(405);
       expect(post.headers.allow).toBe('GET');
       expect((await open(env.base, route(MAIN), { method: 'HEAD' })).status).toBe(405);
       // A rota genérica do agente continua igual.
       expect((await fetch(`${env.base}/api/agents/${encodeURIComponent(MAIN)}`)).status).toBe(200);
+    } finally {
+      await env.close();
+    }
+  });
+
+  it('agente sem transcript ainda (recém-aberto): init vazio e a conversa entra quando o transcript aparece', async () => {
+    // Regressão 0.7.0: o terminal respondia 404 antes da primeira mensagem e a página ficava presa em
+    // "ainda não tem conversa" mesmo depois de a conversa começar.
+    const env = await serve();
+    try {
+      const s = await open(env.base, route(MAIN));
+      expect(s.status).toBe(200);
+      await waitFor(() => expect(inits(s)).toHaveLength(1));
+      expect(inits(s)[0].entries).toEqual([]);
+      const file = join(env.dir, 'novo.jsonl');
+      writeLines(file, [line('primeira')]);
+      env.paths.set(MAIN, file);
+      await waitFor(() => expect(view(s)).toEqual(['primeira']));
+      appendLines(file, [line('segunda')]);
+      await waitFor(() => expect(view(s)).toEqual(['primeira', 'segunda']));
+      s.close();
+    } finally {
+      await env.close();
+    }
+  });
+
+  it('boneco provisório (em configuração) abre o terminal e recebe a conversa quando o agente de verdade chega', async () => {
+    const env = await serve();
+    try {
+      const id = 'acc:4242';
+      env.office.setSetupAgents([{ id, session: 'agente-abc', cwd: '/p/loja', createdAt: Date.now(), status: 'waiting', waitingFor: 'login' }]);
+      env.office.commit();
+      const s = await open(env.base, route(id));
+      expect(s.status).toBe(200);
+      await waitFor(() => expect(inits(s)).toHaveLength(1));
+      env.office.addMain({ id, account: 'acc', sessionId: 's9', cwd: '/p/loja', role: 'Agente principal', startedAt: Date.now(), status: 'working' });
+      const file = join(env.dir, 's9.jsonl');
+      writeLines(file, [line('oi')]);
+      env.paths.set(id, file);
+      await waitFor(() => expect(view(s)).toEqual(['oi']));
+      s.close();
     } finally {
       await env.close();
     }

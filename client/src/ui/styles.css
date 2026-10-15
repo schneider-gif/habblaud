@@ -414,6 +414,24 @@
   background: rgba(170, 140, 255, 0.16);
 }
 
+/* Agente do Codex (OpenAI): selo verde. */
+.ui-role--codex {
+  color: #0b2a21;
+  background: #10a37f;
+  font-weight: 700;
+}
+
+/* Escolha da ferramenta no "+ Novo agente" */
+.ui-cust__seg .ui-btn[data-engine='codex'][aria-pressed='true'] {
+  background: #10a37f;
+  border-color: #10a37f;
+  color: #06140f;
+}
+.ui-cust__seg .ui-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .ui-progress {
   position: relative;
   display: block;
@@ -8107,4 +8125,81 @@ html.is-replay #world {
   .ui-btn-new-agent {
     padding: 0 12px;
   }
+}
+
+/* ------------------------------------------------------------------ painel do GitHub */
+
+.ui-gh {
+  width: min(560px, calc(100vw - 24px));
+}
+.ui-gh__body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+.ui-gh__status {
+  margin: 0;
+  font-weight: 700;
+}
+.ui-gh__hint {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 12.5px;
+}
+.ui-gh__msg {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(16, 163, 127, 0.14);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.ui-gh__msg--warn {
+  background: rgba(255, 129, 74, 0.16);
+}
+.ui-gh__sec {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(139, 152, 179, 0.2);
+}
+.ui-gh__sec h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.ui-gh__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ui-gh__col {
+  display: grid;
+  gap: 8px;
+}
+.ui-gh__select {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.ui-gh__check {
+  font-size: 12.5px;
+}
+.ui-gh__prs {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.ui-gh__prs a {
+  color: inherit;
+}
+.ui-btn--codex {
+  background: #10a37f;
+  border-color: #10a37f;
+  color: #06140f;
+}
+.ui-missions__go--codex {
+  background: #10a37f;
+  color: #06140f;
 }

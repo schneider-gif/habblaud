@@ -7,6 +7,8 @@ import type { UiComponent, UiContext } from './context';
 import { copyText, h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
 import type { XtermBundle } from './shell-xterm';
+/** Programa de uma aba nova (lista fechada no servidor): primeira execução do Claude, login da OpenAI (Codex) ou do GitHub. */
+export type ShellProgram = 'claude' | 'codex' | 'gh';
 
 export interface ShellTabInfo {
   id: string;
@@ -345,7 +347,7 @@ export class ShellPanel implements UiComponent {
   }
 
   /** Abre o painel; sem aba nenhuma no servidor, cria a primeira. `login`: aba nova rodando o claude (Missão 0). */
-  async open(opts: { login?: boolean; session?: string; label?: string } = {}): Promise<void> {
+  async open(opts: { login?: boolean; program?: ShellProgram; session?: string; label?: string } = {}): Promise<void> {
     if (!this.available()) {
       this.ctx.notify(`${SHELL_UNAVAILABLE_HINT}.`, 'warn');
       return;
@@ -378,7 +380,7 @@ export class ShellPanel implements UiComponent {
       return this.activate(opts.session);
     }
     await this.refresh();
-    if (opts.login) return void this.newTab({ login: true });
+    if (opts.login || opts.program) return void this.newTab({ program: opts.program ?? 'claude' });
     if (this.active && this.allTabs().some((t) => t.id === this.active)) return this.activate(this.active, { force: !this.ws });
     const saved = safeGet(SHELL_ACTIVE_KEY);
     const tabs = this.allTabs();
@@ -437,7 +439,7 @@ export class ShellPanel implements UiComponent {
             class: `ui-shell__tab${selected ? ' is-active' : ''}${t.kind === 'agent' ? ' is-agent' : ''}`,
             type: 'button',
             role: 'tab',
-            title: t.kind === 'agent' ? `Sessão do agente (${t.id}): termine a configuração do Claude aqui` : `Sessão tmux ${t.id} (também abre no VS Code: tmux attach -t ${t.id})`,
+            title: t.kind === 'agent' ? `Sessão do agente (${t.id}): termine a configuração do ${t.id.startsWith('agente-codex-') ? 'Codex' : 'Claude'} aqui` : `Sessão tmux ${t.id} (também abre no VS Code: tmux attach -t ${t.id})`,
             attrs: { 'aria-selected': String(selected) },
             on: { click: () => this.activate(t.id) },
           },
@@ -462,13 +464,13 @@ export class ShellPanel implements UiComponent {
     );
   }
 
-  private async newTab(opts: { login?: boolean } = {}): Promise<void> {
+  private async newTab(opts: { program?: ShellProgram } = {}): Promise<void> {
     const size = this.size();
     try {
       const r = await fetch('/api/shell/tabs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: opts.login === true, cols: size.cols, rows: size.rows }),
+        body: JSON.stringify({ ...(opts.program ? { program: opts.program } : {}), cols: size.cols, rows: size.rows }),
       });
       const j = (await r.json()) as { tab?: ShellTabInfo; error?: string };
       if (!r.ok || !j.tab) throw new Error(j.error ?? `HTTP ${r.status}`);

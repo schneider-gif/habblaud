@@ -13,6 +13,8 @@ export interface SetupAgent {
   createdAt: number;
   status: 'idle' | 'waiting';
   waitingFor?: string;
+  /** Agente do Codex CLI (ausente = Claude Code). */
+  engine?: 'codex';
 }
 
 /** Até quanto tempo depois de aberto o Claude ainda "está abrindo" (com login feito ele cria a sessão em ~2 s). */
@@ -20,20 +22,24 @@ export const SETUP_GRACE_MS = 15_000;
 export const SETUP_POLL_MS = 3_000;
 export const WAIT_LOGIN = 'conectar sua conta do Claude (clique para abrir o terminal)';
 export const WAIT_SETUP = 'terminar a configuração do Claude no terminal (clique para abrir)';
+export const WAIT_LOGIN_CODEX = 'conectar sua conta OpenAI (clique para abrir o terminal)';
+export const WAIT_SETUP_CODEX = 'terminar a configuração do Codex no terminal (clique para abrir)';
 
 /** Puro: quem vira boneco provisório. `hasAgentPid` diz se já existe agente principal com aquele pid. */
 export function setupAgents(
   sessions: readonly AgentTmuxSession[],
-  o: { account: string; hasAgentPid: (pid: number) => boolean; connected: boolean; now: number },
+  o: { account: string; hasAgentPid: (pid: number) => boolean; connected: boolean; now: number; engine?: 'codex' },
 ): SetupAgent[] {
   const out: SetupAgent[] = [];
   for (const s of sessions) {
     if (o.hasAgentPid(s.pid)) continue;
     const id = `${o.account}:${s.pid}`;
-    const base = { id, session: s.session, cwd: s.cwd || '~', createdAt: s.createdAt || o.now };
-    if (!o.connected) out.push({ ...base, status: 'waiting', waitingFor: WAIT_LOGIN });
+    const base: Pick<SetupAgent, 'id' | 'session' | 'cwd' | 'createdAt' | 'engine'> = { id, session: s.session, cwd: s.cwd || '~', createdAt: s.createdAt || o.now };
+    if (o.engine) base.engine = o.engine;
+    const codex = o.engine === 'codex';
+    if (!o.connected) out.push({ ...base, status: 'waiting', waitingFor: codex ? WAIT_LOGIN_CODEX : WAIT_LOGIN });
     else if (o.now - base.createdAt < SETUP_GRACE_MS) out.push({ ...base, status: 'idle' });
-    else out.push({ ...base, status: 'waiting', waitingFor: WAIT_SETUP });
+    else out.push({ ...base, status: 'waiting', waitingFor: codex ? WAIT_SETUP_CODEX : WAIT_SETUP });
   }
   return out;
 }
@@ -59,6 +65,8 @@ export interface SetupWatcherDeps {
   hasAgentPid: (pid: number) => boolean;
   apply: (agents: SetupAgent[]) => void;
   account: string;
+  /** Agentes do Codex CLI (textos e selo próprios). */
+  engine?: 'codex';
   now?: () => number;
 }
 
@@ -123,7 +131,7 @@ export class SetupWatcher {
       const ready = connected && (this.deps.ready ? await this.deps.ready() : true);
       if (this.lastReady === false && ready && sessions.length) this.scheduleRestart();
       this.lastReady = ready;
-      this.deps.apply(setupAgents(sessions, { account: this.deps.account, hasAgentPid: this.deps.hasAgentPid, connected, now: (this.deps.now ?? Date.now)() }));
+      this.deps.apply(setupAgents(sessions, { account: this.deps.account, hasAgentPid: this.deps.hasAgentPid, connected, now: (this.deps.now ?? Date.now)(), engine: this.deps.engine }));
     } catch {
       // tmux sumiu no meio: tenta de novo no próximo ciclo
     } finally {

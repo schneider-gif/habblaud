@@ -10,6 +10,50 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.8.0] - 2026-10-15
+
+### Adicionado
+
+- **Codex (OpenAI) no escritório.** Além do Claude Code, o Habblaud agora acompanha o
+  [Codex CLI](https://github.com/openai/codex): as conversas abertas do Codex (`~/.codex`, `CODEX_HOME` e
+  `~/.codex-*`) aparecem como agentes, com selo verde **Codex**, na **Conta OpenAI**, com o mesmo modelo dos agentes
+  do Claude: trabalhando / esperando / precisa de você / encerrado, atividade atual (lendo, editando, terminal, testes,
+  git…), título, sala da pasta do projeto, histórico, linha do tempo, tarefas (`update_plan`) e o terminal da conversa.
+  O formato das sessões foi conferido instalando o Codex CLI 0.162.1 de verdade (ver `docs/codex.md`).
+- **"+ Novo agente" com Claude ou Codex.** O diálogo pergunta a ferramenta (lembra a última escolha; quem não está
+  instalado fica desligado). O Codex abre no tmux (`codex --no-daemon`) na pasta escolhida, já marcada como confiável,
+  e recebe mensagens pelo escritório como o Claude. Sem login, ele aparece na hora como "precisa de você: conectar sua
+  conta OpenAI" e o clique abre o terminal embutido anexado; feito o login num deles, os outros parados no login são
+  reabertos sozinhos.
+- **Aprovar o Codex pelo escritório.** Quando o Codex pede aprovação (comando fora do sandbox, edição), o agente fica
+  "precisa de você" e o painel de permissão mostra o comando e o motivo: **Aprovar**, **Aprovar e não perguntar de
+  novo** (quando o Codex oferece) ou **Recusar** (com motivo). O Habblaud lê a tela do tmux e manda a tecla certa
+  (`y`, `p`/`a`, `Esc`), conferindo a tela de novo antes de digitar. Fora do tmux, o pedido aparece e leva ao terminal.
+- **Retomar conversas do Codex.** O histórico lista as conversas do Codex dos últimos 7 dias e o **Retomar** abre
+  `codex resume` na pasta original.
+- **GitHub no escritório.** Botão **GitHub** na barra (ou no **⋯**): **Conectar GitHub** abre o terminal embutido com
+  `gh auth login --web` (o link e o código aparecem lá, com o link clicável inteiro) e, logado, configura o git
+  (`gh auth setup-git`, nome e e-mail). Depois: o @usuário, **Clonar repositório** (lista os seus repositórios, clona em
+  `~/projetos/<nome>` e oferece abrir um agente Claude ou Codex lá), **Novo repositório a partir de uma pasta** de
+  `~/projetos` (privado por padrão, com confirmação antes de criar e enviar) e os seus PRs abertos. Tudo pelo `gh` no
+  seu usuário: o token nunca passa pelo Habblaud. Mesma trava do terminal embutido; `HABBLAUD_GITHUB=0` desliga.
+- A missão **Leve para o GitHub** ganhou o botão **Abrir o GitHub do escritório** e continua concluindo só com
+  repositório remoto configurado e push feito de verdade.
+
+### Alterado
+
+- **Missão 0: "Conecte sua conta do Claude ou da OpenAI (Codex)".** Conclui com qualquer uma das duas; o quadro tem
+  **Fazer login agora (Claude)** e **Conectar a OpenAI (Codex)** (`codex login --device-auth`).
+
+## [0.7.1] - 2026-10-14
+
+### Corrigido
+
+- **Conversa de agente recém-aberto.** Um agente aberto pelo **+ Novo agente** (ou que estava em configuração/login)
+  ficava preso em "Este agente ainda não tem conversa" mesmo depois de conversar: o terminal da conversa era aberto
+  antes de existir o transcript, o servidor respondia "não encontrado" e a página desistia. Agora o terminal abre
+  vazio e a conversa entra sozinha quando a primeira mensagem chega, no mesmo boneco.
+
 ## [0.7.0] - 2026-10-14
 
 ### Adicionado

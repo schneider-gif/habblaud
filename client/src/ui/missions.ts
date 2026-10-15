@@ -253,7 +253,7 @@ export class MissionBoard implements UiComponent {
           'div',
           { class: 'ui-missions__lost', role: 'status' },
           h('b', { text: '⚠ Sua conta do Claude saiu — conecte de novo.' }),
-          ' Rode claude no terminal e faça o login; suas missões continuam aqui. ',
+          ' Rode claude (ou codex) no terminal e faça o login; suas missões continuam aqui. ',
           this.ctx.isShellAvailable() ? h('button', { class: 'ui-link-btn', type: 'button', text: 'Fazer login agora', on: { click: () => this.ctx.openShell({ login: true }) } }) : null,
         )
       : null;
@@ -311,9 +311,28 @@ export class MissionBoard implements UiComponent {
         h('button', {
           class: 'ui-missions__go ui-missions__go--login',
           type: 'button',
-          text: '⌨ Fazer login agora',
+          text: '⌨ Fazer login agora (Claude)',
           title: 'Abre o terminal do escritório já rodando o claude: escolha o tema e entre com a sua conta',
           on: { click: () => this.ctx.openShell({ login: true }) },
+        }),
+        h('button', {
+          class: 'ui-missions__go ui-missions__go--login ui-missions__go--codex',
+          type: 'button',
+          text: '⌨ Conectar a OpenAI (Codex)',
+          title: 'Abre o terminal do escritório rodando "codex login --device-auth": abra o link, digite o código e entre com o seu ChatGPT Plus/Pro',
+          on: { click: () => this.ctx.openShell({ program: 'codex' }) },
+        }),
+      );
+    }
+    // "Leve para o GitHub": o painel do GitHub conecta (gh no terminal embutido), clona e cria o repositório.
+    if (m.id === 'leve-github' && this.ctx.store.snapshot?.meta.github) {
+      actions.push(
+        h('button', {
+          class: 'ui-missions__go ui-missions__go--login',
+          type: 'button',
+          text: '🐙 Abrir o GitHub do escritório',
+          title: 'Conectar o GitHub, criar o repositório a partir de uma pasta de ~/projetos e enviar (push)',
+          on: { click: () => this.ctx.openGithub() },
         }),
       );
     }

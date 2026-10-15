@@ -12,14 +12,51 @@
 // manda SIGWINCH e o tmux redesenha). Também anexa às sessões `agente-*` que o escritório abre (primeira execução do
 // Claude: tema e login).
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { readFile, readlink } from 'node:fs/promises';
+import { mkdir, readFile, readlink, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 /** Sessões das abas do terminal embutido. */
 export const SHELL_SESSION = /^terminal-(\d{1,4})$/;
 /** Sessões abertas pelo escritório ("+ Novo agente": agente-<base36>). */
-export const AGENT_SESSION = /^agente-[a-z0-9]{1,16}$/;
+export const AGENT_SESSION = /^agente-(codex-)?[a-z0-9]{1,16}$/;
 /** Máximo de abas abertas ao mesmo tempo. */
 export const SHELL_MAX_TABS = 12;
+
+/**
+ * Programas que uma aba nova pode rodar antes do shell (lista fechada: nada vem do corpo da requisição):
+ * - claude: primeira execução do Claude (tema e login) — Missão 0;
+ * - codex: login da conta OpenAI no Codex com código de dispositivo (`codex login --device-auth`, mostra link e código);
+ * - gh: login no GitHub (`gh auth login --web`, código de dispositivo) e, logado, `gh auth setup-git` e o nome/e-mail
+ *   do git a partir do `gh api user` (ver GH_LOGIN_SCRIPT).
+ */
+export type ShellProgram = 'claude' | 'codex' | 'gh';
+
+export function cleanProgram(v: unknown, login?: unknown): ShellProgram | undefined {
+  if (login === true) return 'claude';
+  if (v === undefined || v === null || v === '') return undefined;
+  if (v === 'claude' || v === 'codex' || v === 'gh') return v;
+  throw new ShellError(400, 'programa inválido');
+}
+
+/**
+ * Login no GitHub pelo terminal embutido. Tudo pelo gh no shell do usuário: o token fica com o gh (keyring/arquivo
+ * dele), nunca passa pelo Habblaud. Depois do login: credential helper do git e user.name/user.email (e-mail público
+ * ou o noreply do GitHub), só se ainda não houver.
+ */
+export const GH_LOGIN_SCRIPT = [
+  'gh auth status >/dev/null 2>&1 || gh auth login --web --git-protocol https --hostname github.com || exit 1',
+  'gh auth setup-git',
+  'login=$(gh api user --jq .login 2>/dev/null)',
+  'if [ -n "$login" ]; then',
+  '  [ -n "$(git config --global user.name)" ] || git config --global user.name "$(gh api user --jq ".name // .login")"',
+  '  if [ -z "$(git config --global user.email)" ]; then',
+  '    email=$(gh api user --jq ".email // empty")',
+  '    [ -n "$email" ] || email="$(gh api user --jq .id)+$login@users.noreply.github.com"',
+  '    git config --global user.email "$email"',
+  '  fi',
+  '  echo; echo "GitHub conectado como @$login. Pode fechar esta aba e voltar ao escritório."',
+  'fi',
+].join('\n');
 
 export interface ShellTab {
   /** Nome da sessão tmux (terminal-N). */
@@ -234,7 +271,7 @@ export class ShellService {
    * Abre uma aba nova (sessão terminal-N no HOME, shell de login). `login`: roda o `claude` primeiro (Missão 0:
    * escolher o tema e entrar com a conta) e, ao sair dele, fica o shell.
    */
-  async create(opts: { login?: boolean; cols?: unknown; rows?: unknown } = {}): Promise<ShellTab> {
+  async create(opts: { login?: boolean; program?: ShellProgram; cols?: unknown; rows?: unknown } = {}): Promise<ShellTab> {
     const tabs = await this.list();
     if (tabs.length >= SHELL_MAX_TABS) throw new ShellError(409, `limite de ${SHELL_MAX_TABS} abas abertas: feche alguma antes`);
     const used = new Set(tabs.map((t) => t.n));
@@ -243,7 +280,17 @@ export class ShellService {
     const name = `terminal-${n}`;
     const { cols, rows } = clampSize(opts.cols, opts.rows);
     const sh = this.shell.replace(/'/g, '');
-    const cmd = opts.login ? `${sh} -lc 'claude; exec ${sh} -l'` : `exec ${sh} -l`;
+    const program = opts.program ?? (opts.login ? 'claude' : undefined);
+    let cmd = `exec ${sh} -l`;
+    if (program === 'claude') cmd = `${sh} -lc 'claude; exec ${sh} -l'`;
+    else if (program === 'codex') cmd = `${sh} -lc 'codex login --device-auth; exec ${sh} -l'`;
+    else if (program === 'gh') {
+      // O script vai num arquivo do próprio usuário (aspas e quebras de linha sem passar por escape de shell).
+      const file = join(this.deps.home, '.habblaud', 'gh-login.sh');
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(file, `${GH_LOGIN_SCRIPT}\n`, { mode: 0o700 });
+      cmd = `${sh} -lc '${sh} ${file.replace(/'/g, '')}; exec ${sh} -l'`;
+    }
     await this.tmux([
       'new-session', '-d', '-s', name, '-c', this.deps.home, '-x', String(cols), '-y', String(rows), cmd,
       // sem -t: na mesma sequência, o alvo é a sessão recém-criada. Mouse do tmux desligado: arrastar seleciona no

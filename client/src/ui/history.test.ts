@@ -103,7 +103,9 @@ describe('Retomar', () => {
     expect(resumeBlock(ended(), spawn)).toBeUndefined();
     expect(resumeBlock(ended(), null)).toMatch(/tmux/);
     expect(resumeBlock(ended(), { available: false })).toMatch(/tmux/);
-    expect(resumeBlock(ended({ account: '.claude-trabalho' }), spawn)).toMatch(/conta principal/);
+    expect(resumeBlock(ended({ account: '.claude-trabalho' }), spawn)).toMatch(/contas principais/);
+    // Codex (0.8.0): a conta ~/.codex também retoma (codex resume)
+    expect(resumeBlock(ended({ account: '.codex', engine: 'codex' }), spawn)).toBeUndefined();
     expect(resumeBlock(ended({ project: undefined }), spawn)).toMatch(/pasta/);
     expect(resumeBlock(ended({ project: '/srv/app' }), spawn)).toMatch(/fora do seu HOME/);
     // sem o HOME (servidor antigo): o servidor ainda confere ao retomar

@@ -94,7 +94,7 @@ export function detect(id: MissionId, f: Facts): Detection {
       // Credencial nos arquivos/variáveis do Claude Code, ou um agente que já terminou um turno (login no Keychain).
       const worked = f.turns.some((t) => t.at >= f.startedAt);
       return finish(
-        [{ label: 'Login feito no Claude Code (conta Pro/Max ou chave de API)', ok: !!f.auth || worked }],
+        [{ label: 'Login feito no Claude Code ou no Codex (conta Pro/Max, ChatGPT ou chave de API)', ok: !!f.auth || worked }],
         worked && !f.auth ? 'Um agente já trabalhou aqui: a conta está conectada.' : undefined,
       );
     }

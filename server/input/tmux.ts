@@ -4,9 +4,10 @@
 // numa sessão tmux própria, inclusive retomando uma sessão encerrada (claude --resume <sessionId>). Linux (lê
 // /proc/<pid>/environ); em outro sistema, nada fica disponível.
 import { execFile } from 'node:child_process';
-import { readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { access, mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 /** Maior mensagem aceita (caracteres). */
 export const INPUT_MAX_CHARS = 8000;
@@ -16,6 +17,55 @@ const RESUME_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 /** Comando padrão de um agente novo: shell de login, para o PATH do usuário achar o claude. */
 const DEFAULT_CLAUDE = "bash -lc 'exec claude'";
+/**
+ * Agente novo do Codex: `--no-daemon` faz o próprio TUI gravar a conversa e segurar a trava dela
+ * (thread-writer-locks/<id>.lock), que é como o Habblaud acha o agente e o pid dele (ver server/codex/proc.ts).
+ */
+const DEFAULT_CODEX = "bash -lc 'exec codex --no-daemon'";
+
+/** Ferramenta de um agente aberto pelo escritório. */
+export type SpawnEngine = 'claude' | 'codex';
+
+export function cleanEngine(v: unknown): SpawnEngine {
+  if (v === undefined || v === null || v === '' || v === 'claude') return 'claude';
+  if (v === 'codex') return 'codex';
+  throw new InputError(400, 'ferramenta inválida: use "claude" ou "codex"');
+}
+
+/** Comando do pane de um agente do Codex; para retomar, `codex resume --no-daemon <uuid>` (mesma validação do Claude). */
+export function codexShellCommand(resume?: string, base?: string): string {
+  if (resume !== undefined && !RESUME_ID.test(resume)) throw new InputError(400, 'id de sessão inválido para retomar');
+  if (base !== undefined) return resume ? `${base} resume ${resume}` : base;
+  return resume ? `bash -lc 'exec codex resume --no-daemon ${resume}'` : DEFAULT_CODEX;
+}
+
+/** Chave TOML (string básica) para um caminho: aspas e barras escapadas; caracteres de controle recusados. */
+export function tomlKey(path: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(path)) throw new InputError(400, 'pasta com caracteres inválidos');
+  return `"${path.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Marca a pasta como confiável no config.toml do Codex (`[projects."<pasta>"] trust_level = "trusted"`, o mesmo que
+ * o Codex grava ao responder "Trust and continue"). Devolve o texto novo, ou undefined se já estava marcada.
+ */
+export function withCodexTrust(config: string, dir: string): string | undefined {
+  const header = `[projects.${tomlKey(dir)}]`;
+  const idx = config.indexOf(header);
+  if (idx >= 0) {
+    const start = idx + header.length;
+    const rest = config.slice(start);
+    const end = rest.search(/^\s*\[/m);
+    const block = end >= 0 ? rest.slice(0, end) : rest;
+    const tail = end >= 0 ? rest.slice(end) : '';
+    if (/^\s*trust_level\s*=\s*"trusted"/m.test(block)) return undefined;
+    if (/^\s*trust_level\s*=/m.test(block)) return config.slice(0, start) + block.replace(/^(\s*)trust_level\s*=.*$/m, '$1trust_level = "trusted"') + tail;
+    return `${config.slice(0, start)}\ntrust_level = "trusted"${rest}`;
+  }
+  const sep = config.length === 0 || config.endsWith('\n\n') ? '' : config.endsWith('\n') ? '\n' : '\n\n';
+  return `${config}${sep}${header}\ntrust_level = "trusted"\n`;
+}
 
 /**
  * Sessão a retomar: ausente (undefined/null) = agente novo; senão precisa ser um UUID exato (maiúsculas viram
@@ -62,6 +112,10 @@ export interface AgentInputDeps {
    * Ao retomar uma sessão, ` --resume <uuid>` vai no fim.
    */
   claudeCommand?: string;
+  /** Comando que abre um agente novo do Codex (padrão: `bash -lc 'exec codex --no-daemon'`). */
+  codexCommand?: string;
+  /** config.toml do Codex (confiança por pasta; padrão: $CODEX_HOME/config.toml ou ~/.codex/config.toml). */
+  codexConfig?: string;
   now?: () => number;
 }
 
@@ -125,6 +179,23 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
   const home = deps.home ?? homedir();
   const now = deps.now ?? Date.now;
   const claudeJson = deps.claudeJson ?? resolve(home, '.claude.json');
+  const codexConfig = deps.codexConfig ?? resolve(process.env.CODEX_HOME?.trim() || resolve(home, '.codex'), 'config.toml');
+
+  // Mesmo raciocínio do Claude: a pasta foi escolhida no escritório, então "Trust this folder?" já foi respondido.
+  const markCodexTrusted = async (dir: string) => {
+    let config = '';
+    try {
+      config = await readFile(codexConfig, 'utf8');
+    } catch {
+      // sem config ainda: nasce só com esta pasta
+    }
+    const next = withCodexTrust(config, dir);
+    if (next === undefined) return;
+    await mkdir(dirname(codexConfig), { recursive: true });
+    const tmp = `${codexConfig}.habblaud-${now()}`;
+    await writeFile(tmp, next, { mode: 0o600 });
+    await rename(tmp, codexConfig);
+  };
 
   // A pasta foi escolhida no escritório, que avisa que o Claude vai ler, editar e executar ali: equivale a
   // responder "Yes, I trust this folder", pergunta que travaria o agente invisível dentro do tmux.
@@ -152,7 +223,7 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
     if (deps.remoteAccounts?.has(id.slice(0, id.lastIndexOf(':')))) return undefined;
     try {
       // pid reaproveitado por outro programa: nunca digitar no tmux de quem não é o Claude
-      if (!/claude/i.test((await readCmdline(pid)).replace(/\0/g, ' '))) return undefined;
+      if (!/claude|codex/i.test((await readCmdline(pid)).replace(/\0/g, ' '))) return undefined;
       return tmuxTargetFromEnviron(await readEnviron(pid));
     } catch {
       return undefined; // processo sumiu, de outro usuário ou sistema sem /proc
@@ -163,6 +234,28 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
     /** O agente recebe mensagens? (principal vivo, rodando no tmux). */
     async available(id: string): Promise<boolean> {
       return (await targetOf(id)) !== undefined;
+    },
+
+    /**
+     * Teclas para o pane do agente (responder um pedido de aprovação do Codex: "y", "p", "a", "Escape"). Só nomes de
+     * tecla de uma lista fechada: nada de texto livre por aqui.
+     */
+    async sendKeys(id: string, keys: readonly string[]): Promise<void> {
+      if (!keys.length || keys.some((k) => !/^(y|p|a|n|Escape|Enter)$/.test(k))) throw new InputError(400, 'tecla inválida');
+      const t = await targetOf(id);
+      if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
+      for (const k of keys) await run(['-S', t.socket, 'send-keys', '-t', t.pane, k]);
+    },
+
+    /** Tela atual do pane do agente (texto puro), para conferir o que o Codex está pedindo. */
+    async screen(id: string): Promise<string | undefined> {
+      const t = await targetOf(id);
+      if (!t) return undefined;
+      try {
+        return await capture(['-S', t.socket, 'capture-pane', '-p', '-J', '-t', t.pane]);
+      } catch {
+        return undefined;
+      }
     },
 
     async send(id: string, text: unknown): Promise<void> {
@@ -185,6 +278,27 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       }
     },
 
+    /**
+     * Ferramentas instaladas (o "+ Novo agente" oferece Claude e/ou Codex): procura os executáveis no PATH do
+     * servidor e nas pastas comuns de instalação do usuário (o agente abre com shell de login, que pode ter outro PATH).
+     */
+    async engines(): Promise<{ claude: boolean; codex: boolean }> {
+      const dirs = [...(process.env.PATH ?? '').split(':'), resolve(home, '.local/bin'), resolve(home, '.npm-global/bin'), resolve(home, 'bin'), '/usr/local/bin', '/usr/bin'];
+      const has = async (name: string) => {
+        for (const d of dirs) {
+          if (!d) continue;
+          try {
+            await access(resolve(d, name), fsConstants.X_OK);
+            return true;
+          } catch {
+            // não está aqui
+          }
+        }
+        return false;
+      };
+      return { claude: await has('claude'), codex: await has('codex') };
+    },
+
     /** HOME (com links resolvidos): o histórico só oferece "Retomar" para sessões de pastas dentro dele. */
     async home(): Promise<string> {
       try {
@@ -198,9 +312,10 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
      * Abre um agente novo (claude numa sessão tmux própria) numa pasta dentro do HOME. Com `resume` (sessionId),
      * retoma aquela conversa (`claude --resume <uuid>`); a pasta passa pelas mesmas checagens e pela confiança.
      */
-    async spawn(cwd: unknown, opts: { resume?: unknown } = {}): Promise<{ session: string; cwd: string; pid?: number }> {
+    async spawn(cwd: unknown, opts: { resume?: unknown; engine?: unknown } = {}): Promise<{ session: string; cwd: string; pid?: number; engine: SpawnEngine }> {
       const resume = cleanResumeId(opts.resume);
-      const command = claudeShellCommand(resume, deps.claudeCommand);
+      const engine = cleanEngine(opts.engine);
+      const command = engine === 'codex' ? codexShellCommand(resume, deps.codexCommand) : claudeShellCommand(resume, deps.claudeCommand);
       const wanted = typeof cwd === 'string' && cwd.trim() ? resolve(home, cwd.trim()) : home;
       let dir: string;
       try {
@@ -210,8 +325,9 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       }
       const rel = relative(await realpath(home), dir);
       if (rel.startsWith('..') || isAbsolute(rel)) throw new InputError(400, 'a pasta precisa estar dentro do seu HOME');
-      await markTrusted(dir);
-      const session = `agente-${now().toString(36)}`;
+      if (engine === 'codex') await markCodexTrusted(dir);
+      else await markTrusted(dir);
+      const session = engine === 'codex' ? `agente-codex-${now().toString(36)}` : `agente-${now().toString(36)}`;
       await run(['new-session', '-d', '-s', session, '-c', dir, command]);
       // `exec claude` no shell do pane: o pid do pane é o do Claude, e o id do agente será "<conta>:<pid>"
       let pid: number | undefined;
@@ -221,7 +337,7 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       } catch {
         // sem o pid o agente chega com nome sorteado
       }
-      return { session, cwd: dir, pid };
+      return { session, cwd: dir, pid, engine };
     },
   };
 }

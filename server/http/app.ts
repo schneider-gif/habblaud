@@ -6,7 +6,7 @@ import type { DayStatsService } from '../history/daystats';
 import type { Office } from '../model/office';
 import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
-import { type AgentInput, cleanResumeId, InputError } from '../input/tmux';
+import { type AgentInput, cleanEngine, cleanResumeId, InputError } from '../input/tmux';
 import { cleanProfile, ProfileError } from '../../shared/profile';
 import { type StateStore, StateError } from '../model/state';
 import { handleMissionsRoute } from './missions';
@@ -48,6 +48,8 @@ export interface ApiDeps {
   missions?: MissionsEngine;
   /** Terminal embutido (/api/shell*, shell/http.ts): a trava fica lá; devolve false para o resto. */
   shell?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
+  /** Painel do GitHub (/api/github*, github/http.ts): a trava fica lá; devolve false para o resto. */
+  github?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Terminal embutido disponível agora (flag "shell" do /api/health). */
   shellAvailable?: () => boolean;
   /** Vida social salva no servidor (GET/PUT /api/state). */
@@ -67,6 +69,8 @@ const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
 const PROFILE_ROUTE = /^\/api\/agents\/([^/]+)\/profile$/;
 /** Conta do Claude aberto pelo escritório (CLAUDE_CONFIG_DIR padrão: ~/.claude). */
 const SPAWN_ACCOUNT = '.claude';
+/** Conta do Codex aberto pelo escritório (CODEX_HOME padrão: ~/.codex). */
+const CODEX_SPAWN_ACCOUNT = '.codex';
 /**
  * POST {cwd?, name?, appearance?} /api/agents/new: abre um agente novo no tmux. Com {resume: <sessionId>} retoma uma
  * sessão encerrada da conta SPAWN_ACCOUNT (`claude --resume`) na pasta original dela, lida do transcript: o `cwd` do
@@ -260,27 +264,32 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else if (!inputMatch) {
         if (isRead)
-          Promise.all([input.folders(), input.home()]).then(([folders, home]) => sendJson(res, 200, { available: true, folders, home }), (err) => fail(res, err));
+          Promise.all([input.folders(), input.home(), input.engines()]).then(([folders, home, engines]) => sendJson(res, 200, { available: true, folders, home, engines }), (err) => fail(res, err));
         else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
         else
           readJson(req)
             .then(async (body) => {
-              const b = (body ?? {}) as { cwd?: unknown; resume?: unknown };
+              const b = (body ?? {}) as { cwd?: unknown; resume?: unknown; engine?: unknown; account?: unknown };
               const profile = cleanProfile(body ?? {});
               const resume = cleanResumeId(b.resume);
+              // Claude (padrão) ou Codex: a conta do agente que vai nascer é a que o comando aberto aqui usa.
+              let engine = cleanEngine(b.engine);
+              if (resume !== undefined && b.account === CODEX_SPAWN_ACCOUNT) engine = 'codex';
+              const account = engine === 'codex' ? CODEX_SPAWN_ACCOUNT : SPAWN_ACCOUNT;
               if (resume === undefined) {
-                const r = await input.spawn(b.cwd);
-                if (r.pid && (profile.name || profile.appearance)) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
+                const r = await input.spawn(b.cwd, { engine });
+                if (r.pid && (profile.name || profile.appearance)) office.setPendingProfile(`${account}:${r.pid}`, profile);
                 return r;
               }
-              // Retomar: só sessões da conta que o spawn usa (o claude aberto aqui lê ~/.claude), na pasta do transcript.
+              // Retomar: só sessões da conta que o spawn usa (o claude aberto aqui lê ~/.claude; o codex, ~/.codex), na
+              // pasta lida do transcript/rollout.
               if (!deps.sessions) throw new InputError(403, 'histórico de sessões desligado neste escritório');
-              const target = await deps.sessions.resumeTarget(SPAWN_ACCOUNT, resume);
+              const target = await deps.sessions.resumeTarget(account, resume);
               if ('error' in target) throw new InputError(target.status, target.error);
-              const r = await input.spawn(target.cwd, { resume });
+              const r = await input.spawn(target.cwd, { resume, engine });
               if (r.pid) {
-                office.setPendingResume(`${SPAWN_ACCOUNT}:${r.pid}`, resume);
-                if (profile.name || profile.appearance) office.setPendingProfile(`${SPAWN_ACCOUNT}:${r.pid}`, profile);
+                office.setPendingResume(`${account}:${r.pid}`, resume);
+                if (profile.name || profile.appearance) office.setPendingProfile(`${account}:${r.pid}`, profile);
               }
               return { ...r, resumed: resume };
             })
@@ -305,6 +314,13 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
               sendJson(res, 200, { ok: true });
             })
             .catch((err) => failInput(res, err));
+      }
+      return true;
+    }
+    if (path === '/api/github' || path.startsWith('/api/github/')) {
+      if (!deps.github?.(req, res, url)) {
+        req.resume();
+        sendJson(res, 403, { error: 'GitHub desligado: só funciona com o terminal embutido ligado' });
       }
       return true;
     }
