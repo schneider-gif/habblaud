@@ -3,6 +3,7 @@
 // chama commit() (com throttle) para obter o snapshot novo, o feed e os avisos pendentes.
 import type {
   AccountInfo,
+  Announcement,
   Activity,
   AgentDetail,
   AgentInfo,
@@ -68,6 +69,8 @@ export interface OfficeDeps {
   permissions?: () => ReadonlyMap<string, PermissionRequestInfo>;
   /** Verificação de versão nova no GitHub (ver OfficeSnapshot.meta.updates). */
   updates?: () => UpdateStatus;
+  /** Aviso global (ver OfficeSnapshot.meta.announcement). */
+  announcement?: () => Announcement | undefined;
   /** Terminal embutido disponível agora (ver OfficeSnapshot.meta.shell). */
   shell?: () => boolean;
   /** Painel do GitHub disponível agora (ver OfficeSnapshot.meta.github). */
@@ -920,6 +923,7 @@ export class Office {
         build: this.deps.build?.(),
         terminal: this.deps.terminal === true,
         updates: this.deps.updates?.(),
+        announcement: this.deps.announcement?.(),
         shell: this.deps.shell?.() === true,
         github: this.deps.github?.() === true,
         links: this.deps.links?.vscode ? { vscode: this.deps.links.vscode } : undefined,

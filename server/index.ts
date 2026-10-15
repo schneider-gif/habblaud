@@ -24,6 +24,7 @@ import { PermissionRegistry } from './permissions/registry';
 import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
+import { AnnouncementPoller } from './announce/poller';
 import { createAgentInput } from './input/tmux';
 import { StateStore } from './model/state';
 import { expandHome } from './accounts/detect';
@@ -82,6 +83,8 @@ const updates = new UpdateChecker({
   onChange: () => late.office?.markDirty(),
 });
 updates.load();
+// Aviso global da plataforma (ex.: Habblaude): JSON central lido a cada 10 min. Sem HABBLAUD_ANNOUNCE_URL = desligado.
+const announce = new AnnouncementPoller(process.env.HABBLAUD_ANNOUNCE_URL?.trim() || undefined, () => late.office?.markDirty());
 const accounts = new AccountsService({
   dirs: config.claudeDirs,
   home: config.home,
@@ -121,6 +124,7 @@ const office = new Office({
     return m;
   },
   updates: () => updates.status(),
+  announcement: () => announce.get(),
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
   github: () => githubOffReason(process.env, shellState.reason) === undefined && !late.office?.isDemo(),
   links: config.links,
@@ -278,6 +282,7 @@ if (config.shell && shellService)
   });
 stats.start();
 updates.start();
+announce.start();
 const ticker = setInterval(() => {
   try {
     office.tick();
@@ -433,6 +438,7 @@ function shutdown(signal: string): void {
   clearInterval(codexRediscover);
   missionsStore?.flush();
   updates.stop();
+  announce.stop();
   names.flush();
   state.flush();
   void closeVite?.();

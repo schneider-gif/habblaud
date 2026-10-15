@@ -602,6 +602,7 @@ Tudo funciona sem configurar nada. Se precisar ajustar, use variáveis de ambien
 | `HABBLAUD_SHELL` | ligado (só com acesso local, Linux, sem root) | `0` desliga o terminal embutido (shell de verdade). Com a porta exposta, rodando como root ou no modo demonstração ele já fica desligado. |
 | `HABBLAUD_VSCODE_URL` | — | Endereço do VS Code do escritório (só `http(s)`): mostra o botão **VS Code** na barra superior. Sem a variável, o botão não aparece. |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (uma consulta às releases do repositório no GitHub a cada 6 h). |
+| `HABBLAUD_ANNOUNCE_URL` | — | JSON de aviso global (`{"id","title","body","logo"?,"until"?,"confetti"?}`), lido a cada 10 min; aparece uma vez por navegador, como modal com confete, só com alguém usando o escritório. `logo` precisa ser https na mesma origem do JSON. Sem a variável = desligado. |
 | `HABBLAUD_ACCOUNTS` | — | JSON para personalizar nome, letra ou cor, casado pelo nome da pasta da conta. Ex.: `[{"id":".claude-conta2","name":"Trabalho","short":"T","color":"#5cc97b"}]`. |
 
 **No Docker**, valem `HABBLAUD_PORT`, `HABBLAUD_BIND`, `HABBLAUD_ALLOWED_HOSTS`, `HABBLAUD_DEMO`, `HABBLAUD_TERMINAL` e
