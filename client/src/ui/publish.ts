@@ -322,7 +322,7 @@ export class PublishWizard {
           ? s.tokenSource === 'env'
             ? 'A chave configurada neste escritório (HB_PUBLISH_TOKEN) foi recusada. Peça uma nova no portal ou conecte por aqui.'
             : 'A conexão deste escritório com a sua conta foi desfeita ou expirou.'
-          : 'Para publicar, este escritório precisa da sua permissão. Vamos abrir o portal numa nova aba: lá você só confirma.',
+          : 'Para publicar, este escritório precisa da sua permissão. Vamos abrir o portal numa nova aba: lá você digita o código abaixo e confirma.',
       }),
     ];
     if (p?.status === 'pending') {
@@ -331,9 +331,9 @@ export class PublishWizard {
           'div',
           { class: 'ui-pub__pair', role: 'status' },
           h('span', { class: 'ui-pub__spinner', attrs: { 'aria-hidden': 'true' } }),
-          h('div', {}, h('strong', { text: 'Esperando você confirmar no portal…' }), h('p', { class: 'ui-pub__muted' }, 'Código: ', h('code', { class: 'ui-pub__code', text: p.code }))),
+          h('div', {}, h('strong', { text: 'Digite este código no portal e confirme:' }), h('p', {}, h('code', { class: 'ui-pub__code', text: p.code })), h('p', { class: 'ui-pub__muted ui-pub__small', text: 'Esperando a confirmação… (o código vale 10 minutos)' })),
         ),
-        h('div', { class: 'ui-pub__actions' }, h('a', { class: 'ui-btn ui-btn--primary', text: 'Abrir a página de confirmação', attrs: { href: p.url, target: '_blank', rel: 'noopener noreferrer' } }), btn('Gerar outro código', () => void this.connect())),
+        h('div', { class: 'ui-pub__actions' }, h('a', { class: 'ui-btn ui-btn--primary', text: 'Abrir o portal', attrs: { href: p.url, target: '_blank', rel: 'noopener noreferrer' } }), btn('Gerar outro código', () => void this.connect())),
       );
       this.show('connect', ...parts);
       this.later(() => void this.pollPairing(), 2000);

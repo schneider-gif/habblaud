@@ -194,7 +194,7 @@ export async function startFakePortal(opts: FakePortalOptions = {}): Promise<Fak
         await readJson(req);
         const code = `${randomBytes(2).toString('hex').toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
         state.pairings.set(code, { code, confirmed: false, polls: 0, expiresAt: Date.now() + 600_000, delivered: false });
-        return send(res, 200, { code, url: `${base}/escritorio/publicar/conectar?code=${code}`, expiresIn: 600, interval: opts.autoConfirm ? 1 : 3 });
+        return send(res, 200, { code, url: `${base}/escritorio/publicar/conectar`, expiresIn: 600, interval: opts.autoConfirm ? 1 : 3 });
       }
       if (path === '/api/publicar/conectar/token' && method === 'POST') {
         const b = await readJson(req);
