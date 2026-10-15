@@ -16,7 +16,7 @@ import type { Duplex } from 'node:stream';
 import { errMsg, log } from '../log';
 import { hostAllowed, isLoopbackHost } from '../http/guard';
 import { acceptWebSocket, rejectUpgrade } from '../http/ws';
-import { AGENT_SESSION, SHELL_SESSION, ShellError, type ShellService } from './service';
+import { AGENT_SESSION, cleanProgram, SHELL_SESSION, ShellError, type ShellService } from './service';
 
 export const SHELL_WS_PATH = '/api/shell/ws';
 const TAB_CLOSE = /^\/api\/shell\/tabs\/([^/]+)\/close$/;
@@ -96,8 +96,8 @@ export function createShellRoutes(deps: ShellRoutesDeps) {
       deps
         .readJson(req)
         .then((body) => {
-          const b = (body ?? {}) as { login?: unknown; cols?: unknown; rows?: unknown };
-          return service.create({ login: b.login === true, cols: b.cols, rows: b.rows });
+          const b = (body ?? {}) as { login?: unknown; program?: unknown; cols?: unknown; rows?: unknown };
+          return service.create({ program: cleanProgram(b.program, b.login), cols: b.cols, rows: b.rows });
         })
         .then((tab) => sendJson(res, 201, { ok: true, tab }))
         .catch((err) => fail(res, err));

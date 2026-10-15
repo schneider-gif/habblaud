@@ -223,7 +223,8 @@ export class PermissionCard {
     const full = this.detail?.id === p.id ? this.detail : p.input !== undefined ? p : null;
 
     setText(this.what, `${p.icon} ${p.text}${p.subagent ? ` · subagente ${p.subagent}` : ''}`);
-    setText(this.timer, expiryText(p.expiresAt, now));
+    // Pedido do Codex (tecla no tmux): não expira; fica na tela do Codex até alguém responder.
+    setText(this.timer, p.id.startsWith('codex-') ? 'Codex · responde pela tecla no terminal dele' : expiryText(p.expiresAt, now));
     setTitle(this.timer, `Pedido feito às ${formatClock(p.createdAt)}. Sem resposta aqui até ${formatClock(p.expiresAt)}, o Habblaud devolve o pedido ao terminal.`);
     const { name, args } = splitToolTitle(p.title);
     const shown = commandPreview(full) ? '' : args;

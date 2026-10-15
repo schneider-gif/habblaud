@@ -16,6 +16,7 @@ import { h } from './dom';
 import { Drawer } from './drawer';
 import { FeedPanel } from './feed';
 import { AgentCustomizer } from './customizer';
+import { GithubPanel } from './github';
 import { HelpDialog } from './help';
 import { HistoryPopover } from './history';
 import { HoverTip } from './hovertip';
@@ -161,6 +162,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
     toggleShell: () => shell.toggle(),
     isShellOpen: () => shell.isOpen,
     isShellAvailable: () => shell.available(),
+    openGithub: () => github.open(),
   };
 
   // ---------------------------------------------------------------- componentes
@@ -179,6 +181,8 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const toasts = new Toasts(ctx);
   toastsRef = toasts;
   customizer = new AgentCustomizer(ctx);
+  // Painel do GitHub (botão da barra superior / missão "Leve para o GitHub").
+  const github = new GithubPanel(ctx);
   const updateToaster = new UpdateToaster(ctx, (n) => toasts.push(n));
   settings = new SettingsPopover(ctx, notifier, sound);
   help = new HelpDialog();
@@ -195,7 +199,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const scrim = h('div', { class: 'ui-scrim', attrs: { 'aria-hidden': 'true' }, on: { click: () => ctx.togglePanel('sidebar', false) } });
 
   root.classList.add('ui-root');
-  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, shell.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, live, splash.el);
+  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, shell.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, github.el, live, splash.el);
   area = new FreeArea(world, { root, topbar: topbar.el, sidebar: sidebar.el, drawer: drawer.el, feed: feed.el }, () => ({
     sidebar: panels.sidebar,
     feed: panels.feed,

@@ -34,6 +34,11 @@ import { claudeAuth } from './missions/auth';
 import { createShellRoutes } from './shell/http';
 import { ShellService } from './shell/service';
 import { SetupWatcher } from './shell/setup';
+import { CodexWatcher } from './codex/watcher';
+import { codexAccountName, codexAccounts, codexAuth, discoverCodexDirs, isCodexAccount } from './codex/detect';
+import { withCodexPermissions } from './codex/approvals';
+import { GithubService } from './github/service';
+import { createGithubRoutes, githubOffReason } from './github/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
 
@@ -56,7 +61,7 @@ const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -84,20 +89,40 @@ const accounts = new AccountsService({
   usageDir: config.usageDir,
   onChange: () => late.office?.markDirty(),
 });
+// Codex CLI (OpenAI): pastas ~/.codex (e CODEX_HOME, ~/.codex-*). A pasta nasce na primeira execução do codex, que
+// pode ser depois de o Habblaud subir: redescobre a cada 15 s. HABBLAUD_CODEX=0 desliga a fonte.
+let codexDirs = discoverCodexDirs(process.env, config.home);
+const codexOff = process.env.HABBLAUD_CODEX?.trim() && /^(0|false|off|no|nao|não)$/i.test(process.env.HABBLAUD_CODEX.trim());
+/** Onde procurar o login da OpenAI mesmo antes de a pasta existir (Missão 0, agentes em configuração). */
+const codexAuthDirs = () => (codexDirs.length ? codexDirs : [resolve(process.env.CODEX_HOME?.trim() || join(config.home, '.codex'))]);
+const codexRediscover = setInterval(() => {
+  const next = discoverCodexDirs(process.env, config.home);
+  if (next.join('|') !== codexDirs.join('|')) {
+    codexDirs = next;
+    late.office?.markDirty();
+  }
+}, 15_000);
+codexRediscover.unref?.();
 const office = new Office({
   names,
   version: config.version,
   // No modo dev o Vite serve o cliente direto do código-fonte: não há build para comparar.
   build: config.dev ? undefined : createBuildReader(config.rootDir),
   startedAt,
-  accounts: (sessions) => accounts.list(sessions),
-  sources: () => late.watcher?.sources() ?? [],
-  accountName: (id) => accounts.find(id)?.detected.name,
+  accounts: (sessions) => [...accounts.list(sessions), ...codexAccounts(codexDirs, sessions)],
+  sources: () => [...(late.watcher?.sources() ?? []), ...(late.codex?.sources() ?? [])],
+  accountName: (id) => (isCodexAccount(id) ? codexAccountName(id) : accounts.find(id)?.detected.name),
   terminal: config.terminal,
   demoLocked: config.demoLocked,
-  permissions: () => late.permissions?.snapshot() ?? new Map(),
+  permissions: () => {
+    const m = new Map(late.permissions?.snapshot() ?? new Map());
+    // No snapshot vai sem `input` (como os pedidos do Claude): o comando completo sai por GET /api/permissions/:id.
+    for (const a of late.codex?.approvals() ?? []) if (!m.has(a.agentId)) m.set(a.agentId, { ...a.info, input: undefined });
+    return m;
+  },
   updates: () => updates.status(),
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
+  github: () => githubOffReason(process.env, shellState.reason) === undefined && !late.office?.isDemo(),
   links: config.links,
 });
 // Ponte (ex.: Mac -> esta VM): config dirs espelhados, vivos pelo batimento e sem receber mensagens.
@@ -110,10 +135,15 @@ const hub = new Hub(office);
 const stats = new DayStatsService({ dir: join(config.dataDir, 'stats'), snapshot: () => hub.current() });
 stats.load();
 // Terminal somente leitura: só existe com bind local (ver terminalOffReason em config.ts).
-const terminals = config.terminal ? new TerminalStreams({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id) }) : undefined;
-// Histórico do terminal (sessões recentes, abertas ou encerradas): mesma trava.
+const terminals = config.terminal
+  ? new TerminalStreams({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id) ?? late.codex?.transcriptPathOf(id) })
+  : undefined;
+// Histórico do terminal (sessões recentes, abertas ou encerradas): mesma trava. Inclui as conversas do Codex.
 const history = config.terminal
-  ? new SessionHistory({ accounts: () => accounts.entries(), openAgentOf: (acc, sid) => openMainAgent(office.list(), acc, sid) })
+  ? new SessionHistory({
+      accounts: () => [...accounts.entries(), ...codexDirs.map((d) => ({ id: basename(d), dir: d }))],
+      openAgentOf: (acc, sid) => openMainAgent(office.list(), acc, sid),
+    })
   : undefined;
 // Linha do tempo do timelapse: grava cada snapshot novo (com throttle) em <dataDir>/timeline.
 const timelineDir = join(config.dataDir, TIMELINE_DIR);
@@ -134,14 +164,33 @@ late.permissions = permissions;
 // então segue a mesma trava (bind local); a conferência de arquivos/git roda a cada 30 s só com missão ativa.
 const missionsStore = config.terminal ? new MissionsStore(join(config.dataDir, 'missions.json')) : undefined;
 missionsStore?.load();
-const missions = missionsStore ? new MissionsEngine({ store: missionsStore, projectsDir: join(config.home, PROJECTS_DIRNAME), home: config.home, configDirs: () => accounts.entries().map((a) => a.dir) }) : undefined;
+const missions = missionsStore
+  ? new MissionsEngine({
+      store: missionsStore,
+      projectsDir: join(config.home, PROJECTS_DIRNAME),
+      home: config.home,
+      configDirs: () => accounts.entries().map((a) => a.dir),
+      codexDirs: codexAuthDirs,
+    })
+  : undefined;
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
 const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Fonte "codex": conversas abertas do Codex CLI; a tela do tmux diz quando ele pede aprovação ou login.
+const codexWatcher = codexOff
+  ? undefined
+  : new CodexWatcher({
+      dirs: () => codexDirs,
+      office,
+      screen: input && config.terminal ? (pid) => input.screen(`.codex:${pid}`) : undefined,
+    });
+late.codex = codexWatcher;
+/** Sessões tmux agente-* abertas pelo escritório para o Codex (agente-codex-*) ou para o Claude (o resto). */
+const isCodexSession = (s: { session: string }) => s.session.startsWith('agente-codex-');
 // Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
 const setupWatcher = shellService
   ? new SetupWatcher({
-      list: () => shellService.agentSessions(),
+      list: async () => (await shellService.agentSessions()).filter((s) => !isCodexSession(s)),
       connected: async () => (await claudeAuth({ home: config.home, configDirs: accounts.entries().map((a) => a.dir), env: process.env })).connected,
       ready: async () => {
         try {
@@ -165,6 +214,37 @@ const setupWatcher = shellService
         : undefined,
     })
   : undefined;
+// O mesmo para o Codex: "+ Novo agente" com Codex sem login aparece na hora como "conectar sua conta OpenAI" e, depois
+// do login num deles, os outros parados no login são reabertos.
+const codexSetupWatcher =
+  shellService && codexWatcher
+    ? new SetupWatcher({
+        list: async () => (await shellService.agentSessions()).filter(isCodexSession),
+        connected: async () => (await codexAuth(codexAuthDirs())).connected,
+        hasAgentPid: (pid) => office.list().some((a) => a.kind === 'main' && a.status !== 'offline' && a.id.endsWith(`:${pid}`)),
+        apply: (list) => office.setSetupAgents(list, 'codex'),
+        account: '.codex',
+        engine: 'codex',
+        restart: input
+          ? async (s) => {
+              const r = await input.spawn(s.cwd, { engine: 'codex' });
+              if (r.pid) office.movePendingProfile(`.codex:${s.pid}`, `.codex:${r.pid}`);
+              await shellService.killAgentSession(s.session);
+              log.info(`Agente do Codex reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
+            }
+          : undefined,
+      })
+    : undefined;
+// Painel do GitHub: gh no shell do usuário (login no terminal embutido), mesma trava do terminal embutido.
+const githubService = shellService ? new GithubService({ home: config.home, projectsDir: join(config.home, PROJECTS_DIRNAME) }) : undefined;
+const githubRoutes = createGithubRoutes({
+  service: githubService,
+  offReason: () => githubOffReason(process.env, office.isDemo() ? 'modo demonstração ligado' : shellState.reason),
+  allowedHosts: config.allowedHosts,
+  sendJson,
+  readJson,
+  onChange: () => void missions?.evaluate(),
+});
 const shellRoutes = createShellRoutes({
   service: shellService,
   offReason: () => shellState.reason,
@@ -176,6 +256,7 @@ const shellRoutes = createShellRoutes({
 
 if (config.demo) office.setDemo(true);
 watcher.start();
+codexWatcher?.start();
 accounts.start();
 hub.start();
 if (timeline) {
@@ -188,6 +269,7 @@ missions?.startTimer();
 void missions?.evaluate();
 missions?.watchAuth();
 setupWatcher?.start();
+codexSetupWatcher?.start();
 if (config.shell && shellService)
   void shellService.probe().then((why) => {
     shellState.reason = why;
@@ -208,20 +290,31 @@ const api = createApiHandler({
   office,
   hub,
   accounts,
-  sources: () => watcher.sources(),
+  sources: () => [...watcher.sources(), ...(codexWatcher?.sources() ?? [])],
   version: config.version,
   inDocker: config.inDocker,
   terminal: config.terminal,
   terminals,
   sessions: history,
   timeline: createTimelineHandler({ dir: timelineDir, recording: !!timeline }),
-  permissions: permissions ? createPermissionRoutes(permissions) : undefined,
-  input: input && setupWatcher ? { ...input, spawn: async (...a: Parameters<typeof input.spawn>) => {
+  // Pedidos do Codex (ids "codex-...") respondidos com teclas no tmux; o resto vai para o registro do hook do Claude.
+  permissions:
+    config.terminal && codexWatcher && input
+      ? withCodexPermissions(
+          { watcher: codexWatcher, sendKeys: (id, keys) => input.sendKeys(id, keys), sendText: (id, text) => input.send(id, text) },
+          permissions ? createPermissionRoutes(permissions) : undefined,
+        )
+      : permissions
+        ? createPermissionRoutes(permissions)
+        : undefined,
+  input: input && (setupWatcher || codexSetupWatcher) ? { ...input, spawn: async (...a: Parameters<typeof input.spawn>) => {
     const r = await input.spawn(...a);
-    void setupWatcher.scan();
+    void setupWatcher?.scan();
+    void codexSetupWatcher?.scan();
     return r;
   } } : input,
   missions,
+  github: githubRoutes,
   shell: shellRoutes.api,
   shellAvailable: () => shellState.reason === undefined && !office.isDemo(),
   state,
@@ -301,6 +394,11 @@ server.listen(config.port, config.host, () => {
     const usage = accounts.usageView(a.id).status;
     log.info(`   Conta ${a.detected.short} (${a.id}): ${src?.sessions ?? 0} sessão(ões) aberta(s) · uso: ${usage} · ${a.dir}`);
   }
+  if (codexOff) log.info('   Codex: desligado (HABBLAUD_CODEX).');
+  else if (!codexDirs.length) log.info('   Codex: nenhuma pasta ~/.codex ainda (aparece quando o codex rodar pela primeira vez).');
+  for (const d of codexDirs) {
+    log.info(`   ${codexAccountName(basename(d))} (Codex, ${basename(d)}): ${late.codex?.sessionsByAccount().get(basename(d)) ?? 0} conversa(s) aberta(s) · ${d}`);
+  }
   if (office.isDemo()) log.info('   Modo demonstração ligado (agentes simulados misturados aos reais).');
   if (!config.shell) log.info(`   Terminal embutido: desligado (${shellState.reason}).`);
   if (config.terminal) log.info('   Terminal somente leitura: ligado (acesso só local).');
@@ -330,6 +428,9 @@ function shutdown(signal: string): void {
   permissions?.stop();
   missions?.stop();
   setupWatcher?.stop();
+  codexSetupWatcher?.stop();
+  codexWatcher?.stop();
+  clearInterval(codexRediscover);
   missionsStore?.flush();
   updates.stop();
   names.flush();

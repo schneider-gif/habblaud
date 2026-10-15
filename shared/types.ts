@@ -7,6 +7,9 @@ import type { AppearanceOverride } from './profile';
 
 export type AgentKind = 'main' | 'sub';
 
+/** Ferramenta de um agente: Claude Code ou Codex CLI (OpenAI). */
+export type AgentEngine = 'claude' | 'codex';
+
 /**
  * Estado de alto nível de um agente — é o que dirige o comportamento do personagem.
  * - working: processando um turno (ocupado). Fica na mesa digitando.
@@ -153,6 +156,11 @@ export interface AgentInfo {
    * Code: tema e login no terminal). `session` é a sessão tmux (agente-*) a anexar no terminal embutido.
    */
   setup?: { session: string };
+  /**
+   * Ferramenta que roda o agente: ausente = Claude Code; 'codex' = Codex CLI (OpenAI). O escritório mostra um selo
+   * "Codex" e a conta é a "Conta OpenAI".
+   */
+  engine?: AgentEngine;
 }
 
 export interface RoomInfo {
@@ -283,6 +291,8 @@ export interface AccountInfo {
    * - disabled: sem números (tap de statusline não instalado e nenhum cache do /usage).
    */
   usageStatus: 'ok' | 'stale' | 'disabled';
+  /** Conta do Codex CLI ("Conta OpenAI"); ausente = conta do Claude. */
+  engine?: AgentEngine;
 }
 
 export interface OfficeSnapshot {
@@ -317,6 +327,11 @@ export interface OfficeSnapshot {
      * sem demonstração e HABBLAUD_SHELL ligado. Ausente/false = sem o botão "Terminal".
      */
     shell?: boolean;
+    /**
+     * Painel "GitHub" (conectar pelo gh no terminal embutido, clonar, criar repositório): mesma trava do terminal
+     * embutido; HABBLAUD_GITHUB=0 desliga. Ausente/false = sem o botão.
+     */
+    github?: boolean;
     /** Link rápido "VS Code" da barra superior (HABBLAUD_VSCODE_URL, passado pelo template); ausente = sem o botão. */
     links?: { vscode?: string };
   };
@@ -467,6 +482,8 @@ export interface RecentSession {
   /** A sessão ainda está aberta: `agentId` é o agente principal dela no escritório. */
   open: boolean;
   agentId?: string;
+  /** Conversa do Codex CLI (rollout em <CODEX_HOME>/sessions); ausente = Claude Code. */
+  engine?: AgentEngine;
 }
 
 /** Resposta de GET /api/sessions/recent: da atividade mais recente para a mais antiga. */

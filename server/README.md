@@ -1,7 +1,7 @@
 # Servidor do Habblaud
 
 Node puro (sem dependências de runtime). Observa as sessões **abertas** do Claude Code em todas as
-contas da máquina, mantém o modelo do escritório e transmite tudo via SSE.
+contas da máquina (e as conversas abertas do Codex CLI, ver `docs/codex.md` e `server/codex/`), mantém o modelo do escritório e transmite tudo via SSE.
 
 ```
 npm run dev      # servidor + Vite (middleware, HMR) em http://127.0.0.1:4747
@@ -72,6 +72,10 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/sessions/recent` | `RecentSessionsResponse`: sessões dos últimos 7 dias de todas as contas (até 150); mesma trava do terminal |
 | `GET /api/sessions/:conta/:sessionId/terminal` | SSE da conversa de uma sessão do histórico (mesmo protocolo do terminal); mesma trava |
 | `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`input/tmux.ts`); com `{resume: <uuid>}` roda `claude --resume <uuid>` na pasta original da sessão (o `cwd` vem do transcript via `SessionHistory.resumeTarget`, nunca do corpo), só para a conta `.claude`; UUID estrito (400), sessão aberta ou sem pasta (409), pasta fora do HOME (400); o agente que chega com o pid devolvido herda o personagem da sessão (`Office.setPendingResume`). Mesma trava do terminal |
+| `GET /api/github/status` | `{available, installed, loggedIn, login?, name?}` do `gh auth status` + `gh api user` (`?fresh=1` confere de novo). Mesma trava do terminal embutido; `HABBLAUD_GITHUB=0` desliga (ver `server/github/`) |
+| `GET /api/github/repos` · `/prs` · `/folders` | `gh repo list --limit 50`, `gh search prs --author @me --state open`, pastas de `~/projetos` (com `origin` ou não) |
+| `POST /api/github/clone` | `{repo: "dono/nome"}` → `201 {dir, name}`: `gh repo clone` em `~/projetos/<nome>` (409 se já existe) |
+| `POST /api/github/create` | `{folder, visibility?: "private"\|"public", confirm: true}` → `201 {url, repo, dir}`: `git init`/primeiro commit se faltar e `gh repo create --source --push` (privado por padrão; 400 sem `confirm`) |
 | `GET /api/missions` | `MissionsView` (`shared/missions.ts`): quadro de missões, Caixa do escritório, XP/nível, dias seguidos e comemorações pendentes. Mesma trava do spawn (ver "Missões") |
 | `POST /api/missions/:id/start` | `{}` → `201 MissionStartResult`: cria `~/projetos/<slug>` (só `mkdir`, nunca sobrescreve), ativa a missão e abre um agente lá **sem pedido pronto** (ou reaproveita um agente já na pasta); 404 desconhecida, 409 trancada/concluída |
 | `POST /api/missions/:id/complete` | `{confirm: true}` → "Concluí": confere antes (se a detecção achar, vale como automática); 400 sem `confirm`, 409 fora da missão ativa |

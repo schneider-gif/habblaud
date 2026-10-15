@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { tempDir } from '../test/fixtures';
-import { claudeAuth } from './auth';
+import { agentAuth, claudeAuth } from './auth';
 
 let tmp: ReturnType<typeof tempDir>;
 afterEach(() => tmp?.cleanup());
@@ -46,5 +46,19 @@ describe('conta do Claude conectada (Claude Code 2.x no Linux)', () => {
     for (const k of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN'])
       expect(await claudeAuth({ home: h, configDirs: [join(h, '.claude')], env: { [k]: 'x' } })).toEqual({ connected: true, how: 'env' });
     expect((await claudeAuth({ home: h, configDirs: [join(h, '.claude')], env: { ANTHROPIC_API_KEY: '  ' } })).connected).toBe(false);
+  });
+});
+
+describe('Missão 0 com Claude ou OpenAI (Codex)', () => {
+  it('vale a conta do Claude ou o auth.json do Codex; nenhum dos dois = desconectado', async () => {
+    const h = home();
+    const o = { home: h, configDirs: [join(h, '.claude')], codexDirs: [join(h, '.codex')], env: {} };
+    expect(await agentAuth(o)).toEqual({ connected: false });
+    mkdirSync(join(h, '.codex'), { recursive: true });
+    writeFileSync(join(h, '.codex', 'auth.json'), JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: 'a', refresh_token: 'r' } }));
+    expect(await agentAuth(o)).toEqual({ connected: true, how: 'codex' });
+    mkdirSync(join(h, '.claude'), { recursive: true });
+    writeFileSync(join(h, '.claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'x' } }));
+    expect(await agentAuth(o)).toEqual({ connected: true, how: 'oauth' });
   });
 });

@@ -253,7 +253,22 @@ export class UsageCards {
 
     // Sem números: "sem dados de uso" + "Como ativar".
     setHidden(r.msg, state !== 'empty');
+    // Conta OpenAI (Codex): o Codex não grava o uso do plano em arquivo; o cartão diz se a conta está conectada.
+    const codex = a.engine === 'codex';
+    const long = r.msg.querySelector('.ui-usage-card__msg-long');
+    const short = r.msg.querySelector('.ui-usage-card__msg-short');
+    const how = r.msg.querySelector<HTMLElement>('.ui-usage-card__how');
+    if (long && short && how) {
+      const label = a.plan ? `conectada · ${a.plan}` : 'não conectada';
+      setText(long, codex ? label : 'sem dados de uso');
+      setText(short, codex ? (a.plan ? 'conectada' : 'sem login') : 'sem dados');
+      setHidden(how, codex);
+    }
     this.updateTip(r, a, state, five, week, now);
+    if (codex) {
+      setHidden(r.tipSetup, true);
+      setText(r.tipNote, a.plan ? 'Conta OpenAI do Codex conectada. O Codex não grava o uso do plano em arquivo, então não há números de 5 h/semana aqui.' : 'Sem login: abra um agente do Codex (ou rode codex login --device-auth no terminal) para conectar a conta OpenAI.');
+    }
   }
 
   private updateTip(r: CardRefs, a: AccountInfo, state: CardState, five: UsageWindowView | null, week: UsageWindowView | null, now: number): void {

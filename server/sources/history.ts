@@ -13,6 +13,9 @@ import { sessionDirOf } from './subagents';
 import { createTerminalParser } from './terminal';
 import { createTranscriptState, parseLine, titleOf } from './transcript';
 import { readCustomTitleFile } from './watcher';
+import { isCodexAccount } from '../codex/detect';
+import { findRollout, listDayDirs } from '../codex/proc';
+import { codexTitle, createCodexState, parseCodexLine } from '../codex/rollout';
 
 /** Janela da listagem: sessões com o transcript modificado nos últimos 7 dias. */
 export const HISTORY_DAYS = 7;
@@ -62,6 +65,8 @@ export interface SessionMeta {
 }
 
 interface Candidate {
+  /** Rollout do Codex (ausente = transcript do Claude). */
+  codex?: boolean;
   account: string;
   sessionId: string;
   projectDir: string;
@@ -119,6 +124,7 @@ export class SessionHistory {
         size: c.size,
         open: !!agentId,
       };
+      if (c.codex) s.engine = 'codex';
       if (meta.project) s.project = meta.project;
       if (meta.title) s.title = meta.title;
       if (meta.firstAt !== undefined) s.firstAt = meta.firstAt;
@@ -136,6 +142,7 @@ export class SessionHistory {
     if (!isSessionId(sessionId)) return { status: 400, error: 'id de sessão inválido' };
     const acc = this.opts.accounts().find((a) => a.id === account);
     if (!acc) return { status: 404, error: 'conta desconhecida' };
+    if (isCodexAccount(acc.id)) return resolveCodex(acc.dir, sessionId.toLowerCase(), this.now());
     const projects = join(acc.dir, 'projects');
     const notFound: ResolveResult = { status: 404, error: 'sessão não encontrada' };
     let root: string;
@@ -173,7 +180,8 @@ export class SessionHistory {
     if (this.opts.openAgentOf(account, sessionId)) return { status: 409, error: 'esta sessão ainda está aberta no escritório' };
     let meta: SessionMeta;
     try {
-      meta = await readSessionMeta(found.path, (await stat(found.path)).size);
+      const size = (await stat(found.path)).size;
+      meta = isCodexAccount(account) ? await readCodexMeta(found.path, size) : await readSessionMeta(found.path, size);
     } catch {
       return { status: 404, error: 'sessão não encontrada' };
     }
@@ -183,6 +191,7 @@ export class SessionHistory {
 
   /** Transcripts de primeiro nível (um por sessão) modificados dentro da janela. */
   private async candidates(acc: HistoryAccount, now: number): Promise<Candidate[]> {
+    if (isCodexAccount(acc.id)) return this.codexCandidates(acc, now);
     const projects = join(acc.dir, 'projects');
     const out: Candidate[] = [];
     let dirs: string[];
@@ -215,13 +224,42 @@ export class SessionHistory {
     return out;
   }
 
+  /** Rollouts do Codex (sessions/AAAA/MM/DD/rollout-*-<id>.jsonl) modificados dentro da janela. */
+  private async codexCandidates(acc: HistoryAccount, now: number): Promise<Candidate[]> {
+    const out: Candidate[] = [];
+    const sessions = join(acc.dir, 'sessions');
+    for (const day of listDayDirs(sessions)) {
+      // Pastas de dia bem mais antigas que a janela: nada lá dentro pode ter sido modificado dentro dela... a não
+      // ser conversas retomadas (o arquivo continua na pasta do dia em que começou), então confere o mtime de cada um.
+      let names: string[];
+      try {
+        names = await readdir(day);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        const m = /^rollout-.+-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/.exec(name);
+        if (!m) continue;
+        const path = join(day, name);
+        try {
+          const st = await stat(path);
+          if (!st.isFile() || now - st.mtimeMs > this.maxAgeMs) continue;
+          out.push({ codex: true, account: acc.id, sessionId: m[1], projectDir: day.slice(sessions.length + 1), path, mtimeMs: st.mtimeMs, size: st.size });
+        } catch {
+          // apagado no meio da listagem
+        }
+      }
+    }
+    return out;
+  }
+
   private async metaOf(c: Candidate): Promise<SessionMeta> {
     const hit = this.cache.get(c.path);
     if (hit && hit.mtimeMs === c.mtimeMs && hit.size === c.size) return hit.meta;
     let meta: SessionMeta;
     try {
       this.reads++;
-      meta = await readSessionMeta(c.path, c.size);
+      meta = c.codex ? await readCodexMeta(c.path, c.size) : await readSessionMeta(c.path, c.size);
     } catch (err) {
       log.warnOnce(`history:${errMsg(err)}`, `Histórico de sessões: transcript ilegível (${errMsg(err)}).`);
       meta = {};
@@ -327,4 +365,60 @@ async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) 
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return out;
+}
+
+/** Rollout de uma conversa do Codex, conferido: dentro de <pasta>/sessions (links resolvidos). */
+export function resolveCodex(dir: string, sessionId: string, now: number): ResolveResult {
+  const notFound: ResolveResult = { status: 404, error: 'sessão não encontrada' };
+  const path = findRollout(dir, sessionId, now, true);
+  if (!path) return notFound;
+  try {
+    const root = realpathSync(join(dir, 'sessions'));
+    const real = realpathSync(path);
+    if (!real.startsWith(root + sep) || !statSync(real).isFile()) return notFound;
+    return { path: real };
+  } catch {
+    return notFound;
+  }
+}
+
+/** Começo e fim de um rollout do Codex: pasta (session_meta), título (primeiro pedido) e horários. */
+export async function readCodexMeta(path: string, size: number): Promise<SessionMeta> {
+  const fh = await open(path, 'r');
+  try {
+    const read = async (start: number, len: number) => {
+      const buf = Buffer.alloc(len);
+      const { bytesRead } = await fh.read(buf, 0, len, start);
+      return buf.subarray(0, bytesRead).toString('utf8');
+    };
+    const headLen = Math.min(size, HEAD_BYTES);
+    const head = await read(0, headLen);
+    const state = createCodexState();
+    const headLines = head.split('\n');
+    if (headLen < size) headLines.pop(); // última linha cortada
+    for (const line of headLines) if (line.trim()) parseCodexLine(state, line, { idPrefix: '', now: 0 });
+    let lastAt = state.lastAt;
+    if (size > HEAD_BYTES) {
+      const start = Math.max(HEAD_BYTES, size - TAIL_BYTES);
+      const tailLines = (await read(start, size - start)).split('\n');
+      if (start > 0) tailLines.shift();
+      for (const line of tailLines.reverse()) {
+        const t = /"timestamp":"([^"]+)"/.exec(line)?.[1];
+        const ms = t ? Date.parse(t) : NaN;
+        if (Number.isFinite(ms)) {
+          lastAt = ms;
+          break;
+        }
+      }
+    }
+    const meta: SessionMeta = {};
+    if (state.cwd) meta.project = state.cwd;
+    const title = codexTitle(state);
+    if (title) meta.title = truncate(title, TITLE_MAX);
+    if (state.firstAt !== undefined) meta.firstAt = state.firstAt;
+    if (lastAt !== undefined) meta.lastAt = lastAt;
+    return meta;
+  } finally {
+    await fh.close();
+  }
 }

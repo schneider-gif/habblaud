@@ -15,7 +15,8 @@ import type { Activity, AgentInfo, TerminalEntry, TerminalInit } from '../../sha
 import { errMsg, log } from '../log';
 import type { Office } from '../model/office';
 import { FileTail } from '../sources/tail';
-import { createTerminalParser, type TerminalParser } from '../sources/terminal';
+import type { TerminalParser } from '../sources/terminal';
+import { createAutoTerminalParser } from '../codex/terminal';
 import { sendJson } from './app';
 import { frame } from './sse';
 
@@ -226,7 +227,7 @@ export class TerminalStreams {
   private readonly pingMs: number;
 
   constructor(private readonly opts: TerminalOptions) {
-    this.createParser = opts.createParser ?? createTerminalParser;
+    this.createParser = opts.createParser ?? createAutoTerminalParser;
     this.demoEntries = opts.demoEntries ?? demoTerminalEntries;
     this.maxStreams = opts.maxStreams ?? MAX_STREAMS;
     this.initTailBytes = opts.initTailBytes ?? INIT_TAIL_BYTES;

@@ -56,10 +56,12 @@ describe('catálogo das missões', () => {
 describe('Missão 0', () => {
   it('passos concretos, conta própria e aviso de não afiliação; ativa sozinha', () => {
     const m = missionById('conta-claude')!;
-    expect(m.text.pt.title).toBe('Conecte sua conta do Claude');
-    expect(m.text.pt.why).toBe('Sem isso os agentes não conseguem trabalhar.');
+    expect(m.text.pt.title).toBe('Conecte sua conta do Claude ou da OpenAI (Codex)');
+    expect(m.text.pt.why).toBe('Sem isso os agentes não conseguem trabalhar. Qualquer uma das duas serve.');
     expect(m.text.pt.goal).toContain('claude');
-    expect(m.text.pt.goal).toContain('Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.');
+    expect(m.text.pt.goal).toContain('codex');
+    expect(m.text.pt.goal).toContain('Sign in with Device Code');
+    expect(m.text.pt.goal).toContain('Você usa a sua própria conta ou chave; o uso é cobrado direto pela Anthropic ou pela OpenAI. Não somos afiliados.');
     expect(m.auto).toBe(true);
   });
 });

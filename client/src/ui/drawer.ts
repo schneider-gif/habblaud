@@ -420,8 +420,8 @@ class AgentView {
     updateAvatar(this.avatar, a, 'lg');
     setStyleVar(this.avatar, '--acc', account?.color ?? '#8b98b3');
     setText(this.name, a.name);
-    setText(this.role, roleLabel(a));
-    setVariant(this.role, 'ui-role--', a.kind);
+    setText(this.role, a.kind === 'main' && a.engine === 'codex' ? 'Agente do Codex (OpenAI)' : roleLabel(a));
+    setVariant(this.role, 'ui-role--', a.kind === 'main' && a.engine === 'codex' ? 'codex' : a.kind);
     setText(this.title, a.title ?? '');
     setHidden(this.title, !a.title);
     setTitle(this.title, a.title ?? '');

@@ -43,10 +43,10 @@ export const MISSIONS: readonly Mission[] = [
     auto: true,
     text: {
       pt: {
-        title: 'Conecte sua conta do Claude',
-        why: 'Sem isso os agentes não conseguem trabalhar.',
-        goal: '1) Clique em Fazer login agora (ou abra o Terminal na barra de cima do escritório; no VS Code: menu Terminal › Novo terminal). 2) Rode claude e escolha o login: a sua conta Claude Pro/Max (abre um link no navegador) ou uma chave de API da Anthropic. 3) Volte aqui: o quadro confere sozinho. Você usa a sua própria conta (Pro/Max) ou chave de API; o uso é cobrado direto pela Anthropic. Não somos afiliados.',
-        example: 'No terminal: claude → escolha "Claude account with subscription" e abra o link, ou "Anthropic Console account" para usar uma chave de API.',
+        title: 'Conecte sua conta do Claude ou da OpenAI (Codex)',
+        why: 'Sem isso os agentes não conseguem trabalhar. Qualquer uma das duas serve.',
+        goal: '1) Clique em Fazer login agora (Claude) ou Conectar a OpenAI (Codex), ou abra o Terminal na barra de cima do escritório (no VS Code: menu Terminal › Novo terminal). 2) Claude: rode claude e escolha a sua conta Claude Pro/Max (abre um link no navegador) ou uma chave de API da Anthropic. Codex: rode codex e escolha Sign in with Device Code (abre um link e mostra um código) para usar o seu ChatGPT Plus/Pro, ou uma chave de API da OpenAI. 3) Volte aqui: o quadro confere sozinho. Você usa a sua própria conta ou chave; o uso é cobrado direto pela Anthropic ou pela OpenAI. Não somos afiliados.',
+        example: 'No terminal: claude → "Claude account with subscription" e abra o link. Ou: codex → "Sign in with Device Code", abra o link e digite o código.',
       },
     },
   },

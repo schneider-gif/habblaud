@@ -121,12 +121,12 @@ export class EmptyState implements UiComponent {
     const show = officeIsEmpty(this.ctx);
     setHidden(this.el, !show);
     if (!show || !snap) return;
-    const keys = shortcutHint(snap.accounts);
+    const keys = shortcutHint(snap.accounts.filter((a) => a.engine !== 'codex'));
     const shell = this.ctx.isShellAvailable();
     setText(
       this.hint,
       this.canSpawn || shell
-        ? `Abra um agente novo (ou rode claude no terminal) e veja ele chegar.${keys ? ` Atalho da conta: ${keys}.` : ''}`
+        ? `Abra um agente novo (ou rode claude ou codex no terminal) e veja ele chegar.${keys ? ` Atalho da conta: ${keys}.` : ''}`
         : `Abra o Claude Code em qualquer projeto${keys ? ` (${keys})` : ''} e veja seu agente chegar.`,
     );
     setHidden(this.newBtn, !this.canSpawn);

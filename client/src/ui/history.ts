@@ -48,6 +48,7 @@ export function parseRecentSessions(raw: unknown): RecentSession[] {
     if (title) s.title = title;
     if (firstAt !== undefined) s.firstAt = firstAt;
     if (s.open && agentId) s.agentId = agentId;
+    if (o.engine === 'codex') s.engine = 'codex';
     out.push(s);
   }
   return out.sort((a, b) => b.lastAt - a.lastAt);
@@ -100,6 +101,8 @@ export function groupSessionsByDay(list: readonly RecentSession[], now: number):
 
 /** Conta do Claude aberto pelo escritório (igual a SPAWN_ACCOUNT em server/http/app.ts). */
 export const SPAWN_ACCOUNT = '.claude';
+/** Conta do Codex aberto pelo escritório (igual a CODEX_SPAWN_ACCOUNT em server/http/app.ts): retoma com `codex resume`. */
+export const CODEX_SPAWN_ACCOUNT = '.codex';
 /** Abre agentes no tmux (GET e POST /api/agents/new); POST com {resume} retoma uma sessão encerrada. */
 export const SPAWN_URL = '/api/agents/new';
 /** Quanto tempo esperar o agente retomado aparecer no escritório para focá-lo. */
@@ -128,7 +131,7 @@ export function insideHome(path: string, home: string): boolean {
 /** Por que a sessão encerrada não pode ser retomada pelo escritório (undefined = pode). */
 export function resumeBlock(s: RecentSession, spawn: SpawnInfo | null): string | undefined {
   if (!spawn?.available) return 'Retomar precisa do tmux nesta máquina: este escritório não abre agentes';
-  if (s.account !== SPAWN_ACCOUNT) return 'Só dá para retomar pelo escritório sessões da conta principal (~/.claude)';
+  if (s.account !== SPAWN_ACCOUNT && s.account !== CODEX_SPAWN_ACCOUNT) return 'Só dá para retomar pelo escritório sessões das contas principais (~/.claude ou ~/.codex)';
   if (!s.project) return 'Não deu para descobrir a pasta desta sessão';
   if (spawn.home && !insideHome(s.project, spawn.home)) return 'A pasta desta sessão fica fora do seu HOME';
   return undefined;
@@ -389,7 +392,7 @@ export class HistoryPopover implements UiComponent {
       setTitle(btn, `${block}.`);
       setAttr(btn, 'aria-label', `Retomar “${title}”: indisponível. ${block}.`);
     } else {
-      setTitle(btn, 'Reabre esta conversa num agente novo (claude --resume), na pasta original, que recebe mensagens pelo escritório');
+      setTitle(btn, s.account === CODEX_SPAWN_ACCOUNT ? 'Reabre esta conversa num agente novo do Codex (codex resume), na pasta original, que recebe mensagens pelo escritório' : 'Reabre esta conversa num agente novo (claude --resume), na pasta original, que recebe mensagens pelo escritório');
       setAttr(btn, 'aria-label', `Retomar “${title}” num agente novo`);
       if (busy) setAttr(btn, 'aria-busy', 'true');
     }
@@ -420,7 +423,7 @@ export class HistoryPopover implements UiComponent {
     this.resuming.add(key);
     this.renderList();
     try {
-      const r = await fetch(SPAWN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: s.sessionId }) });
+      const r = await fetch(SPAWN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: s.sessionId, account: s.account }) });
       const j = (await r.json().catch(() => ({}))) as { error?: string; pid?: unknown };
       if (!r.ok) {
         const why = r.status === 502 ? 'tmux indisponível na máquina' : (j.error ?? 'o escritório recusou o pedido');

@@ -8,10 +8,12 @@
 // Só devolve se há credencial, nunca o conteúdo dela.
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { codexAuth } from '../codex/detect';
 
 export interface ClaudeAuth {
   connected: boolean;
-  how?: 'oauth' | 'apiKey' | 'helper' | 'env';
+  /** 'codex' = a conta conectada é a OpenAI (Codex CLI: <CODEX_HOME>/auth.json), ver agentAuth. */
+  how?: 'oauth' | 'apiKey' | 'helper' | 'env' | 'codex';
 }
 
 const ENV_KEYS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN'] as const;
@@ -38,4 +40,15 @@ export async function claudeAuth(o: { home: string; configDirs: readonly string[
     if (filled((await readJson(join(dir, 'settings.json')))?.apiKeyHelper)) return { connected: true, how: 'helper' };
   }
   return { connected: false };
+}
+
+/**
+ * Missão 0 (0.8.0): vale a conta do Claude OU a da OpenAI (Codex). Confere primeiro o Claude e, sem ele, o
+ * <CODEX_HOME>/auth.json de cada pasta do Codex (só se há credencial, nunca o conteúdo).
+ */
+export async function agentAuth(o: { home: string; configDirs: readonly string[]; codexDirs: readonly string[]; env: NodeJS.ProcessEnv }): Promise<ClaudeAuth> {
+  const claude = await claudeAuth(o);
+  if (claude.connected) return claude;
+  if ((await codexAuth(o.codexDirs)).connected) return { connected: true, how: 'codex' };
+  return claude;
 }

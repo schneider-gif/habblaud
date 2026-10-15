@@ -5,7 +5,7 @@
 <h1 align="center">Habblaud</h1>
 
 <p align="center">
-  <b>O escritório virtual dos seus agentes do Claude Code.</b><br />
+  <b>O escritório virtual dos seus agentes do Claude Code e do Codex.</b><br />
   Cada projeto vira uma sala, cada agente vira um personagem em pixel art que mostra, em tempo real, o que está fazendo.
 </p>
 
@@ -472,6 +472,47 @@ Cada evento também gera um aviso ("🎉 Danilo abriu o PR #12 em habblaud", "�
 no feed. Só o que acontece ao vivo anima a sala: o que já estava nos transcripts quando o Habblaud abriu vai só para o
 histórico. Com "reduzir movimento" ligado no sistema, nada pisca nem gira. No modo demonstração, PRs, merges e CIs
 fictícios aparecem de tempos em tempos.
+
+#### Painel do GitHub (0.8.0)
+
+Com o terminal embutido ligado, o botão **GitHub** da barra (ou do **⋯**) conecta a sua conta e faz o básico sem sair
+do escritório, tudo pelo [GitHub CLI](https://cli.github.com) (`gh`) no seu usuário:
+
+- **Conectar GitHub**: abre o terminal embutido com `gh auth login --web --git-protocol https` (código de dispositivo:
+  o link e o código aparecem no terminal; o link é clicável inteiro). Depois do login, `gh auth setup-git` e o nome e
+  e-mail do git a partir do `gh api user` (só se ainda não houver).
+- **Clonar repositório**: lista os seus repositórios (`gh repo list --limit 50`), clona em `~/projetos/<nome>` (nunca
+  sobrescreve) e oferece abrir um agente **Claude** ou **Codex** lá.
+- **Novo repositório a partir de uma pasta** de `~/projetos`: privado por padrão, com confirmação explícita antes de
+  criar e enviar (`gh repo create --source --push`; sem git, inicia e faz o primeiro commit).
+- **Meus PRs abertos** (`gh search prs --author @me`).
+
+O token fica com o `gh` (keyring ou arquivo dele): o Habblaud nunca vê, guarda nem mostra. `HABBLAUD_GITHUB=0`
+desliga o painel.
+
+### Codex (OpenAI)
+
+Desde a 0.8.0 o Habblaud também acompanha o [Codex CLI](https://github.com/openai/codex). As conversas abertas do
+Codex (`~/.codex`, `CODEX_HOME` e `~/.codex-*`) viram agentes com o selo verde **Codex**, na **Conta OpenAI**, com
+tudo o que os agentes do Claude têm: status (trabalhando, precisa de você, ocioso), o que estão fazendo (lendo,
+editando, rodando comandos, testes, git), título, sala do projeto, linha do tempo, tarefas e o terminal da conversa.
+
+- **+ Novo agente** pergunta **Claude** ou **Codex** (lembra a última escolha). O Codex abre no tmux
+  (`codex --no-daemon`), já confiando na pasta escolhida, e recebe mensagens pelo escritório.
+- **Sem login**, o agente aparece na hora como "precisa de você: conectar sua conta OpenAI"; o clique abre o terminal
+  embutido nele (escolha **Sign in with Device Code** para o ChatGPT Plus/Pro, ou uma chave de API). Feito o login,
+  os outros agentes do Codex parados no login são reabertos. A Missão 0 também tem **Conectar a OpenAI (Codex)**.
+- **Aprovações**: quando o Codex pede para rodar um comando ou editar, o agente fica "precisa de você" e o painel de
+  permissão aprova (`y`), aprova sem perguntar de novo (`p`/`a`, quando o Codex oferece) ou recusa (`Esc`), mandando a
+  tecla no tmux depois de conferir a tela de novo. Fora do tmux, o pedido aparece e leva ao terminal.
+- **Retomar**: as conversas do Codex aparecem no histórico, e o **Retomar** abre `codex resume` na pasta original.
+- O Codex lançado à mão com o servidor compartilhado dele (`codex app-server`, padrão do 0.162) também aparece, mas sem
+  mensagens e aprovações pelo escritório; para isso, rode `codex --no-daemon` ou ponha `daemon_auto_start = false` em
+  `[features]` no `~/.codex/config.toml`.
+
+Detalhes do formato das sessões e de como o Habblaud acha cada agente: [`docs/codex.md`](docs/codex.md).
+`HABBLAUD_CODEX=0` desliga a fonte.
+
 ### Meu dia
 
 O botão **Meu dia** (ou a tecla `M`) mostra para onde foi o dia: quanto tempo os agentes passaram trabalhando e,

@@ -8,7 +8,7 @@ import { errMsg, log } from '../log';
 import { listeningPortsByDir } from '../projects/ports';
 import { levelFor, MISSIONS, missionById, type Mission } from './catalog';
 import { detect, emptyFacts, inside, turnEnds, type Detection } from './detect';
-import { claudeAuth, type ClaudeAuth } from './auth';
+import { agentAuth, type ClaudeAuth } from './auth';
 import { fileFacts, githubFacts, type FileFacts } from './probe';
 import { activeMission, completeMission, dayKey, markSeen, missionState, recordMessage, recordTurns, startMission, streak, type MissionsState, type MissionsStore } from './store';
 
@@ -21,8 +21,9 @@ export interface MissionsProbe {
 }
 
 /** Sondas reais: `home`/`configDirs`/`env` dizem onde procurar a credencial do Claude Code. */
-export function defaultProbe(o: { home: string; configDirs: () => readonly string[]; env: NodeJS.ProcessEnv }): MissionsProbe {
-  return { files: fileFacts, github: (d) => githubFacts(d), ports: listeningPortsByDir, auth: () => claudeAuth({ home: o.home, configDirs: o.configDirs(), env: o.env }) };
+export function defaultProbe(o: { home: string; configDirs: () => readonly string[]; codexDirs?: () => readonly string[]; env: NodeJS.ProcessEnv }): MissionsProbe {
+  const codexDirs = o.codexDirs ?? (() => [join(o.home, '.codex')]);
+  return { files: fileFacts, github: (d) => githubFacts(d), ports: listeningPortsByDir, auth: () => agentAuth({ home: o.home, configDirs: o.configDirs(), codexDirs: codexDirs(), env: o.env }) };
 }
 
 export interface MissionsEngineDeps {
@@ -33,6 +34,8 @@ export interface MissionsEngineDeps {
   home?: string;
   /** Config dirs do Claude Code (credenciais da Missão 0); padrão: ~/.claude. */
   configDirs?: () => readonly string[];
+  /** Pastas do Codex (a Missão 0 também vale com a conta OpenAI); padrão: ~/.codex. */
+  codexDirs?: () => readonly string[];
   probe?: MissionsProbe;
   now?: () => number;
   intervalMs?: number;
@@ -61,7 +64,7 @@ export class MissionsEngine {
   constructor(private readonly d: MissionsEngineDeps) {
     this.now = d.now ?? Date.now;
     this.home = d.home ?? dirname(d.projectsDir);
-    this.probe = d.probe ?? defaultProbe({ home: this.home, configDirs: d.configDirs ?? (() => [join(this.home, '.claude')]), env: process.env });
+    this.probe = d.probe ?? defaultProbe({ home: this.home, configDirs: d.configDirs ?? (() => [join(this.home, '.claude')]), codexDirs: d.codexDirs, env: process.env });
   }
 
   /** Pasta da missão: ~/projetos/<slug>, ou o HOME (slug null, Missão 0). */
