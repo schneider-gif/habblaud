@@ -52,6 +52,8 @@ export interface ApiDeps {
   github?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Terminal embutido disponível agora (flag "shell" do /api/health). */
   shellAvailable?: () => boolean;
+  /** Publicar (/api/publish/*, server/publish/http.ts): a trava fica lá; devolve false para o resto. */
+  publish?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Vida social salva no servidor (GET/PUT /api/state). */
   state?: StateStore;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
@@ -461,6 +463,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       return true;
     }
     if (deps.timeline?.(req, res, url)) return true;
+    if (deps.publish?.(req, res, url)) return true;
     sendJson(res, 404, { error: 'rota desconhecida' });
     return true;
   };

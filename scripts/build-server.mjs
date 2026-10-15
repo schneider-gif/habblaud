@@ -12,3 +12,14 @@ await build({
   sourcemap: true,
   logLevel: 'info',
 });
+
+// CLI do agente para publicar (habblaud-publicar): vai junto do servidor em dist/server/publicar.mjs.
+await build({
+  entryPoints: ['scripts/habblaud-publicar.mjs'],
+  outfile: 'dist/server/publicar.mjs',
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  logLevel: 'info',
+});

@@ -36,7 +36,9 @@
     "mod:install": "tsx scripts/mod-install.ts install",
     "mod:uninstall": "tsx scripts/mod-install.ts uninstall",
     "mod:status": "tsx scripts/mod-install.ts status",
-    "release": "tsx scripts/release.ts"
+    "release": "tsx scripts/release.ts",
+    "publicar": "node scripts/habblaud-publicar.mjs",
+    "fake-portal": "tsx server/publish/fake-portal.ts --auto"
   },
   "devDependencies": {
     "@fontsource/pixelify-sans": "^5.3.0",

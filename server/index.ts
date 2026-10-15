@@ -32,6 +32,7 @@ import { MissionsEngine } from './missions/engine';
 import { MissionsStore } from './missions/store';
 import { claudeAuth } from './missions/auth';
 import { createShellRoutes } from './shell/http';
+import { createPublishApi } from './publish/http';
 import { ShellService } from './shell/service';
 import { SetupWatcher } from './shell/setup';
 import { CodexWatcher } from './codex/watcher';
@@ -317,6 +318,7 @@ const api = createApiHandler({
   github: githubRoutes,
   shell: shellRoutes.api,
   shellAvailable: () => shellState.reason === undefined && !office.isDemo(),
+  publish: createPublishApi({ home: config.home, enabled: config.terminal, sendJson, readJson }),
   state,
   stats,
   updates,
