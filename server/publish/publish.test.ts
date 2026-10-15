@@ -307,7 +307,7 @@ describe('cliente do portal (contra o portal falso)', () => {
     const anon = new PortalClient({ base: fake.url });
     const c = await anon.conectar('teste');
     expect(c.code).toMatch(/^[A-F0-9]{4}-[A-F0-9]{4}$/);
-    expect(c.url).toContain(c.code);
+    expect(c.url).not.toContain(c.code); // o cliente digita o código no portal
     expect(await anon.conectarToken(c.code)).toEqual({ status: 'pending' });
     fake.confirm(c.code);
     const tok = await anon.conectarToken(c.code);
