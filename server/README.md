@@ -332,6 +332,7 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (missões em `missions.json`, nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (releases do repositório do `package.json` no GitHub, a cada 6 h) |
+| `HABBLAUD_ANNOUNCE_URL` | — | JSON de aviso global (`{"id","title","body","logo"?,"until"?,"confetti"?}`), lido a cada 10 min; aparece uma vez por navegador, como modal com confete, só com alguém usando o escritório. `logo` precisa ser https na mesma origem do JSON. Sem a variável = desligado. |
 | `HABBLAUD_DEMO` | desligado | `1` liga o modo demonstração ao iniciar |
 | `HABBLAUD_IN_DOCKER` | auto (`/.dockerenv`) | `1` = não confere PIDs (são do host) |
 | `HABBLAUD_ACCOUNTS` | — | JSON com metadados das contas vindos do host (Docker): `[{id, configDir, mountDir, short, name, email, organization, plan, color, cachedUsage}]`, casados por `id`, `mountDir` ou `configDir` |

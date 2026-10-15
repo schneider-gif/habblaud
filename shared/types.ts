@@ -205,6 +205,17 @@ export interface RoomEffect {
  * Verificação de versão nova: o servidor consulta a release mais recente do repositório no GitHub
  * (server/updates/checker.ts) e compara com a versão em uso.
  */
+/** Aviso global (ex.: lançamento de recurso), lido de um JSON central e mostrado uma vez por navegador. */
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  /** Imagem (https, mesma origem do JSON). */
+  logo?: string;
+  /** Solta confete ao abrir. */
+  confetti: boolean;
+}
+
 export interface UpdateStatus {
   /**
    * - off: verificação desligada (HABBLAUD_UPDATE_CHECK=0 ou package.json sem repositório no GitHub);
@@ -322,6 +333,8 @@ export interface OfficeSnapshot {
     terminal?: boolean;
     /** Verificação de versão nova no GitHub (ausente nos testes e no timelapse). */
     updates?: UpdateStatus;
+    /** Aviso global da plataforma (HABBLAUD_ANNOUNCE_URL; server/announce/poller.ts). Ausente = nenhum. */
+    announcement?: Announcement;
     /**
      * Terminal embutido (shell de verdade em /api/shell/ws) disponível: mesma trava do terminal, mais Linux, sem root,
      * sem demonstração e HABBLAUD_SHELL ligado. Ausente/false = sem o botão "Terminal".

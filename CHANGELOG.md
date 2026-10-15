@@ -10,6 +10,11 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- Aviso global da plataforma (`HABBLAUD_ANNOUNCE_URL`): modal com logo e confete, uma vez por navegador, só quando
+  alguém está usando o escritório (aba visível e clique ou tecla no último minuto).
+
 ## [0.8.0] - 2026-10-15
 
 ### Adicionado
