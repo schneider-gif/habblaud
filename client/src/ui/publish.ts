@@ -646,7 +646,7 @@ export class PublishWizard {
         else this.renderPublish();
       } catch (err) {
         button.disabled = false;
-        const msg = err instanceof ApiError && err.code === 'site_limit' ? `${err.message} Despublique um site em "Meus sites" ou mude de plano no portal.` : (err as Error).message;
+        const msg = err instanceof ApiError && err.code === 'site_limit' ? `${err.message.replace(/[.;]?\s*despublique um ou mude de plano\.?$/i, '')}. Despublique um site em "Meus sites" ou mude de plano no portal.` : (err as Error).message;
         errs.replaceChildren(h('p', { class: 'ui-pub__alert is-error', role: 'alert', text: msg }));
       }
     };
