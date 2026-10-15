@@ -1461,7 +1461,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     const filteredOut = !empty && this.visibleRows === 0;
     setHidden(this.placeholder, !(empty || filteredOut) || this.conn === 'failed');
     if (filteredOut) setText(this.placeholder, 'Nada para mostrar com este filtro.');
-    else if (empty) setText(this.placeholder, !this.loaded ? 'Abrindo o terminal…' : this.session ? 'Nenhuma mensagem nesta sessão.' : 'Nenhuma mensagem nesta sessão ainda.');
+    else if (empty)
+      setText(this.placeholder, !this.loaded ? 'Abrindo o terminal…' : this.session ? 'Nenhuma mensagem nesta sessão.' : this.canSend ? FIRST_MESSAGE : 'Nenhuma mensagem nesta sessão ainda.');
     this.renderNewButton();
   }
 

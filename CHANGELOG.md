@@ -10,6 +10,15 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.7.1] - 2026-10-14
+
+### Corrigido
+
+- **Conversa de agente recém-aberto.** Um agente aberto pelo **+ Novo agente** (ou que estava em configuração/login)
+  ficava preso em "Este agente ainda não tem conversa" mesmo depois de conversar: o terminal da conversa era aberto
+  antes de existir o transcript, o servidor respondia "não encontrado" e a página desistia. Agora o terminal abre
+  vazio e a conversa entra sozinha quando a primeira mensagem chega, no mesmo boneco.
+
 ## [0.7.0] - 2026-10-14
 
 ### Adicionado

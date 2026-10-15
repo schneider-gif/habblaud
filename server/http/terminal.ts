@@ -144,6 +144,37 @@ class TranscriptSource implements ConversationSource {
   }
 }
 
+/**
+ * Agente presente que ainda não tem transcript (aberto agora pelo "+ Novo agente", ou boneco provisório em
+ * configuração/login): começa vazio e, quando o transcript aparecer (primeira mensagem), troca para ele com um `init`.
+ * Antes (0.7.0) o terminal respondia 404 nesse momento e a página ficava presa em "ainda não tem conversa" mesmo
+ * depois de a conversa começar.
+ */
+class PendingSource implements ConversationSource {
+  private inner: TranscriptSource | null = null;
+
+  constructor(
+    private readonly agentId: string,
+    private readonly o: Required<Pick<TerminalOptions, 'transcriptPathOf' | 'createParser' | 'initTailBytes' | 'initEntries'>>,
+    private readonly present: () => boolean,
+    readonly intervalMs: number,
+  ) {}
+
+  load(): TerminalInit {
+    return { agentId: this.agentId, entries: [], truncated: false };
+  }
+
+  poll(): PollResult {
+    if (this.inner) return this.inner.poll();
+    const path = this.o.transcriptPathOf(this.agentId);
+    if (path) {
+      this.inner = new TranscriptSource(this.agentId, path, this.o, this.intervalMs);
+      return { init: this.inner.load() };
+    }
+    return this.present() ? { append: [] } : { stop: true };
+  }
+}
+
 /** Agente do demo: conversa fictícia montada do título e das atividades simuladas. */
 class DemoSource implements ConversationSource {
   /** Ids da última lista gerada (o que o cliente já tem). */
@@ -278,11 +309,16 @@ export class TerminalStreams {
   /** Fonte da conversa do agente, ou a mensagem do 404. */
   private sourceFor(agentId: string): ConversationSource | string {
     const office = this.opts.office;
+    const o = { transcriptPathOf: this.opts.transcriptPathOf, createParser: this.createParser, initTailBytes: this.initTailBytes, initEntries: this.initEntries };
     if (office.has(agentId)) {
       const path = this.opts.transcriptPathOf(agentId);
-      if (!path) return 'transcript do agente não encontrado';
-      const o = { transcriptPathOf: this.opts.transcriptPathOf, createParser: this.createParser, initTailBytes: this.initTailBytes, initEntries: this.initEntries };
-      return new TranscriptSource(agentId, path, o, this.pollMs);
+      if (path) return new TranscriptSource(agentId, path, o, this.pollMs);
+      // Sem transcript ainda (agente recém-aberto, antes da primeira mensagem): espera ele aparecer.
+      return new PendingSource(agentId, o, () => office.has(agentId), this.pollMs);
+    }
+    // Boneco provisório (em configuração/login): o agente de verdade chega com o mesmo id e a conversa entra sozinha.
+    if (office.detail(agentId)?.agent.setup) {
+      return new PendingSource(agentId, o, () => office.has(agentId) || !!office.detail(agentId)?.agent.setup, this.pollMs);
     }
     // Os agentes do demo não estão entre os reais do Office, mas office.detail os encontra.
     if (agentId.startsWith(DEMO_PREFIX) && office.detail(agentId)) {
