@@ -38,6 +38,7 @@ import {
 import { PermissionCard } from './permission';
 import { createAgentRow, updateAgentRow } from './rows';
 import { SocialSection } from './social';
+import { requestPublish } from './publish';
 import { TERMINAL_UNAVAILABLE_HINT, type TerminalControl } from './terminal';
 import { createAccountChip, createProgress, createStatusDot, updateAccountChip, updateProgress, updateStatusDot } from './widgets';
 
@@ -631,6 +632,7 @@ class RoomView {
     this.name = h('h2', { class: 'ui-hero__name' });
     this.path = h('span', { class: 'ui-room-hero__path' });
     const centerBtn = h('button', { class: 'ui-btn', type: 'button', title: 'Levar a câmera até a sala', on: { click: () => ctx.focusSelection() } });
+    const publishBtn = h('button', { class: 'ui-btn', type: 'button', text: 'Publicar este projeto', title: 'Publicar esta pasta na internet (Hospedagem Habblaude)', on: { click: () => requestPublish(this.last?.path) } });
     centerBtn.innerHTML = ICONS.center;
     centerBtn.append(h('span', { text: 'Centralizar' }));
     this.gone = h('p', { class: 'ui-gone', text: 'Esta sala foi fechada: todos os agentes saíram.', hidden: true });
@@ -675,7 +677,7 @@ class RoomView {
         h('div', { class: 'ui-hero__text' }, this.name, h('span', { class: 'ui-copy-row' }, this.path, copyButton(() => this.last?.path ?? '', 'Copiar caminho'))),
       ),
       this.gone,
-      h('div', { class: 'ui-status' }, accsEl, h('span', { class: 'ui-status__actions' }, centerBtn)),
+      h('div', { class: 'ui-status' }, accsEl, h('span', { class: 'ui-status__actions' }, publishBtn, centerBtn)),
       this.agentsSec.el,
       this.tasksSec.el,
       this.feedSec.el,

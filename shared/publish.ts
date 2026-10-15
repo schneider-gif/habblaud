@@ -99,7 +99,11 @@ export const SITE_NAME_RE = /^[a-z0-9-]{1,30}$/;
 /** Handle: 3–20 de [a-z0-9], começando por letra. */
 export const HANDLE_RE = /^[a-z][a-z0-9]{2,19}$/;
 /** Chave de variável de ambiente aceita pelo portal. */
-export const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
+export const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]{0,63}$/;
+/** Chaves que o portal reserva (a porta vem da configuração do site). */
+export function envKeyReserved(k: string): boolean {
+  return k === 'PORT' || k === 'HOSTNAME' || k.startsWith('COOLIFY_');
+}
 export const ENV_MAX_VARS = 50;
 export const ENV_MAX_VALUE = 4096;
 /** Comandos: o portal recusa quebras de linha e mais de 300 caracteres. */

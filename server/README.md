@@ -386,6 +386,7 @@ O repositório é também um marketplace de plugins do Claude Code (`.claude-plu
 - `history/` — gravador da linha do tempo do timelapse (`timeline.ts`) e as estatísticas do Meu dia: amostragem, persistência e retenção (`daystats.ts`; o acumulador puro fica em `shared/daystats.ts`).
 - `permissions/` — responder pelo escritório: registro dos pedidos (`registry.ts`), rotas (`http.ts`) e a busca da chamada no transcript (`transcript.ts`).
 - `updates/` — verificação de versão nova nas releases do GitHub (`checker.ts`).
+- `publish/` — Publicar (Hospedagem Habblaude): detecção, segredos, pacote, cliente do portal, rotas e portal falso (ver [`docs/publicar.md`](../docs/publicar.md)).
 
 Testes: `npx vitest run server shared` (fixtures sintéticas em `server/test/fixtures.ts`; os scripts do host —
 tap de statusline, hook de permissão (rodado como processo contra um servidor de teste), instaladores e

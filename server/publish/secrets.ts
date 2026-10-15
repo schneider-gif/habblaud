@@ -2,7 +2,7 @@
 // Nunca devolve o valor do segredo: só arquivo, linha e o tipo.
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ENV_KEY_RE, type EnvImport, type SegredoEncontrado } from '../../shared/publish';
+import { ENV_KEY_RE, envKeyReserved, type EnvImport, type SegredoEncontrado } from '../../shared/publish';
 
 const MAX_TEXT = 512 * 1024;
 const MAX_FINDINGS = 50;
@@ -129,7 +129,7 @@ export async function readEnvFiles(dir: string): Promise<EnvImport> {
     }
     arquivos.push(name);
     for (const [k, v] of Object.entries(parseDotenv(src))) {
-      if (!ENV_KEY_RE.test(k)) ignoradas.add(k);
+      if (!ENV_KEY_RE.test(k) || envKeyReserved(k)) ignoradas.add(k);
       else vars[k] = v;
     }
   }

@@ -219,14 +219,14 @@ describe('segredos no código', () => {
   });
 
   it('.env nunca é varrido nem empacotado, mas pode ser importado', async () => {
-    const dir = project({ '.env': 'export API_KEY="sk_live_abcdefghijklmnop"\n# comentário\nDEBUG=1 # fim\nnome-ruim=x\n', '.env.production': "DEBUG='0'\nMULTI=\"a\\nb\"\n", 'index.html': 'oi' });
+    const dir = project({ '.env': 'export API_KEY="sk_live_abcdefghijklmnop"\n# comentário\nDEBUG=1 # fim\nnome-ruim=x\nPORT=3000\n', '.env.production': "DEBUG='0'\nMULTI=\"a\\nb\"\n", 'index.html': 'oi' });
     const files = (await listProjectFiles(dir)).files;
     expect(files).toEqual(['index.html']);
     expect(await scanSecrets(dir, files)).toEqual([]);
     const imp = await readEnvFiles(dir);
     expect(imp.vars).toEqual({ API_KEY: 'sk_live_abcdefghijklmnop', DEBUG: '0', MULTI: 'a\nb' });
     expect(imp.arquivos).toEqual(['.env', '.env.production']);
-    expect(imp.ignoradas).toEqual(['nome-ruim']);
+    expect(imp.ignoradas).toEqual(['nome-ruim', 'PORT']);
   });
 
   it('parseDotenv: aspas simples são literais', () => {
