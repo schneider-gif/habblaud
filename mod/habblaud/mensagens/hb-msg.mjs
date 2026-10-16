@@ -143,7 +143,7 @@ function textoDe(partes) {
 
 function avisoEntrega(dest, online) {
   if (!online) return `⚠ o Habblaud não respondeu em ${base}: ${dest.nome} só vai ver quando rodar hb-msg ler.`;
-  if (dest.status === 'idle' || dest.status === 'shell') return `${dest.nome} está livre: o aviso aparece no terminal dele em instantes.`;
+  if (dest.status === 'idle' || dest.status === 'shell') return `${dest.nome} está livre: o aviso chega no terminal em instantes.`;
   return `${dest.nome} está ${STATUS[dest.status] ?? dest.status}: o aviso vai quando ficar livre.`;
 }
 
