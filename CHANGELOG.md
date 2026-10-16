@@ -8,7 +8,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
-## [Não lançado]
+## [0.10.1] - 2026-10-16
 
 ### Adicionado
 
