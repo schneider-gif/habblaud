@@ -10,6 +10,18 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.9.1] - 2026-10-16
+
+### Corrigido
+
+- Perguntas com opções do Claude (AskUserQuestion, inclusive a tela "Review your answers"): aparecem num cartão no chat
+  e na gaveta do agente, com as opções, "Outro" e Enviar; o Habblaud responde dirigindo o diálogo no terminal.
+- Mensagem digitada enquanto o agente espera a resposta de uma pergunta não some mais: a caixa avisa e guarda o texto.
+
+### Adicionado
+
+- Caixa de mensagem do chat com várias linhas: Enter envia, Shift+Enter quebra a linha.
+
 ## [0.9.0] - 2026-10-15
 
 ### Adicionado
