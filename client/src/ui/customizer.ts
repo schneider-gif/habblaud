@@ -2,6 +2,7 @@
 // agente novo (POST /api/agents/new, com pasta) e para personalizar um que já está no escritório
 // (POST /api/agents/:id/profile). As opções vêm de shared/profile.ts, a mesma lista que o servidor valida.
 import type { AgentInfo } from '../../../shared/types';
+import { type AgentLimitInfo, limitText } from './agent-limit';
 import {
   ACCESSORIES,
   BOTTOM_STYLES,
@@ -76,6 +77,8 @@ export class AgentCustomizer {
   private engines: Partial<Record<Engine, boolean>> | undefined;
   private engineBtns = new Map<Engine, HTMLButtonElement>();
   private engineRow!: HTMLElement;
+  /** "N/M agentes" do limite do plano (só no agente novo e só se o escritório tiver limite). */
+  private limitEl!: HTMLElement;
   private engineHint!: HTMLElement;
 
   private setEngine(e: Engine): void {
@@ -119,6 +122,7 @@ export class AgentCustomizer {
     }
     this.engineHint = h('span', { class: 'ui-cust__hint' });
     this.engineRow = h('div', { class: 'ui-cust__field' }, h('span', { text: 'Ferramenta' }), engineSeg, this.engineHint);
+    this.limitEl = h('p', { class: 'ui-cust__hint', hidden: true, attrs: { 'data-role': 'agent-limit' } });
 
     const look = h('div', { class: 'ui-cust__seg', role: 'group', attrs: { 'aria-label': 'Estilo' } });
     for (const [k, label] of [['f', 'Feminino'], ['m', 'Masculino']] as const) {
@@ -160,6 +164,7 @@ export class AgentCustomizer {
           { class: 'ui-cust__form' },
           h('label', { class: 'ui-cust__field' }, h('span', { text: 'Nome' }), this.nameInput),
           this.engineRow,
+          this.limitEl,
           this.folderRow,
           h('div', { class: 'ui-cust__field' }, h('span', { text: 'Estilo' }), look),
           colors('skin', 'Pele', SKIN),
@@ -262,6 +267,7 @@ export class AgentCustomizer {
       this.saveBtn.textContent = 'Salvar';
       this.folderRow.hidden = true;
       this.engineRow.hidden = true;
+      this.limitEl.hidden = true;
     } else {
       this.mode = { kind: 'new' };
       this.randomize(false);
@@ -284,7 +290,10 @@ export class AgentCustomizer {
 
   private async loadFolders(): Promise<void> {
     try {
-      const j = (await (await fetch('/api/agents/new', { cache: 'no-store' })).json()) as { folders?: string[]; engines?: Partial<Record<Engine, boolean>> };
+      const j = (await (await fetch('/api/agents/new', { cache: 'no-store' })).json()) as { folders?: string[]; engines?: Partial<Record<Engine, boolean>>; limit?: AgentLimitInfo };
+      const lt = limitText(j.limit);
+      this.limitEl.textContent = lt ?? '';
+      this.limitEl.hidden = lt === undefined;
       this.folderList.replaceChildren(...(j.folders ?? []).map((f) => h('option', { attrs: { value: f } })));
       if (j.engines) {
         this.engines = j.engines;
@@ -409,3 +418,4 @@ export class AgentCustomizer {
     }
   }
 }
+

@@ -10,6 +10,13 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- Limite de agentes rodando ao mesmo tempo (`HABBLAUD_MAX_AGENTS` ou `HB_MAX_AGENTES`, plano em `HB_PLANO`): o
+  **Novo agente** mostra "N/M agentes rodando" e, no limite, o escritório recusa abrir outro (inclusive Retomar e
+  missões) com a mensagem do plano. Conta as sessões top-level do Claude Code e do Codex; comandos rápidos e chamadas
+  de dentro de um agente não contam. Sem a variável, nada muda.
+
 ## [0.9.0] - 2026-10-15
 
 ### Adicionado

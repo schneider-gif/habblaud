@@ -8,6 +8,7 @@ import { constants as fsConstants } from 'node:fs';
 import { access, mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { type AgentLimit, agentPids, limitMessage, pidAlive, readProcs } from './limit';
 
 /** Maior mensagem aceita (caracteres). */
 export const INPUT_MAX_CHARS = 8000;
@@ -117,7 +118,16 @@ export interface AgentInputDeps {
   /** config.toml do Codex (confiança por pasta; padrão: $CODEX_HOME/config.toml ou ~/.codex/config.toml). */
   codexConfig?: string;
   now?: () => number;
+  /** Limite de agentes rodando ao mesmo tempo (plano); ausente = sem limite. Ver ./limit.ts. */
+  agentLimit?: AgentLimit;
+  /** Pids das sessões de agente top-level rodando agora (padrão: varre o /proc). */
+  agentPids?: () => number[];
+  /** O processo ainda existe? (padrão: /proc/<pid>) */
+  pidAlive?: (pid: number) => boolean;
 }
+
+/** Quanto tempo um pane recém-aberto conta como agente mesmo antes de o claude/codex aparecer no /proc. */
+const PENDING_MS = 15_000;
 
 export class InputError extends Error {
   constructor(
@@ -180,6 +190,23 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
   const now = deps.now ?? Date.now;
   const claudeJson = deps.claudeJson ?? resolve(home, '.claude.json');
   const codexConfig = deps.codexConfig ?? resolve(process.env.CODEX_HOME?.trim() || resolve(home, '.codex'), 'config.toml');
+  const limit = deps.agentLimit;
+  const listAgentPids = deps.agentPids ?? (() => agentPids(readProcs()));
+  const isAlive = deps.pidAlive ?? ((pid: number) => pidAlive(pid));
+  // Panes abertos aqui há pouco (pid -> quando): entre o new-session e o exec do claude/codex o pid ainda é um bash
+  // ou o porteiro, que a varredura não reconhece; sem isto, dois cliques rápidos passariam os dois.
+  const pending = new Map<number, number>();
+  const runningAgents = (): number => {
+    const set = new Set(listAgentPids());
+    const t = now();
+    for (const [pid, at] of pending) {
+      if (t - at > PENDING_MS || !isAlive(pid)) pending.delete(pid);
+      else set.add(pid);
+    }
+    return set.size;
+  };
+  // spawns em fila: a checagem do limite e o new-session de um terminam antes de o próximo contar
+  let spawnQueue: Promise<unknown> = Promise.resolve();
 
   // Mesmo raciocínio do Claude: a pasta foi escolhida no escritório, então "Trust this folder?" já foi respondido.
   const markCodexTrusted = async (dir: string) => {
@@ -232,6 +259,12 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
 
   return {
     /** O agente recebe mensagens? (principal vivo, rodando no tmux). */
+    /** Limite do plano e agentes rodando agora (undefined = sem limite). */
+    limitStatus(): { running: number; max: number; plan?: string } | undefined {
+      if (!limit) return undefined;
+      return { running: runningAgents(), max: limit.max, ...(limit.plan ? { plan: limit.plan } : {}) };
+    },
+
     async available(id: string): Promise<boolean> {
       return (await targetOf(id)) !== undefined;
     },
@@ -325,19 +358,30 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       }
       const rel = relative(await realpath(home), dir);
       if (rel.startsWith('..') || isAbsolute(rel)) throw new InputError(400, 'a pasta precisa estar dentro do seu HOME');
-      if (engine === 'codex') await markCodexTrusted(dir);
-      else await markTrusted(dir);
-      const session = engine === 'codex' ? `agente-codex-${now().toString(36)}` : `agente-${now().toString(36)}`;
-      await run(['new-session', '-d', '-s', session, '-c', dir, command]);
-      // `exec claude` no shell do pane: o pid do pane é o do Claude, e o id do agente será "<conta>:<pid>"
-      let pid: number | undefined;
-      try {
-        const n = Number((await capture(['display-message', '-p', '-t', session, '#{pane_pid}'])).trim());
-        if (Number.isSafeInteger(n) && n > 1) pid = n;
-      } catch {
-        // sem o pid o agente chega com nome sorteado
-      }
-      return { session, cwd: dir, pid, engine };
+      // tudo em fila: limite, confiança (read-modify-write do ~/.claude.json / config.toml) e new-session
+      const open = async () => {
+        if (limit) {
+          const running = runningAgents();
+          if (running >= limit.max) throw new InputError(409, limitMessage(limit, running));
+        }
+        if (engine === 'codex') await markCodexTrusted(dir);
+        else await markTrusted(dir);
+        const session = engine === 'codex' ? `agente-codex-${now().toString(36)}` : `agente-${now().toString(36)}`;
+        await run(['new-session', '-d', '-s', session, '-c', dir, command]);
+        // `exec claude` no shell do pane: o pid do pane é o do Claude, e o id do agente será "<conta>:<pid>"
+        let pid: number | undefined;
+        try {
+          const n = Number((await capture(['display-message', '-p', '-t', session, '#{pane_pid}'])).trim());
+          if (Number.isSafeInteger(n) && n > 1) pid = n;
+        } catch {
+          // sem o pid o agente chega com nome sorteado
+        }
+        if (limit && pid) pending.set(pid, now());
+        return { session, cwd: dir, pid, engine };
+      };
+      const r = spawnQueue.then(open, open);
+      spawnQueue = r.catch(() => undefined);
+      return r;
     },
   };
 }

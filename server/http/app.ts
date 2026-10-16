@@ -264,7 +264,11 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else if (!inputMatch) {
         if (isRead)
-          Promise.all([input.folders(), input.home(), input.engines()]).then(([folders, home, engines]) => sendJson(res, 200, { available: true, folders, home, engines }), (err) => fail(res, err));
+          Promise.all([input.folders(), input.home(), input.engines()]).then(([folders, home, engines]) => {
+            // limite do plano ("N/M agentes" no Novo agente); ausente = sem limite
+            const limit = input.limitStatus?.();
+            sendJson(res, 200, { available: true, folders, home, engines, ...(limit ? { limit } : {}) });
+          }, (err) => fail(res, err));
         else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
         else
           readJson(req)

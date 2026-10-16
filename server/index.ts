@@ -25,6 +25,7 @@ import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
 import { AnnouncementPoller } from './announce/poller';
+import { agentLimitFromEnv, pidAlive } from './input/limit';
 import { createAgentInput } from './input/tmux';
 import { StateStore } from './model/state';
 import { expandHome } from './accounts/detect';
@@ -179,7 +180,9 @@ const missions = missionsStore
   : undefined;
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
-const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Limite de agentes rodando ao mesmo tempo (plano do escritório: HABBLAUD_MAX_AGENTS ou HB_MAX_AGENTES do template).
+const agentLimit = agentLimitFromEnv(process.env);
+const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))), agentLimit }) : undefined;
 // Fonte "codex": conversas abertas do Codex CLI; a tela do tmux diz quando ele pede aprovação ou login.
 const codexWatcher = codexOff
   ? undefined
@@ -192,6 +195,11 @@ late.codex = codexWatcher;
 /** Sessões tmux agente-* abertas pelo escritório para o Codex (agente-codex-*) ou para o Claude (o resto). */
 const isCodexSession = (s: { session: string }) => s.session.startsWith('agente-codex-');
 // Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
+/** Fecha a sessão tmux de um agente e espera o processo sair (até 5 s), para a vaga do limite ficar livre. */
+async function closeBeforeReopen(s: { session: string; pid: number }): Promise<void> {
+  await shellService?.killAgentSession(s.session);
+  for (let i = 0; i < 50 && pidAlive(s.pid); i++) await new Promise((ok) => setTimeout(ok, 100));
+}
 const setupWatcher = shellService
   ? new SetupWatcher({
       list: async () => (await shellService.agentSessions()).filter((s) => !isCodexSession(s)),
@@ -210,9 +218,11 @@ const setupWatcher = shellService
       // Login feito num agente: os outros parados no onboarding são reabertos na mesma pasta (mesmo nome/boneco).
       restart: input
         ? async (s) => {
+            // com limite de agentes, o parado no login sai antes (senão ele mesmo ocupa a vaga do reaberto)
+            if (agentLimit) await closeBeforeReopen(s);
             const r = await input.spawn(s.cwd);
             if (r.pid) office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
-            await shellService.killAgentSession(s.session);
+            if (!agentLimit) await shellService.killAgentSession(s.session);
             log.info(`Agente reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
           }
         : undefined,
@@ -231,9 +241,10 @@ const codexSetupWatcher =
         engine: 'codex',
         restart: input
           ? async (s) => {
+              if (agentLimit) await closeBeforeReopen(s);
               const r = await input.spawn(s.cwd, { engine: 'codex' });
               if (r.pid) office.movePendingProfile(`.codex:${s.pid}`, `.codex:${r.pid}`);
-              await shellService.killAgentSession(s.session);
+              if (!agentLimit) await shellService.killAgentSession(s.session);
               log.info(`Agente do Codex reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
             }
           : undefined,
@@ -401,6 +412,7 @@ server.listen(config.port, config.host, () => {
   }
   if (codexOff) log.info('   Codex: desligado (HABBLAUD_CODEX).');
   else if (!codexDirs.length) log.info('   Codex: nenhuma pasta ~/.codex ainda (aparece quando o codex rodar pela primeira vez).');
+  if (agentLimit) log.info(`   Limite do plano: ${agentLimit.max} agente(s) ao mesmo tempo${agentLimit.plan ? ` (${agentLimit.plan})` : ''}.`);
   for (const d of codexDirs) {
     log.info(`   ${codexAccountName(basename(d))} (Codex, ${basename(d)}): ${late.codex?.sessionsByAccount().get(basename(d)) ?? 0} conversa(s) aberta(s) · ${d}`);
   }
