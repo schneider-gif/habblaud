@@ -10,7 +10,7 @@ import { setQuiet } from '../log';
 import { NameStore } from '../model/names';
 import { Office, type OfficeDeps } from '../model/office';
 import { tempDir } from '../test/fixtures';
-import { createApiHandler, QUESTION_PENDING_ERROR, type ApiDeps } from './app';
+import { createApiHandler, DIALOG_PENDING_ERROR, QUESTION_PENDING_ERROR, type ApiDeps } from './app';
 import { AnswerError } from '../questions/ask';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
 import { Hub } from './sse';
@@ -447,6 +447,34 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     } finally {
       await off.close();
       off.cleanup();
+    }
+  });
+
+  it('tela desconhecida no terminal: recusa a mensagem (409) e /keys aperta a tecla', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
+      run: async (a) => void calls.push(a),
+    });
+    const pressed: unknown[] = [];
+    const dialogs = {
+      dialogOf: (id: string) => (id === '.claude:900' ? { text: '❯ 1. Sim', at: 0 } : undefined),
+      pressKey: async (id: string, body: unknown) => {
+        pressed.push([id, body]);
+        return { dialog: false };
+      },
+    };
+    const env = await start({ terminal: true, input, dialogs });
+    try {
+      expect(await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' })).toMatchObject({ status: 409, json: { error: DIALOG_PENDING_ERROR } });
+      expect(calls).toEqual([]);
+      expect(await post(env.base, '/api/agents/.claude%3A900/keys', { key: 'Escape' })).toMatchObject({ status: 200, json: { ok: true, dialog: false } });
+      expect(pressed).toEqual([['.claude:900', { key: 'Escape' }]]);
+      expect((await post(env.base, '/api/agents/.claude%3A900/keys', { key: 'Enter' }, 'habblaud.lan')).status).toBe(403);
+    } finally {
+      await env.close();
+      env.cleanup();
     }
   });
 

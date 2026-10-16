@@ -10,6 +10,15 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+## [0.9.2] - 2026-10-16
+
+### Corrigido
+
+- Perguntas com opções no Claude Code de verdade: o 2.1.295 só grava a pergunta no transcript depois da resposta, então
+  o Habblaud agora lê a pergunta da tela do diálogo (uma aba por vez quando há várias).
+- Telas de seleção que o Habblaud não conhece (ex.: "Teach auto mode about your environment?") não travam mais o agente:
+  o escritório mostra o trecho do terminal com os botões ↑ ↓ Enter Esc.
+
 ## [0.9.1] - 2026-10-16
 
 ### Corrigido

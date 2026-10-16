@@ -16,6 +16,7 @@ import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
 import type { TerminalStreams } from './terminal';
 import { AnswerError } from '../questions/ask';
+import type { DialogWatcher } from '../questions/dialogs';
 import type { QuestionService } from '../questions/service';
 
 export interface ApiDeps {
@@ -49,6 +50,11 @@ export interface ApiDeps {
    */
   questions?: Pick<QuestionService, 'pendingOf' | 'answer'>;
   /**
+   * Diálogo desconhecido na tela do agente: POST /api/agents/:id/keys {key: Up|Down|Enter|Escape} aperta a tecla.
+   * Mesma trava das mensagens. Enquanto ele está à mostra, POST /input também recusa o texto.
+   */
+  dialogs?: Pick<DialogWatcher, 'dialogOf' | 'pressKey'>;
+  /**
    * Quadro de missões (GET /api/missions, POST /api/missions/:id/{start,complete,seen}; http/missions.ts). Mesma
    * trava das rotas que abrem agentes: só com bind local (`terminal`) e Host local; sem isto, 403.
    */
@@ -74,6 +80,10 @@ export interface ApiDeps {
 const ANSWER_ROUTE = /^\/api\/agents\/([^/]+)\/answer$/;
 /** Recusa de mensagem enquanto o agente espera a resposta de uma pergunta. */
 export const QUESTION_PENDING_ERROR = 'O agente está esperando você responder a pergunta acima';
+/** POST {key} /api/agents/:id/keys (diálogo desconhecido na tela do agente). */
+const KEYS_ROUTE = /^\/api\/agents\/([^/]+)\/keys$/;
+/** Recusa de mensagem enquanto o terminal do agente mostra um diálogo (o texto cairia nele). */
+export const DIALOG_PENDING_ERROR = 'O terminal do agente está mostrando uma tela que precisa de resposta: use os botões acima';
 
 /** GET (disponível?) e POST {text} /api/agents/:id/input. */
 const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
@@ -267,6 +277,26 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       }
       return true;
     }
+    const keysMatch = KEYS_ROUTE.exec(path);
+    if (keysMatch) {
+      const dialogs = deps.terminal && deps.input ? deps.dialogs : undefined;
+      let id = '';
+      try {
+        id = decodeURIComponent(keysMatch[1]);
+      } catch {
+        // fica vazio: 400 abaixo
+      }
+      if (!dialogs) sendJson(res, 403, { error: 'responder telas do terminal pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      else if (!isLoopbackHost(req.headers.host)) sendJson(res, 403, { error: 'só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
+      else if (!id) sendJson(res, 400, { error: 'id inválido' });
+      else if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else
+        readJson(req)
+          .then((body) => dialogs.pressKey(id, body))
+          .then((r) => sendJson(res, 200, { ok: true, ...r }))
+          .catch((err) => failInput(res, err));
+      return true;
+    }
     const answerMatch = ANSWER_ROUTE.exec(path);
     if (answerMatch) {
       const questions = deps.terminal && deps.input ? deps.questions : undefined;
@@ -342,6 +372,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             .then((body) => {
               // Diálogo de pergunta aberto: o TUI ignoraria (e perderia) o texto.
               if (deps.questions?.pendingOf(id)) throw new InputError(409, QUESTION_PENDING_ERROR);
+              if (deps.dialogs?.dialogOf(id)) throw new InputError(409, DIALOG_PENDING_ERROR);
               return input.send(id, (body as { text?: unknown } | undefined)?.text);
             })
             .then(() => {

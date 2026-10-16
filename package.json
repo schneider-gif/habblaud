@@ -1,6 +1,6 @@
 {
   "name": "habblaud",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "description": "Escritório virtual animado que mostra, em tempo real, o que seus agentes do Claude Code e do Codex estão fazendo.",
   "license": "MIT",

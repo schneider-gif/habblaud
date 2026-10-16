@@ -157,6 +157,11 @@ export interface AgentInfo {
    */
   question?: AskQuestionInfo;
   /**
+   * Tela de seleção/diálogo no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+   * environment?"): o escritório mostra o trecho com os botões ↑ ↓ Enter Esc (POST /api/agents/:id/keys).
+   */
+  dialog?: TerminalDialogInfo;
+  /**
    * Boneco provisório de um agente aberto pelo escritório que ainda não tem sessão (primeira execução do Claude
    * Code: tema e login no terminal). `session` é a sessão tmux (agente-*) a anexar no terminal embutido.
    */
@@ -590,12 +595,23 @@ export interface AskQuestionInfo {
   toolUseId: string;
   questions: AskQuestion[];
   createdAt: number;
+  /**
+   * Lida da tela do diálogo (o Claude Code real só grava o tool_use no transcript depois da resposta): traz só a
+   * pergunta da aba à mostra; `tabs` diz quantas o diálogo tem (as próximas aparecem depois de responder esta).
+   */
+  fromScreen?: { tabs: number };
 }
 
 /** Resposta de uma pergunta: posições (0-based) das opções escolhidas e/ou o texto do "Outro". */
 export interface AskAnswer {
   selected: number[];
   other?: string;
+}
+
+/** Diálogo desconhecido na tela do agente: o trecho do terminal (texto puro) e quando apareceu. */
+export interface TerminalDialogInfo {
+  text: string;
+  at: number;
 }
 
 /** Corpo de POST /api/agents/:id/answer. */

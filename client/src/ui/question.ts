@@ -134,7 +134,9 @@ export class QuestionCard {
     const q = this.q!;
     this.inputs = [];
     const name = `ask-${Math.random().toString(36).slice(2, 8)}`;
+    const tabs = q.fromScreen?.tabs ?? 1;
     this.body.replaceChildren(
+      ...(tabs > 1 ? [h('p', { class: 'ui-ask__kind', text: `O diálogo tem ${tabs} perguntas: as próximas aparecem aqui depois que você enviar esta.` })] : []),
       ...q.questions.map((question, qi) => {
         const boxes: HTMLInputElement[] = [];
         const type = question.multiSelect ? 'checkbox' : 'radio';
@@ -215,6 +217,90 @@ export class QuestionCard {
       this.phase = 'sent';
       setText(this.status, 'Resposta enviada.');
       this.ctx.announce(`Resposta enviada: ${this.ctx.agent(agentId)?.name ?? 'agente'}.`);
+    }
+    this.ctx.invalidate();
+  }
+}
+
+/** Teclas dos botões do cartão de diálogo (nomes do tmux) e o que aparece neles. */
+const DIALOG_BUTTONS: [key: string, text: string, title: string][] = [
+  ['Up', '↑', 'Sobe uma opção'],
+  ['Down', '↓', 'Desce uma opção'],
+  ['Enter', 'Enter', 'Confirma a opção marcada com ❯'],
+  ['Escape', 'Esc', 'Cancela / fecha a tela'],
+];
+
+/**
+ * Cartão de uma tela de seleção no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+ * environment?"): mostra o trecho do terminal e os botões ↑ ↓ Enter Esc, que apertam a tecla no pane.
+ */
+export class DialogCard {
+  readonly el: HTMLElement;
+  private agentId = '';
+  private busy = false;
+  private pre: HTMLElement;
+  private status: HTMLElement;
+  private buttons: HTMLButtonElement[];
+
+  constructor(
+    private ctx: UiContext,
+    variant: 'term' | 'drawer',
+  ) {
+    this.pre = h('pre', { class: 'ui-ask__screen', attrs: { 'aria-label': 'Trecho do terminal do agente' } });
+    this.status = h('p', { class: 'ui-perm__status', role: 'status', attrs: { 'aria-live': 'polite' } });
+    this.buttons = DIALOG_BUTTONS.map(([key, text, title]) =>
+      h('button', { class: 'ui-btn ui-perm__btn ui-ask__key', type: 'button', title, on: { click: () => void this.press(key) } }, text),
+    );
+    this.el = h(
+      'section',
+      { class: `ui-perm ui-ask ui-ask--${variant}`, hidden: true, tabIndex: -1, attrs: { 'aria-label': 'Tela no terminal do agente' } },
+      h('div', { class: 'ui-perm__head ui-ask__head' }, h('span', { class: 'ui-perm__icon', text: '⌨', attrs: { 'aria-hidden': 'true' } }), h('strong', { class: 'ui-perm__title', text: 'O terminal do agente espera você' })),
+      h('p', { class: 'ui-ask__kind', text: 'Tela que o Habblaud não conhece: use os botões como se fossem as teclas do terminal.' }),
+      this.pre,
+      h('div', { class: 'ui-perm__actions' }, ...this.buttons),
+      this.status,
+    );
+  }
+
+  get visible(): boolean {
+    return !this.el.hidden;
+  }
+
+  render(agent: AgentInfo | undefined): void {
+    const d = agent && agent.status !== 'offline' && agent.status !== 'done' && !agent.question && !agent.permission ? agent.dialog : undefined;
+    if (!agent || !d) {
+      setHidden(this.el, true);
+      if (this.agentId !== (agent?.id ?? '')) setText(this.status, '');
+      this.agentId = agent?.id ?? '';
+      return;
+    }
+    if (agent.id !== this.agentId) {
+      this.agentId = agent.id;
+      this.status.classList.remove('is-error');
+      setText(this.status, '');
+    }
+    setHidden(this.el, false);
+    setText(this.pre, d.text);
+    const local = this.ctx.store.mock || !!this.ctx.store.snapshot?.meta.terminal;
+    for (const b of this.buttons) b.disabled = this.busy || !local;
+  }
+
+  private async press(key: string): Promise<void> {
+    const agentId = this.agentId;
+    if (!agentId || this.busy) return;
+    this.busy = true;
+    this.status.classList.remove('is-error');
+    this.ctx.invalidate();
+    let error: string | undefined;
+    try {
+      error = await this.ctx.store.pressDialogKey(agentId, key);
+    } catch {
+      error = 'Não foi possível falar com o Habblaud. Responda no terminal.';
+    }
+    this.busy = false;
+    if (this.agentId === agentId) {
+      if (error) this.status.classList.add('is-error');
+      setText(this.status, error ?? '');
     }
     this.ctx.invalidate();
   }

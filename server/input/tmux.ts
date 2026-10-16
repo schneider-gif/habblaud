@@ -258,6 +258,17 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       await run(['-S', t.socket, 'send-keys', '-t', t.pane, ...keys]);
     },
 
+    /**
+     * Uma tecla dos botões do escritório para um diálogo desconhecido na tela do agente (↑ ↓ Enter Esc). Esc só passa
+     * por aqui, e uma por vez: quem chama (DialogWatcher) confere antes que a tela mostra um diálogo de seleção.
+     */
+    async navKeys(id: string, keys: readonly string[]): Promise<void> {
+      if (keys.length !== 1 || !/^(Up|Down|Enter|Escape)$/.test(keys[0])) throw new InputError(400, 'tecla inválida');
+      const t = await targetOf(id);
+      if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
+      await run(['-S', t.socket, 'send-keys', '-t', t.pane, keys[0]]);
+    },
+
     /** Texto literal (send-keys -l) no pane: o campo "Outro" de uma pergunta. Uma linha, sem caracteres de controle. */
     async typeText(id: string, text: string): Promise<void> {
       // eslint-disable-next-line no-control-regex

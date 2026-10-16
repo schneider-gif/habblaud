@@ -14,7 +14,7 @@ import { ICONS } from './icons';
 import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
-import { QUESTION_WAIT_TEXT, QuestionCard } from './question';
+import { DialogCard, QUESTION_WAIT_TEXT, QuestionCard } from './question';
 import {
   clearHits,
   copyTextOf,
@@ -648,6 +648,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private roEl!: HTMLElement;
   /** Pergunta com opções (AskUserQuestion) do agente aberto, respondida por aqui. */
   private ask: QuestionCard;
+  /** Tela de seleção desconhecida no terminal do agente (↑ ↓ Enter Esc). */
+  private dialog: DialogCard;
   private sendBadge!: HTMLElement;
 
   private kindEl: HTMLElement;
@@ -774,6 +776,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     input.addEventListener('input', () => fitInput(input));
     this.inputEl = input;
     this.ask = new QuestionCard(ctx, 'term');
+    this.dialog = new DialogCard(ctx, 'term');
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -792,6 +795,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       tools,
       h('div', { class: 'ui-term__body' }, this.alertEl, this.scroll, this.newBtn),
       this.ask.el,
+      this.dialog.el,
       h('div', { class: 'ui-term__foot' }, this.status, h('label', { class: 'ui-term__prompt' }, h('span', { class: 'ui-term__caret', text: '>', attrs: { 'aria-hidden': 'true' } }), input)),
     );
     this.el.addEventListener('keydown', (e) => this.onKey(e));
@@ -868,10 +872,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   /** Pergunta pendente do agente aberto: cartão acima da caixa, e a caixa avisa (o texto digitado fica guardado). */
   private renderAsk(): void {
     const agent = this.id && !this.session ? this.ctx.agent(this.id) : undefined;
-    const before = this.ask.visible;
+    const before = this.ask.visible || this.dialog.visible;
     this.ask.render(agent);
-    const asking = this.ask.visible;
-    const label = asking ? `${QUESTION_WAIT_TEXT} (o que você digitar fica guardado aqui)` : this.canSend ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
+    this.dialog.render(agent);
+    const asking = this.ask.visible || this.dialog.visible;
+    const wait = this.dialog.visible ? 'O terminal do agente espera você responder a tela acima' : QUESTION_WAIT_TEXT;
+    const label = asking ? `${wait} (o que você digitar fica guardado aqui)` : this.canSend ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
     setAttr(this.inputEl, 'placeholder', label);
     setAttr(this.inputEl, 'aria-label', label);
     this.el.classList.toggle('is-asking', asking);
@@ -1441,9 +1447,10 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (!this.canSend) return this.explainBlocked(true);
     if (!text) return;
     // Diálogo de pergunta aberto no terminal: o TUI perderia o texto (ou um Enter escolheria uma opção).
-    if (this.ask.visible) {
-      this.ctx.notify(`${QUESTION_WAIT_TEXT}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
-      this.ask.el.focus({ preventScroll: false });
+    if (this.ask.visible || this.dialog.visible) {
+      const card = this.ask.visible ? this.ask : this.dialog;
+      this.ctx.notify(`${this.ask.visible ? QUESTION_WAIT_TEXT : 'O terminal do agente espera você responder a tela acima'}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
+      card.el.focus({ preventScroll: false });
       return;
     }
     this.sending = true;
@@ -1466,7 +1473,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       } else {
         this.ctx.notify(sendErrorText(r.status, j.error), 'warn');
         // 409: o agente deixou de receber mensagens (saiu do tmux, pid trocou): a caixa trava e explica.
-        if (r.status === 409 && this.id === id && !j.error?.startsWith(QUESTION_WAIT_TEXT)) this.setCanSend(false);
+        if (r.status === 409 && this.id === id && !j.error?.startsWith(QUESTION_WAIT_TEXT) && !j.error?.startsWith('O terminal do agente')) this.setCanSend(false);
       }
     } catch {
       this.ctx.notify(sendErrorText(0), 'warn');

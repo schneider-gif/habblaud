@@ -283,6 +283,24 @@ export class OfficeStore {
     return `Não foi possível responder (erro ${res.status}).`;
   }
 
+  /** Aperta uma tecla (Up, Down, Enter, Escape) numa tela de seleção desconhecida no terminal do agente. */
+  async pressDialogKey(agentId: string, key: string): Promise<string | undefined> {
+    if (this.mock) return 'Na demonstração não há terminal de verdade.';
+    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    if (res.ok) return undefined;
+    try {
+      const j = (await res.json()) as { error?: unknown };
+      if (typeof j.error === 'string') return j.error;
+    } catch {
+      // Resposta sem JSON (ex.: guard): usa a mensagem padrão.
+    }
+    return `Não foi possível apertar a tecla (erro ${res.status}).`;
+  }
+
   // ---------------------------------------------------------------- internos
 
   private emit<K extends keyof StoreEvents>(event: K, value: StoreEvents[K]): void {

@@ -4,6 +4,7 @@
 import type {
   AccountInfo,
   AskQuestionInfo,
+  TerminalDialogInfo,
   Announcement,
   Activity,
   AgentDetail,
@@ -29,6 +30,7 @@ import type { AgentProfile } from '../../shared/profile';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
+import { applyDialog } from '../questions/dialogs';
 import { applyQuestion } from '../questions/service';
 import type { SetupAgent } from '../shell/setup';
 import type { NameStore } from './names';
@@ -71,6 +73,8 @@ export interface OfficeDeps {
   permissions?: () => ReadonlyMap<string, PermissionRequestInfo>;
   /** Perguntas com opções pendentes (QuestionService.get): vão em AgentInfo.question. */
   questions?: () => ReadonlyMap<string, AskQuestionInfo>;
+  /** Diálogos desconhecidos na tela dos agentes (DialogWatcher.get): vão em AgentInfo.dialog. */
+  dialogs?: () => ReadonlyMap<string, TerminalDialogInfo>;
   /** Verificação de versão nova no GitHub (ver OfficeSnapshot.meta.updates). */
   updates?: () => UpdateStatus;
   /** Aviso global (ver OfficeSnapshot.meta.announcement). */
@@ -909,7 +913,11 @@ export class Office {
     }
     const perms = this.deps.permissions?.();
     const asks = this.deps.questions?.();
-    const real = [...[...this.agents.values()].map((r) => applyQuestion(applyPermission(cloneAgent(r.info), perms?.get(r.info.id)), asks?.get(r.info.id))), ...setup];
+    const dialogs = this.deps.dialogs?.();
+    const real = [
+      ...[...this.agents.values()].map((r) => applyDialog(applyQuestion(applyPermission(cloneAgent(r.info), perms?.get(r.info.id)), asks?.get(r.info.id)), dialogs?.get(r.info.id))),
+      ...setup,
+    ];
     const trim = (a: AgentInfo): AgentInfo => (a.recent.length > SNAPSHOT_RECENT ? { ...a, recent: a.recent.slice(-SNAPSHOT_RECENT) } : a);
     const sessions = new Map<string, number>();
     for (const a of real) if (a.kind === 'main' && a.status !== 'offline') sessions.set(a.account, (sessions.get(a.account) ?? 0) + 1);

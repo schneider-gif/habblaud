@@ -138,6 +138,12 @@ export type AskScreen =
       kind: 'question';
       /** Texto acima das opções (abas e a pergunta), com espaços colapsados. */
       head: string;
+      /** Só a pergunta (sem a linha das abas). */
+      question: string;
+      /** Abas no topo (uma por pergunta do diálogo); 1 = pergunta única. */
+      tabs: number;
+      /** Rótulo da aba quando há uma só (ex.: "Banco"). */
+      header?: string;
       multi: boolean;
       items: AskScreenItem[];
       /** Posição do cursor (❯) em `items`; -1 se não achou. */
@@ -221,8 +227,28 @@ export function classifyAskScreen(text: string): AskScreen | undefined {
     if (prev?.type === 'option' && more) prev.extra = prev.extra ? `${prev.extra} ${more}` : more;
   }
   if (first < 0) return undefined;
-  const head = collapse(lines.slice(top + 1, first).join(' '));
-  return { kind: 'question', head, multi, items, cursor };
+  const above = lines.slice(top + 1, first);
+  const head = collapse(above.join(' '));
+  // Linha das abas: "←  ☐ Banco  ☒ Recursos  ✔ Submit  →" (várias perguntas) ou " ☐ Banco" (uma só).
+  const TAB = /[☐☒]\s*([^☐☒✔←→]+)/g;
+  const tabLine = above.find((l) => /[☐☒]/.test(l));
+  const tabNames = tabLine ? [...tabLine.matchAll(TAB)].map((m) => m[1].trim()) : [];
+  const question = collapse(above.filter((l) => l !== tabLine).join(' '));
+  const tabs = Math.max(1, tabNames.length);
+  return { kind: 'question', head, question, tabs, ...(tabNames.length === 1 && tabNames[0] ? { header: tabNames[0] } : {}), multi, items, cursor };
+}
+
+/**
+ * Pergunta montada a partir da tela do diálogo (o Claude Code 2.1.295 real só grava o tool_use do AskUserQuestion no
+ * transcript depois da resposta): as opções numeradas menos o "Type something", com a descrição das linhas recuadas.
+ * Com várias abas, é só a pergunta da aba à mostra.
+ */
+export function questionFromScreen(screen: Extract<AskScreen, { kind: 'question' }>): AskQuestion | undefined {
+  const opts = screen.items.filter((it): it is Extract<AskScreenItem, { type: 'option' }> => it.type === 'option');
+  // a última numerada é o "Type something" (campo "Outro")
+  if (opts.length < 2 || !screen.question) return undefined;
+  const options = opts.slice(0, -1).map((o) => (o.extra ? { label: o.label, description: o.extra } : { label: o.label }));
+  return { question: screen.question, ...(screen.header ? { header: screen.header } : {}), multiSelect: screen.multi, options };
 }
 
 /** Qual das perguntas a tela mostra (pelo texto acima das opções; a mais longa que couber, se uma contiver a outra). */

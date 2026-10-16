@@ -6,9 +6,10 @@
 //   tecla, e confere no transcript que a resposta chegou.
 import { statSync } from 'node:fs';
 import type { AgentInfo, AskQuestionInfo } from '../../shared/types';
+import { hash32 } from '../../shared/hash';
 import { errMsg, log } from '../log';
 import { readTail, SCAN_TAIL_BYTES } from '../permissions/transcript';
-import { AnswerError, answeredInLines, askStep, classifyAskScreen, cleanAnswers, pendingAskFromLines } from './ask';
+import { AnswerError, answeredInLines, askStep, classifyAskScreen, cleanAnswers, matchQuestion, pendingAskFromLines, questionFromScreen } from './ask';
 
 export const QUESTION_POLL_MS = 1_500;
 /** Pausa depois de cada passo, para o TUI redesenhar antes de a tela ser lida de novo. */
@@ -77,7 +78,10 @@ export class QuestionService {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => this.poll(), this.opts.pollMs ?? QUESTION_POLL_MS);
+    this.timer = setInterval(() => {
+      this.poll();
+      void this.pollScreens();
+    }, this.opts.pollMs ?? QUESTION_POLL_MS);
     this.timer.unref?.();
   }
 
@@ -132,8 +136,56 @@ export class QuestionService {
     }
     const before = this.pending.get(id);
     if (q) this.pending.set(id, q);
+    else if (before?.fromScreen) return false; // lida da tela: quem cuida é pollScreens
     else this.pending.delete(id);
     return before?.toolUseId !== q?.toolUseId;
+  }
+
+  private screening = false;
+
+  /**
+   * Fonte reserva: a tela do diálogo. O Claude Code 2.1.295 real só grava o tool_use do AskUserQuestion no transcript
+   * depois da resposta, então para agentes esperando sem pergunta do transcript a pergunta sai do capture-pane.
+   */
+  async pollScreens(): Promise<void> {
+    if (this.screening || !this.opts.input) return;
+    this.screening = true;
+    try {
+      let changed = false;
+      for (const a of this.opts.office.list()) {
+        if (a.kind !== 'main' || a.engine === 'codex' || a.status === 'offline' || a.status === 'done') continue;
+        const cur = this.pending.get(a.id);
+        if (cur && !cur.fromScreen) continue;
+        if (a.status !== 'waiting' && !cur) continue;
+        if (await this.checkScreen(a.id)) changed = true;
+      }
+      if (changed) this.opts.office.markDirty();
+    } finally {
+      this.screening = false;
+    }
+  }
+
+  /** Relê a tela do agente e atualiza a pergunta lida dela. Devolve true se mudou. */
+  private async checkScreen(id: string): Promise<boolean> {
+    let text: string | undefined;
+    try {
+      text = await this.opts.input?.screen(id);
+    } catch {
+      text = undefined;
+    }
+    const before = this.pending.get(id);
+    if (before && !before.fromScreen) return false;
+    const screen = text === undefined ? undefined : classifyAskScreen(text);
+    const question = screen?.kind === 'question' ? questionFromScreen(screen) : undefined;
+    if (!question || screen?.kind !== 'question') {
+      if (!before) return false;
+      this.pending.delete(id);
+      return true;
+    }
+    const toolUseId = `screen:${hash32(JSON.stringify(question)).toString(36)}`;
+    if (before?.toolUseId === toolUseId) return false;
+    this.pending.set(id, { toolUseId, questions: [question], createdAt: this.now(), fromScreen: { tabs: screen.tabs } });
+    return true;
   }
 
   /**
@@ -145,6 +197,7 @@ export class QuestionService {
     if (!input) throw new AnswerError(403, 'responder perguntas pelo escritório está desligado aqui');
     const b = body && typeof body === 'object' ? (body as { toolUseId?: unknown; answers?: unknown }) : {};
     if (this.check(agentId, true)) this.opts.office.markDirty();
+    if (!this.pending.has(agentId) || this.pending.get(agentId)?.fromScreen) await this.checkScreen(agentId);
     const q = this.pending.get(agentId);
     if (!q || (typeof b.toolUseId === 'string' && b.toolUseId !== q.toolUseId)) throw new AnswerError(404, 'esta pergunta já foi respondida');
     const answers = cleanAnswers(b.answers, q.questions);
@@ -162,6 +215,8 @@ export class QuestionService {
           if (steps > 0) break; // o diálogo fechou: enviado
           throw new AnswerError(409, 'o diálogo da pergunta não está aberto no terminal do agente');
         }
+        // Lida da tela (uma aba por vez): a aba respondida deu lugar à próxima pergunta. Ela aparece no próximo cartão.
+        if (q.fromScreen && steps > 0 && screen.kind === 'question' && matchQuestion(screen.head, q.questions) < 0) break;
         if (++steps > MAX_STEPS) throw new AnswerError(409, 'não consegui completar o diálogo da pergunta: responda no terminal');
         const step = askStep(screen, q.questions, answers);
         if ('error' in step) throw new AnswerError(409, `${step.error}: responda no terminal`);
@@ -175,6 +230,13 @@ export class QuestionService {
           await input.typeText(agentId, step.text);
         } else await input.driveKeys(agentId, step.keys);
         await this.sleep(this.opts.stepPauseMs ?? STEP_PAUSE_MS);
+      }
+      if (q.fromScreen) {
+        // Sem id do tool_use para conferir no transcript: vale a tela (o diálogo fechou ou foi para a próxima aba).
+        this.pending.delete(agentId);
+        await this.checkScreen(agentId);
+        this.opts.office.markDirty();
+        return { answered: true };
       }
       // Confere no transcript (o tool_result chega logo depois do envio).
       const path = this.opts.transcriptPathOf(agentId);
