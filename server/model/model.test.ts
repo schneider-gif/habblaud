@@ -372,5 +372,7 @@ describe('agentes em configuração (setSetupAgents: Claude aberto pelo escritó
     expect(new Office(deps).commit().snapshot.meta.links).toBeUndefined();
     const meta = new Office({ ...deps, shell: () => true, links: { vscode: 'https://x/vs' } }).commit().snapshot.meta;
     expect(meta).toMatchObject({ shell: true, links: { vscode: 'https://x/vs' } });
+    const bug = new Office({ ...deps, links: { bug: 'https://x/bug' } }).commit().snapshot.meta;
+    expect(bug.links).toEqual({ bug: 'https://x/bug' });
   });
 });

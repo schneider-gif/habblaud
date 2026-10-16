@@ -84,7 +84,7 @@ export interface OfficeDeps {
   /** Painel do GitHub disponível agora (ver OfficeSnapshot.meta.github). */
   github?: () => boolean;
   /** Links rápidos da barra superior (ver OfficeSnapshot.meta.links). */
-  links?: { vscode?: string };
+  links?: { vscode?: string; bug?: string };
   now?: () => number;
 }
 
@@ -952,7 +952,9 @@ export class Office {
         announcement: this.deps.announcement?.(),
         shell: this.deps.shell?.() === true,
         github: this.deps.github?.() === true,
-        links: this.deps.links?.vscode ? { vscode: this.deps.links.vscode } : undefined,
+        links: this.deps.links?.vscode || this.deps.links?.bug
+          ? { ...(this.deps.links.vscode ? { vscode: this.deps.links.vscode } : {}), ...(this.deps.links.bug ? { bug: this.deps.links.bug } : {}) }
+          : undefined,
       },
     };
   }
