@@ -3,6 +3,7 @@
 // chama commit() (com throttle) para obter o snapshot novo, o feed e os avisos pendentes.
 import type {
   AccountInfo,
+  AskQuestionInfo,
   Announcement,
   Activity,
   AgentDetail,
@@ -28,6 +29,7 @@ import type { AgentProfile } from '../../shared/profile';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
+import { applyQuestion } from '../questions/service';
 import type { SetupAgent } from '../shell/setup';
 import type { NameStore } from './names';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
@@ -67,6 +69,8 @@ export interface OfficeDeps {
   terminal?: boolean;
   /** Pedidos de permissão pendentes por agente (PermissionRegistry.snapshot), postos no snapshot. */
   permissions?: () => ReadonlyMap<string, PermissionRequestInfo>;
+  /** Perguntas com opções pendentes (QuestionService.get): vão em AgentInfo.question. */
+  questions?: () => ReadonlyMap<string, AskQuestionInfo>;
   /** Verificação de versão nova no GitHub (ver OfficeSnapshot.meta.updates). */
   updates?: () => UpdateStatus;
   /** Aviso global (ver OfficeSnapshot.meta.announcement). */
@@ -904,7 +908,8 @@ export class Office {
       if (effect) room.effect = { ...effect };
     }
     const perms = this.deps.permissions?.();
-    const real = [...[...this.agents.values()].map((r) => applyPermission(cloneAgent(r.info), perms?.get(r.info.id))), ...setup];
+    const asks = this.deps.questions?.();
+    const real = [...[...this.agents.values()].map((r) => applyQuestion(applyPermission(cloneAgent(r.info), perms?.get(r.info.id)), asks?.get(r.info.id))), ...setup];
     const trim = (a: AgentInfo): AgentInfo => (a.recent.length > SNAPSHOT_RECENT ? { ...a, recent: a.recent.slice(-SNAPSHOT_RECENT) } : a);
     const sessions = new Map<string, number>();
     for (const a of real) if (a.kind === 'main' && a.status !== 'offline') sessions.set(a.account, (sessions.get(a.account) ?? 0) + 1);

@@ -21,6 +21,7 @@ import { Office } from './model/office';
 import { openMainAgent, SessionHistory } from './sources/history';
 import { createPermissionRoutes } from './permissions/http';
 import { PermissionRegistry } from './permissions/registry';
+import { QuestionService } from './questions/service';
 import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -62,7 +63,7 @@ const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -123,6 +124,7 @@ const office = new Office({
     for (const a of late.codex?.approvals() ?? []) if (!m.has(a.agentId)) m.set(a.agentId, { ...a.info, input: undefined });
     return m;
   },
+  questions: () => late.questions?.get() ?? new Map(),
   updates: () => updates.status(),
   announcement: () => announce.get(),
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
@@ -180,6 +182,11 @@ const missions = missionsStore
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
 const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Perguntas com opções (AskUserQuestion): lidas do transcript e respondidas pelo chat dirigindo o diálogo no tmux.
+const questions = config.terminal
+  ? new QuestionService({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id), input: input && { screen: (id) => input.screen(id), driveKeys: (id, k) => input.driveKeys(id, k), typeText: (id, t) => input.typeText(id, t) } })
+  : undefined;
+late.questions = questions;
 // Fonte "codex": conversas abertas do Codex CLI; a tela do tmux diz quando ele pede aprovação ou login.
 const codexWatcher = codexOff
   ? undefined
@@ -268,6 +275,7 @@ if (timeline) {
   timeline.ingest(hub.current());
 }
 permissions?.start();
+questions?.start();
 missions?.startTimer();
 // Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
 void missions?.evaluate();
@@ -318,6 +326,7 @@ const api = createApiHandler({
     void codexSetupWatcher?.scan();
     return r;
   } } : input,
+  questions,
   missions,
   github: githubRoutes,
   shell: shellRoutes.api,
@@ -431,6 +440,7 @@ function shutdown(signal: string): void {
   terminals?.stop();
   timeline?.stop();
   permissions?.stop();
+  questions?.stop();
   missions?.stop();
   setupWatcher?.stop();
   codexSetupWatcher?.stop();
