@@ -8365,3 +8365,13 @@ html.is-replay #world {
 .ui-term.is-asking .ui-term__input::placeholder {
   color: var(--st-waiting);
 }
+
+/* No terminal o cartão rola: Enviar fica sempre à vista no rodapé dele. */
+.ui-ask--term .ui-perm__actions {
+  position: sticky;
+  bottom: -12px;
+  margin: 10px -12px -12px;
+  padding: 8px 12px 10px;
+  background: #2a2418;
+  border-top: 1px solid rgba(255, 181, 71, 0.3);
+}
