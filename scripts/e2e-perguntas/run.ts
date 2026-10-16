@@ -27,6 +27,8 @@ interface Scenario {
   answers: AskAnswer[];
   /** Trecho esperado no tool_result. */
   expect: string;
+  /** Largura do terminal (padrão 120). */
+  width?: number;
 }
 
 const q = (question: string, header: string, multiSelect: boolean, labels: string[]) => ({
@@ -51,6 +53,13 @@ const SCENARIOS: Scenario[] = [
     input: { questions: [q('Linguagem?', 'Ling', false, ['Go', 'Rust', 'TS']), q('Deploy?', 'Deploy', false, ['VPS', 'K8s']), q('Extras?', 'Extras', true, ['Logs', 'Métricas'])] },
     answers: [{ selected: [2] }, { selected: [0] }, { selected: [0, 1] }],
     expect: '"Linguagem?"="TS", "Deploy?"="VPS", "Extras?"="Logs, Métricas"',
+  },
+  {
+    name: 'terminal estreito, "Outro" mais longo que a linha',
+    input: { questions: [q('Qual banco usar?', 'Banco', false, ['Postgres', 'SQLite'])] },
+    answers: [{ selected: [], other: 'quero um banco relacional com réplica de leitura em outra região e backup diário' }],
+    expect: '"Qual banco usar?"="quero um banco relacional com réplica de leitura em outra região e backup diário"',
+    width: 60,
   },
 ];
 
@@ -97,7 +106,7 @@ async function run(s: Scenario): Promise<void> {
   try {
     await sleep(400);
     const env = `env CLAUDE_CONFIG_DIR=${cfg} ANTHROPIC_API_KEY=${KEY} ANTHROPIC_BASE_URL=http://127.0.0.1:${PORT} DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`;
-    tmux('new-session', '-d', '-s', PANE, '-x', '120', '-y', '45', '-c', proj, `${env} ${CLAUDE}`);
+    tmux('new-session', '-d', '-s', PANE, '-x', String(s.width ?? 120), '-y', '45', '-c', proj, `${env} ${CLAUDE}`);
     await waitFor(() => /❯|Enter to confirm/.test(screen()), 20_000, 'o Claude Code abrir');
     await sleep(1_500);
     // Diálogos de inicialização (ex.: imports de CLAUDE.md de fora da pasta): fica com a opção padrão.

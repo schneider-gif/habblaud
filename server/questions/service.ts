@@ -170,7 +170,8 @@ export class QuestionService {
         last = key;
         if (repeats >= 3) throw new AnswerError(409, 'o terminal não reagiu às teclas: responda no terminal');
         if ('text' in step) {
-          if (step.erase) await input.driveKeys(agentId, Array.from({ length: step.erase }, () => 'BSpace'));
+          // driveKeys aceita até 40 teclas por vez: apaga em lotes.
+          for (let left = step.erase; left > 0; left -= 40) await input.driveKeys(agentId, Array.from({ length: Math.min(40, left) }, () => 'BSpace'));
           await input.typeText(agentId, step.text);
         } else await input.driveKeys(agentId, step.keys);
         await this.sleep(this.opts.stepPauseMs ?? STEP_PAUSE_MS);

@@ -82,8 +82,8 @@ describe('classifyAskScreen', () => {
     const s = classifyAskScreen(tui.screen());
     expect(s).toMatchObject({ kind: 'question', multi: true });
     expect(s?.kind === 'question' && s.items).toEqual([
-      { type: 'option', n: 1, label: 'a', checked: true },
-      { type: 'option', n: 2, label: 'b', checked: false },
+      { type: 'option', n: 1, label: 'a', checked: true, extra: 'sobre a' },
+      { type: 'option', n: 2, label: 'b', checked: false, extra: 'sobre b' },
       { type: 'option', n: 3, label: 'Type something', checked: false },
       { type: 'submit' },
     ]);
@@ -177,5 +177,37 @@ describe('askStep dirigindo o TUI falso', () => {
   it('quantidade de opções diferente: erro', () => {
     const tui = new FakeAskTui([q('Qual?', false, ['a', 'b', 'c'])]);
     expect(askStep(classifyAskScreen(tui.screen())!, [q('Qual?', false, ['a', 'b'])], [{ selected: [0] }])).toHaveProperty('error');
+  });
+});
+
+describe('"Outro" que quebra a linha (terminal estreito)', () => {
+  const screen = (other: string[], cursorOnOther = true) =>
+    [
+      '─'.repeat(60),
+      ' ☐ Banco',
+      '',
+      'Qual banco usar?',
+      '',
+      '  1. Postgres',
+      '     relacional',
+      '  2. SQLite',
+      `${cursorOnOther ? '❯' : ' '} 3. ${other[0]}`,
+      ...other.slice(1).map((l) => `     ${l}`),
+      '─'.repeat(60),
+      '  4. Chat about this',
+      '',
+      'Enter to select · ↑/↓ to navigate · ctrl+g to edit in Vim ·',
+      'Esc to cancel',
+    ].join('\n');
+  const qs = [q('Qual banco usar?', false, ['Postgres', 'SQLite'])];
+  const want = 'quero um banco relacional com réplica de leitura em outra região';
+
+  it('junta a continuação ao texto e não digita de novo', () => {
+    const s = classifyAskScreen(screen(['quero um banco relacional com réplica de', 'leitura em outra região']))!;
+    expect(askStep(s, qs, [{ selected: [], other: want }])).toEqual({ keys: ['Enter'] });
+  });
+  it('texto diferente na tela: apaga tudo (as duas linhas) antes de digitar', () => {
+    const s = classifyAskScreen(screen(['outro texto bem comprido que quebrou a', 'linha']))!;
+    expect(askStep(s, qs, [{ selected: [], other: want }])).toEqual({ text: want, erase: [...'outro texto bem comprido que quebrou a linha'].length });
   });
 });

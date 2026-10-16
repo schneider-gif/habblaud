@@ -122,7 +122,16 @@ export function cleanAnswers(raw: unknown, questions: readonly AskQuestion[]): A
 
 // ---------------------------------------------------------------- tela do diálogo
 
-export type AskScreenItem = { type: 'option'; n: number; label: string; checked?: boolean } | { type: 'submit' };
+export type AskScreenItem =
+  | {
+      type: 'option';
+      n: number;
+      label: string;
+      checked?: boolean;
+      /** Linhas recuadas logo abaixo (descrição da opção ou, no "Outro", a continuação do texto que quebrou a linha). */
+      extra?: string;
+    }
+  | { type: 'submit' };
 
 export type AskScreen =
   | {
@@ -205,7 +214,11 @@ export function classifyAskScreen(text: string): AskScreen | undefined {
     if (s && first >= 0) {
       if (s[1]) cursor = items.length;
       items.push({ type: 'submit' });
+      continue;
     }
+    const prev = items[items.length - 1];
+    const more = collapse(line);
+    if (prev?.type === 'option' && more) prev.extra = prev.extra ? `${prev.extra} ${more}` : more;
   }
   if (first < 0) return undefined;
   const head = collapse(lines.slice(top + 1, first).join(' '));
@@ -257,11 +270,13 @@ export function askStep(screen: AskScreen, questions: readonly AskQuestion[], an
   if (q.multiSelect !== screen.multi) return { error: 'o tipo da pergunta na tela não bate (escolha única x várias)' };
   const otherIdx = at(k + 1);
   const otherItem = screen.items[otherIdx] as Extract<AskScreenItem, { type: 'option' }>;
+  // O texto do "Outro" pode quebrar a linha num terminal estreito: a continuação vem recuada logo abaixo (extra).
+  const shownOther = collapse(otherItem.extra ? `${otherItem.label} ${otherItem.extra}` : otherItem.label);
   const typeOther = (): AskStep | undefined => {
-    const want = a.other ?? '';
-    if (!want || otherItem.label === want) return undefined;
+    const want = collapse(a.other ?? '');
+    if (!want || shownOther === want) return undefined;
     if (screen.cursor !== otherIdx) return { keys: moveKeys(screen.cursor, otherIdx) };
-    return { text: want, erase: PLACEHOLDER.test(otherItem.label) ? 0 : [...otherItem.label].length };
+    return { text: want, erase: PLACEHOLDER.test(shownOther) ? 0 : [...shownOther].length };
   };
 
   if (!q.multiSelect) {

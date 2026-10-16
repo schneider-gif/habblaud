@@ -141,3 +141,23 @@ describe('applyQuestion', () => {
     expect(applyQuestion({ status: 'offline' } as AgentInfo, info).question).toBeUndefined();
   });
 });
+
+describe('QuestionService: apagar texto longo do "Outro"', () => {
+  it('manda os Backspace em lotes de até 40', async () => {
+    const tui = new FakeAskTui(QS);
+    const s = setup({ tui });
+    // Texto antigo de 90 letras já no campo do "Outro" da pergunta 1.
+    tui.other[0] = 'x'.repeat(90);
+    s.write(useLine('t1'));
+    const batches: number[] = [];
+    const svc = s.svc as unknown as { opts: { input: { driveKeys: (id: string, k: readonly string[]) => Promise<void> } } };
+    const orig = svc.opts.input.driveKeys;
+    svc.opts.input.driveKeys = async (id, k) => {
+      if (k[0] === 'BSpace') batches.push(k.length);
+      return orig(id, k);
+    };
+    await s.svc.answer('a1', { toolUseId: 't1', answers: [{ selected: [], other: 'novo' }, { selected: [0] }] });
+    expect(batches).toEqual([40, 40, 10]);
+    expect(tui.result).toEqual({ 'Qual banco?': 'novo', 'Quais recursos?': 'Cache' });
+  });
+});
