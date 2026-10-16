@@ -14,6 +14,7 @@ import { ICONS } from './icons';
 import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
+import { QUESTION_WAIT_TEXT, QuestionCard } from './question';
 import {
   clearHits,
   copyTextOf,
@@ -645,6 +646,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   /** Último aviso de caixa travada (não repete a cada Enter/clique). */
   private blockedAt = -Infinity;
   private roEl!: HTMLElement;
+  /** Pergunta com opções (AskUserQuestion) do agente aberto, respondida por aqui. */
+  private ask: QuestionCard;
   private sendBadge!: HTMLElement;
 
   private kindEl: HTMLElement;
@@ -769,6 +772,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       attrs: { readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
     });
     this.inputEl = input;
+    this.ask = new QuestionCard(ctx, 'term');
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -786,6 +790,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       bar,
       tools,
       h('div', { class: 'ui-term__body' }, this.alertEl, this.scroll, this.newBtn),
+      this.ask.el,
       h('div', { class: 'ui-term__foot' }, this.status, h('label', { class: 'ui-term__prompt' }, h('span', { class: 'ui-term__caret', text: '>', attrs: { 'aria-hidden': 'true' } }), input)),
     );
     this.el.addEventListener('keydown', (e) => this.onKey(e));
@@ -856,6 +861,20 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     else this.renderAgentHead();
     this.renderFooter();
     this.renderState();
+    this.renderAsk();
+  }
+
+  /** Pergunta pendente do agente aberto: cartão acima da caixa, e a caixa avisa (o texto digitado fica guardado). */
+  private renderAsk(): void {
+    const agent = this.id && !this.session ? this.ctx.agent(this.id) : undefined;
+    const before = this.ask.visible;
+    this.ask.render(agent);
+    const asking = this.ask.visible;
+    const label = asking ? `${QUESTION_WAIT_TEXT} (o que você digitar fica guardado aqui)` : this.canSend ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
+    setAttr(this.inputEl, 'placeholder', label);
+    setAttr(this.inputEl, 'aria-label', label);
+    this.el.classList.toggle('is-asking', asking);
+    if (asking && !before && this.follow) requestAnimationFrame(() => this.scrollToEnd());
   }
 
   /** Abre o painel numa conversa nova (agente ou sessão do histórico); a mesma conversa só recebe o foco. */
@@ -1420,6 +1439,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (!id || this.sending) return;
     if (!this.canSend) return this.explainBlocked(true);
     if (!text) return;
+    // Diálogo de pergunta aberto no terminal: o TUI perderia o texto (ou um Enter escolheria uma opção).
+    if (this.ask.visible) {
+      this.ctx.notify(`${QUESTION_WAIT_TEXT}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
+      this.ask.el.focus({ preventScroll: false });
+      return;
+    }
     this.sending = true;
     this.inputEl.disabled = true;
     const name = this.ctx.agent(id)?.name ?? this.last?.name;
@@ -1439,7 +1464,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       } else {
         this.ctx.notify(sendErrorText(r.status, j.error), 'warn');
         // 409: o agente deixou de receber mensagens (saiu do tmux, pid trocou): a caixa trava e explica.
-        if (r.status === 409 && this.id === id) this.setCanSend(false);
+        if (r.status === 409 && this.id === id && !j.error?.startsWith(QUESTION_WAIT_TEXT)) this.setCanSend(false);
       }
     } catch {
       this.ctx.notify(sendErrorText(0), 'warn');
