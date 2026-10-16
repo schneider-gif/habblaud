@@ -635,7 +635,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private currentEl: HTMLElement | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private inputEl!: HTMLInputElement;
+  private inputEl!: HTMLTextAreaElement;
   /** O agente aberto recebe mensagens (roda no tmux). */
   private canSend = false;
   /** A consulta de GET /api/agents/:id/input já respondeu para o agente aberto. */
@@ -766,11 +766,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.statusTime = h('span', { class: 'ui-term__status-time' });
     this.status = h('p', { class: 'ui-term__status' }, this.glyph, this.statusText, this.statusTime);
     // Travada = readonly + aria-disabled (e não disabled): continua focável, e Enter ou um clique explicam o porquê.
-    const input = h('input', {
+    // Várias linhas: Enter envia, Shift+Enter quebra a linha (o servidor cola o texto com bracketed paste no TUI).
+    const input = h('textarea', {
       class: 'ui-term__input',
-      type: 'text',
-      attrs: { readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
+      attrs: { rows: 1, readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
     });
+    input.addEventListener('input', () => fitInput(input));
     this.inputEl = input;
     this.ask = new QuestionCard(ctx, 'term');
     input.addEventListener('keydown', (e) => {
@@ -1458,6 +1459,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       // notify também anuncia aos leitores de tela (região viva), então o aviso vale para os dois.
       if (r.ok) {
         this.inputEl.value = '';
+        fitInput(this.inputEl);
         this.ctx.notify(sentText(name));
         // primeira mensagem: o transcript nasce agora, então o stream que falhou tenta de novo
         if (this.conn === 'failed') setTimeout(() => this.id === id && this.connect(), 1500);
@@ -1548,6 +1550,16 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (this.spinTimer) clearInterval(this.spinTimer);
     this.spinTimer = null;
   }
+}
+
+/** Linhas visíveis no máximo na caixa de mensagem (depois disso ela rola). */
+const INPUT_MAX_ROWS = 6;
+
+/** A caixa cresce com o texto (Shift+Enter) até INPUT_MAX_ROWS linhas. */
+function fitInput(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto';
+  const line = parseFloat(getComputedStyle(el).lineHeight) || 19;
+  el.style.height = `${Math.min(el.scrollHeight, line * INPUT_MAX_ROWS)}px`;
 }
 
 function activeElement(): HTMLElement | null {

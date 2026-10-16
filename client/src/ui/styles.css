@@ -4857,9 +4857,9 @@ button.ui-term__think:hover,
   display: grid;
   grid-template-columns: 2ch minmax(0, 1fr);
   column-gap: 1ch;
-  align-items: center;
-  height: 34px;
-  padding: 0 10px;
+  align-items: start;
+  min-height: 34px;
+  padding: 6px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--ui-line-strong);
@@ -4898,7 +4898,10 @@ button.ui-term__think:hover,
   background: none;
   font: inherit;
   color: var(--ui-muted);
-  text-overflow: ellipsis;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
   cursor: text;
 }
 
