@@ -10,7 +10,8 @@ import { setQuiet } from '../log';
 import { NameStore } from '../model/names';
 import { Office, type OfficeDeps } from '../model/office';
 import { tempDir } from '../test/fixtures';
-import { createApiHandler, type ApiDeps } from './app';
+import { createApiHandler, QUESTION_PENDING_ERROR, type ApiDeps } from './app';
+import { AnswerError } from '../questions/ask';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
 import { Hub } from './sse';
 import { createAgentInput } from '../input/tmux';
@@ -403,6 +404,46 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     const off = await start({ terminal: false, input });
     try {
       expect((await post(off.base, '/api/agents/.claude%3A900/input', { text: 'oi' })).status).toBe(403);
+    } finally {
+      await off.close();
+      off.cleanup();
+    }
+  });
+
+  it('com pergunta pendente, recusa a mensagem (409) e /answer encaminha a resposta', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
+      run: async (a) => void calls.push(a),
+    });
+    const pending = { toolUseId: 't1', questions: [], createdAt: 0 };
+    const answers: unknown[] = [];
+    const questions = {
+      pendingOf: (id: string) => (id === '.claude:900' ? pending : undefined),
+      answer: async (id: string, body: unknown) => {
+        answers.push([id, body]);
+        if ((body as { toolUseId?: string }).toolUseId !== 't1') throw new AnswerError(404, 'esta pergunta já foi respondida');
+        return { answered: true };
+      },
+    };
+    const env = await start({ terminal: true, input, questions });
+    try {
+      const r = await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' });
+      expect(r).toMatchObject({ status: 409, json: { error: QUESTION_PENDING_ERROR } });
+      expect(calls).toEqual([]);
+      expect(await post(env.base, '/api/agents/.claude%3A901/input', { text: 'oi' })).toMatchObject({ status: 200 });
+      expect(await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] })).toMatchObject({ status: 200, json: { ok: true, answered: true } });
+      expect(answers[0]).toEqual(['.claude:900', { toolUseId: 't1', answers: [] }]);
+      expect((await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 'x', answers: [] })).status).toBe(404);
+      expect((await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] }, 'habblaud.lan')).status).toBe(403);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+    const off = await start({ terminal: false, input, questions });
+    try {
+      expect((await post(off.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] })).status).toBe(403);
     } finally {
       await off.close();
       off.cleanup();
