@@ -4857,9 +4857,9 @@ button.ui-term__think:hover,
   display: grid;
   grid-template-columns: 2ch minmax(0, 1fr);
   column-gap: 1ch;
-  align-items: center;
-  height: 34px;
-  padding: 0 10px;
+  align-items: start;
+  min-height: 34px;
+  padding: 6px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--ui-line-strong);
@@ -4898,7 +4898,10 @@ button.ui-term__think:hover,
   background: none;
   font: inherit;
   color: var(--ui-muted);
-  text-overflow: ellipsis;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
   cursor: text;
 }
 
@@ -8239,4 +8242,158 @@ html.is-replay #world {
   margin: 0;
   font: 14px/1.45 var(--font-ui);
   color: var(--ui-text);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Pergunta com opções do agente (AskUserQuestion; ui/question.ts): reaproveita o cartão "Pede permissão"
+   (ui-perm). No terminal fica entre a conversa e a caixa de mensagem, com rolagem própria.
+   ------------------------------------------------------------------------------------------------ */
+
+.ui-ask__head {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.ui-ask__head .ui-perm__icon {
+  font: 700 15px/1 var(--font-px);
+}
+
+.ui-ask__q {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.ui-ask__question {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff3df;
+  overflow-wrap: anywhere;
+}
+
+.ui-ask__tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 181, 71, 0.18);
+  color: var(--st-waiting);
+  font: 600 10.5px/1.5 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ui-ask__kind {
+  margin: -2px 0 5px;
+  font-size: 11px;
+  color: rgba(255, 226, 181, 0.72);
+}
+
+.ui-ask__opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.ui-ask__opt:hover {
+  background: rgba(255, 181, 71, 0.08);
+}
+
+.ui-ask__opt .ui-perm__check {
+  margin-top: 2px;
+  flex: none;
+}
+
+.ui-ask__opt-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-ask__label {
+  font-size: 12.5px;
+  color: #f3f6fc;
+  overflow-wrap: anywhere;
+}
+
+.ui-ask__desc {
+  font-size: 11.5px;
+  color: rgba(255, 226, 181, 0.72);
+  overflow-wrap: anywhere;
+}
+
+.ui-ask__opt--other {
+  align-items: center;
+}
+
+.ui-ask__other {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ui-line-strong);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ui-text);
+  font: 12.5px/1.4 var(--font-ui);
+}
+
+.ui-ask__other:focus {
+  outline: none;
+  border-color: rgba(255, 181, 71, 0.7);
+}
+
+.ui-ask__hint {
+  align-self: center;
+  font-size: 11.5px;
+  color: rgba(255, 226, 181, 0.72);
+}
+
+.ui-ask--term {
+  flex: none;
+  margin: 0 10px 8px;
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.ui-term.is-asking .ui-term__input::placeholder {
+  color: var(--st-waiting);
+}
+
+/* No terminal o cartão rola: Enviar fica sempre à vista no rodapé dele. */
+.ui-ask--term .ui-perm__actions {
+  position: sticky;
+  bottom: -12px;
+  margin: 10px -12px -12px;
+  padding: 8px 12px 10px;
+  background: #2a2418;
+  border-top: 1px solid rgba(255, 181, 71, 0.3);
+}
+
+/* Tela desconhecida no terminal do agente (DialogCard): trecho do terminal e as teclas. */
+.ui-ask__screen {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.42);
+  color: #e6ebf5;
+  font: 11.5px/1.45 var(--font-mono);
+  white-space: pre;
+  scrollbar-width: thin;
+}
+
+.ui-ask__key {
+  min-width: 44px;
+  font-family: var(--font-mono);
 }

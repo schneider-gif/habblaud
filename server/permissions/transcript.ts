@@ -60,7 +60,7 @@ export function callSignature(tool: string, input: unknown): string {
 }
 
 /** Lê os últimos `bytes` do arquivo (a primeira linha, possivelmente cortada, é descartada). */
-function readTail(path: string, bytes: number): string[] {
+export function readTail(path: string, bytes: number): string[] {
   const fd = openSync(path, 'r');
   try {
     const size = fstatSync(fd).size;

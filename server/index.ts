@@ -21,6 +21,8 @@ import { Office } from './model/office';
 import { openMainAgent, SessionHistory } from './sources/history';
 import { createPermissionRoutes } from './permissions/http';
 import { PermissionRegistry } from './permissions/registry';
+import { DialogWatcher } from './questions/dialogs';
+import { QuestionService } from './questions/service';
 import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -42,6 +44,8 @@ import { GithubService } from './github/service';
 import { createGithubRoutes, githubOffReason } from './github/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
+import { Carteiro } from './mensagens/carteiro';
+import { raizPadrao } from '../mod/habblaud/mensagens/caixa.mjs';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -62,7 +66,7 @@ const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -123,6 +127,8 @@ const office = new Office({
     for (const a of late.codex?.approvals() ?? []) if (!m.has(a.agentId)) m.set(a.agentId, { ...a.info, input: undefined });
     return m;
   },
+  questions: () => late.questions?.get() ?? new Map(),
+  dialogs: () => late.dialogs?.get() ?? new Map(),
   updates: () => updates.status(),
   announcement: () => announce.get(),
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
@@ -180,6 +186,21 @@ const missions = missionsStore
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
 const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Perguntas com opções (AskUserQuestion): lidas do transcript e respondidas pelo chat dirigindo o diálogo no tmux.
+const questions = config.terminal
+  ? new QuestionService({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id), input: input && { screen: (id) => input.screen(id), driveKeys: (id, k) => input.driveKeys(id, k), typeText: (id, t) => input.typeText(id, t) } })
+  : undefined;
+late.questions = questions;
+// Telas de seleção que o Habblaud não conhece (ex.: "Teach auto mode"): trecho do terminal com ↑ ↓ Enter Esc no escritório.
+const dialogs =
+  config.terminal && input
+    ? new DialogWatcher({
+        office,
+        input: { screen: (id) => input.screen(id), navKeys: (id, k) => input.navKeys(id, k) },
+        covered: (id) => !!questions?.pendingOf(id) || !!late.permissions?.snapshot().has(id) || !!late.codex?.approvals().some((a) => a.agentId === id),
+      })
+    : undefined;
+late.dialogs = dialogs;
 // Fonte "codex": conversas abertas do Codex CLI; a tela do tmux diz quando ele pede aprovação ou login.
 const codexWatcher = codexOff
   ? undefined
@@ -189,6 +210,19 @@ const codexWatcher = codexOff
       screen: input && config.terminal ? (pid) => input.screen(`.codex:${pid}`) : undefined,
     });
 late.codex = codexWatcher;
+// Mensagens entre agentes (hb-msg): a CLI grava na caixa; o carteiro digita o aviso no tmux do destinatário quando ele
+// fica livre. Mesma trava de mandar mensagens pelo escritório (bind local, Linux).
+const carteiro =
+  config.terminal && input
+    ? new Carteiro({
+        raiz: raizPadrao(config.home, process.env),
+        agentes: () => office.list(),
+        disponivel: (id) => input.available(id),
+        digitar: (id, texto) => input.send(id, texto),
+        aoChegar: (m, de, para) =>
+          office.noticeMessage(de?.id, m.de.nome || m.de.sid.slice(0, 8), para?.name ?? (m.para.nome || m.para.sid.slice(0, 8)), m.id, !!m.respondeA),
+      })
+    : undefined;
 /** Sessões tmux agente-* abertas pelo escritório para o Codex (agente-codex-*) ou para o Claude (o resto). */
 const isCodexSession = (s: { session: string }) => s.session.startsWith('agente-codex-');
 // Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
@@ -268,7 +302,10 @@ if (timeline) {
   timeline.ingest(hub.current());
 }
 permissions?.start();
+questions?.start();
+dialogs?.start();
 missions?.startTimer();
+carteiro?.start();
 // Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
 void missions?.evaluate();
 missions?.watchAuth();
@@ -318,6 +355,8 @@ const api = createApiHandler({
     void codexSetupWatcher?.scan();
     return r;
   } } : input,
+  questions,
+  dialogs,
   missions,
   github: githubRoutes,
   shell: shellRoutes.api,
@@ -431,6 +470,8 @@ function shutdown(signal: string): void {
   terminals?.stop();
   timeline?.stop();
   permissions?.stop();
+  questions?.stop();
+  dialogs?.stop();
   missions?.stop();
   setupWatcher?.stop();
   codexSetupWatcher?.stop();

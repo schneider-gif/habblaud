@@ -14,6 +14,7 @@ import { ICONS } from './icons';
 import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
+import { DialogCard, QUESTION_WAIT_TEXT, QuestionCard } from './question';
 import {
   clearHits,
   copyTextOf,
@@ -634,7 +635,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private currentEl: HTMLElement | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private inputEl!: HTMLInputElement;
+  private inputEl!: HTMLTextAreaElement;
   /** O agente aberto recebe mensagens (roda no tmux). */
   private canSend = false;
   /** A consulta de GET /api/agents/:id/input já respondeu para o agente aberto. */
@@ -645,6 +646,10 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   /** Último aviso de caixa travada (não repete a cada Enter/clique). */
   private blockedAt = -Infinity;
   private roEl!: HTMLElement;
+  /** Pergunta com opções (AskUserQuestion) do agente aberto, respondida por aqui. */
+  private ask: QuestionCard;
+  /** Tela de seleção desconhecida no terminal do agente (↑ ↓ Enter Esc). */
+  private dialog: DialogCard;
   private sendBadge!: HTMLElement;
 
   private kindEl: HTMLElement;
@@ -763,12 +768,15 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.statusTime = h('span', { class: 'ui-term__status-time' });
     this.status = h('p', { class: 'ui-term__status' }, this.glyph, this.statusText, this.statusTime);
     // Travada = readonly + aria-disabled (e não disabled): continua focável, e Enter ou um clique explicam o porquê.
-    const input = h('input', {
+    // Várias linhas: Enter envia, Shift+Enter quebra a linha (o servidor cola o texto com bracketed paste no TUI).
+    const input = h('textarea', {
       class: 'ui-term__input',
-      type: 'text',
-      attrs: { readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
+      attrs: { rows: 1, readonly: true, 'aria-disabled': 'true', placeholder: INPUT_PLACEHOLDER, 'aria-label': INPUT_PLACEHOLDER, maxlength: '8000' },
     });
+    input.addEventListener('input', () => fitInput(input));
     this.inputEl = input;
+    this.ask = new QuestionCard(ctx, 'term');
+    this.dialog = new DialogCard(ctx, 'term');
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -786,6 +794,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       bar,
       tools,
       h('div', { class: 'ui-term__body' }, this.alertEl, this.scroll, this.newBtn),
+      this.ask.el,
+      this.dialog.el,
       h('div', { class: 'ui-term__foot' }, this.status, h('label', { class: 'ui-term__prompt' }, h('span', { class: 'ui-term__caret', text: '>', attrs: { 'aria-hidden': 'true' } }), input)),
     );
     this.el.addEventListener('keydown', (e) => this.onKey(e));
@@ -856,6 +866,22 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     else this.renderAgentHead();
     this.renderFooter();
     this.renderState();
+    this.renderAsk();
+  }
+
+  /** Pergunta pendente do agente aberto: cartão acima da caixa, e a caixa avisa (o texto digitado fica guardado). */
+  private renderAsk(): void {
+    const agent = this.id && !this.session ? this.ctx.agent(this.id) : undefined;
+    const before = this.ask.visible || this.dialog.visible;
+    this.ask.render(agent);
+    this.dialog.render(agent);
+    const asking = this.ask.visible || this.dialog.visible;
+    const wait = this.dialog.visible ? 'O terminal do agente espera você responder a tela acima' : QUESTION_WAIT_TEXT;
+    const label = asking ? `${wait} (o que você digitar fica guardado aqui)` : this.canSend ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
+    setAttr(this.inputEl, 'placeholder', label);
+    setAttr(this.inputEl, 'aria-label', label);
+    this.el.classList.toggle('is-asking', asking);
+    if (asking && !before && this.follow) requestAnimationFrame(() => this.scrollToEnd());
   }
 
   /** Abre o painel numa conversa nova (agente ou sessão do histórico); a mesma conversa só recebe o foco. */
@@ -1420,6 +1446,13 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (!id || this.sending) return;
     if (!this.canSend) return this.explainBlocked(true);
     if (!text) return;
+    // Diálogo de pergunta aberto no terminal: o TUI perderia o texto (ou um Enter escolheria uma opção).
+    if (this.ask.visible || this.dialog.visible) {
+      const card = this.ask.visible ? this.ask : this.dialog;
+      this.ctx.notify(`${this.ask.visible ? QUESTION_WAIT_TEXT : 'O terminal do agente espera você responder a tela acima'}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
+      card.el.focus({ preventScroll: false });
+      return;
+    }
     this.sending = true;
     this.inputEl.disabled = true;
     const name = this.ctx.agent(id)?.name ?? this.last?.name;
@@ -1433,13 +1466,14 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       // notify também anuncia aos leitores de tela (região viva), então o aviso vale para os dois.
       if (r.ok) {
         this.inputEl.value = '';
+        fitInput(this.inputEl);
         this.ctx.notify(sentText(name));
         // primeira mensagem: o transcript nasce agora, então o stream que falhou tenta de novo
         if (this.conn === 'failed') setTimeout(() => this.id === id && this.connect(), 1500);
       } else {
         this.ctx.notify(sendErrorText(r.status, j.error), 'warn');
         // 409: o agente deixou de receber mensagens (saiu do tmux, pid trocou): a caixa trava e explica.
-        if (r.status === 409 && this.id === id) this.setCanSend(false);
+        if (r.status === 409 && this.id === id && !j.error?.startsWith(QUESTION_WAIT_TEXT) && !j.error?.startsWith('O terminal do agente')) this.setCanSend(false);
       }
     } catch {
       this.ctx.notify(sendErrorText(0), 'warn');
@@ -1523,6 +1557,16 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (this.spinTimer) clearInterval(this.spinTimer);
     this.spinTimer = null;
   }
+}
+
+/** Linhas visíveis no máximo na caixa de mensagem (depois disso ela rola). */
+const INPUT_MAX_ROWS = 6;
+
+/** A caixa cresce com o texto (Shift+Enter) até INPUT_MAX_ROWS linhas. */
+function fitInput(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto';
+  const line = parseFloat(getComputedStyle(el).lineHeight) || 19;
+  el.style.height = `${Math.min(el.scrollHeight, line * INPUT_MAX_ROWS)}px`;
 }
 
 function activeElement(): HTMLElement | null {

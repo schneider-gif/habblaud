@@ -247,6 +247,37 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       for (const k of keys) await run(['-S', t.socket, 'send-keys', '-t', t.pane, k]);
     },
 
+    /**
+     * Teclas de navegação para dirigir o diálogo de uma pergunta com opções (AskUserQuestion): setas, Espaço, Enter e
+     * Backspace. Lista fechada: Esc, Ctrl+C e texto livre nunca passam por aqui.
+     */
+    async driveKeys(id: string, keys: readonly string[]): Promise<void> {
+      if (!keys.length || keys.length > 40 || keys.some((k) => !/^(Up|Down|Space|Enter|BSpace)$/.test(k))) throw new InputError(400, 'tecla inválida');
+      const t = await targetOf(id);
+      if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
+      await run(['-S', t.socket, 'send-keys', '-t', t.pane, ...keys]);
+    },
+
+    /**
+     * Uma tecla dos botões do escritório para um diálogo desconhecido na tela do agente (↑ ↓ Enter Esc). Esc só passa
+     * por aqui, e uma por vez: quem chama (DialogWatcher) confere antes que a tela mostra um diálogo de seleção.
+     */
+    async navKeys(id: string, keys: readonly string[]): Promise<void> {
+      if (keys.length !== 1 || !/^(Up|Down|Enter|Escape)$/.test(keys[0])) throw new InputError(400, 'tecla inválida');
+      const t = await targetOf(id);
+      if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
+      await run(['-S', t.socket, 'send-keys', '-t', t.pane, keys[0]]);
+    },
+
+    /** Texto literal (send-keys -l) no pane: o campo "Outro" de uma pergunta. Uma linha, sem caracteres de controle. */
+    async typeText(id: string, text: string): Promise<void> {
+      // eslint-disable-next-line no-control-regex
+      if (!text || text.length > INPUT_MAX_CHARS || /[\u0000-\u001f\u007f]/.test(text)) throw new InputError(400, 'texto inválido');
+      const t = await targetOf(id);
+      if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
+      await run(['-S', t.socket, 'send-keys', '-t', t.pane, '-l', '--', text]);
+    },
+
     /** Tela atual do pane do agente (texto puro), para conferir o que o Codex está pedindo. */
     async screen(id: string): Promise<string | undefined> {
       const t = await targetOf(id);

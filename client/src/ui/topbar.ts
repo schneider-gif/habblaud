@@ -52,6 +52,8 @@ export class TopBar implements UiComponent {
   private githubBtn: HTMLButtonElement;
   /** Link rápido (meta.links.vscode): o VS Code do escritório na nuvem. */
   private vscodeLink: HTMLAnchorElement;
+  /** Inseto (meta.links.bug): reportar bug no portal do serviço que hospeda o escritório. */
+  private bugLink: HTMLAnchorElement;
   /** Selo no botão do painel lateral recolhido: quantos precisam de você. */
   private sidebarBadge: HTMLElement;
   /** "⋯": guarda os botões que não cabem na barra (do menos ao mais importante; ver fit()). */
@@ -134,6 +136,7 @@ export class TopBar implements UiComponent {
         h('span', { class: 'ui-btn-link__label', text: label }),
       );
     this.vscodeLink = link('ui-btn-vscode', ICONS.code, 'VS Code', 'Abrir o VS Code do escritório em outra aba');
+    this.bugLink = link('ui-btn-bug', '🐞', 'Bug', 'Achou um bug? Conte pra gente');
     // GitHub do escritório (meta.github): conectar pelo gh no terminal embutido, clonar, criar repositório, PRs.
     this.githubBtn = h(
       'button',
@@ -215,7 +218,7 @@ export class TopBar implements UiComponent {
       ),
       counterWrap,
       this.usage.el,
-      (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.githubBtn, this.vscodeLink), viewGroup, panelGroup, this.moreBtn)),
+      (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.githubBtn, this.vscodeLink, this.bugLink), viewGroup, panelGroup, this.moreBtn)),
       this.moreMenu,
     );
     this.viewGroupEl = viewGroup;
@@ -228,7 +231,7 @@ export class TopBar implements UiComponent {
   /** Do menos ao mais importante: o que vai primeiro para o "⋯" quando a barra não cabe. */
   private overflowCandidates(): HTMLElement[] {
     const panel = [...this.panelGroup.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c !== this.settingsBtn);
-    return [this.viewGroupEl, ...panel, this.vscodeLink, this.githubBtn];
+    return [this.viewGroupEl, ...panel, this.bugLink, this.vscodeLink, this.githubBtn];
   }
 
   private scheduleFit(): void {
@@ -349,7 +352,7 @@ export class TopBar implements UiComponent {
     setHidden(this.shellBtn, !this.ctx.isShellAvailable());
     setHidden(this.githubBtn, store.mock || !snap?.meta.github);
     // Botões que aparecem/somem mudam o que cabe: reencaixa.
-    const sig = [this.newAgentBtn.hidden, this.ctx.isShellAvailable(), !!snap?.meta.links?.vscode, !!snap?.meta.github, store.mock, (snap?.accounts.length ?? 0), c.waiting > 0, c.shells > 0].join();
+    const sig = [this.newAgentBtn.hidden, this.ctx.isShellAvailable(), !!snap?.meta.links?.vscode, !!snap?.meta.links?.bug, !!snap?.meta.github, store.mock, (snap?.accounts.length ?? 0), c.waiting > 0, c.shells > 0].join();
     if (sig !== this.fitSig) {
       this.fitSig = sig;
       this.scheduleFit();
@@ -358,6 +361,8 @@ export class TopBar implements UiComponent {
     const links = store.mock ? undefined : snap?.meta.links;
     setAttr(this.vscodeLink, 'href', links?.vscode);
     setHidden(this.vscodeLink, !links?.vscode);
+    setAttr(this.bugLink, 'href', links?.bug);
+    setHidden(this.bugLink, !links?.bug);
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
     setHidden(this.timelapseBtn, store.mock);

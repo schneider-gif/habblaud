@@ -42,7 +42,7 @@ export interface ServerConfig {
    */
   shell: boolean;
   /** Link rápido da barra superior (HABBLAUD_VSCODE_URL): só URL http(s); sem a variável, o botão não aparece. */
-  links: { vscode?: string };
+  links: { vscode?: string; bug?: string };
   /** Grava a linha do tempo do escritório para o timelapse (<dataDir>/timeline); HABBLAUD_TIMELINE=0 desliga. */
   timeline: boolean;
   /** Raiz do projeto (onde fica o package.json); serve dist/client a partir daqui. */
@@ -191,7 +191,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     allowedHosts: parseAllowedHosts(env.HABBLAUD_ALLOWED_HOSTS),
     terminal: terminalOffReason(env, host, inDocker) === undefined,
     shell: shellOffReason(env, host, inDocker) === undefined,
-    links: { vscode: cleanLink(env.HABBLAUD_VSCODE_URL) },
+    links: { vscode: cleanLink(env.HABBLAUD_VSCODE_URL), bug: cleanLink(env.HABBLAUD_BUG_URL) },
     timeline: !env.HABBLAUD_TIMELINE?.trim() || isTruthy(env.HABBLAUD_TIMELINE),
     rootDir,
     version: pkg.version,
