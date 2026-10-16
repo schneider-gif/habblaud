@@ -71,7 +71,7 @@ export interface ApiDeps {
 }
 
 /** POST {toolUseId, answers} /api/agents/:id/answer (pergunta com opções). */
-const ANSWER_ROUTE = /^/api/agents/([^/]+)/answer$/;
+const ANSWER_ROUTE = /^\/api\/agents\/([^/]+)\/answer$/;
 /** Recusa de mensagem enquanto o agente espera a resposta de uma pergunta. */
 export const QUESTION_PENDING_ERROR = 'O agente está esperando você responder a pergunta acima';
 
