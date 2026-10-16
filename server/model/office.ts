@@ -146,7 +146,7 @@ export interface CommitResult {
   notices: Notice[];
 }
 
-type NoticeKind = 'arrive' | 'room' | 'wait' | 'deliver' | 'done' | 'leave' | 'shell' | 'shellDone' | 'github';
+type NoticeKind = 'arrive' | 'room' | 'wait' | 'deliver' | 'done' | 'leave' | 'shell' | 'shellDone' | 'github' | 'message';
 
 /** Pergunta ainda sem resposta (o balão dela já diz que o agente espera você). */
 function isOpenQuestion(a: Activity | undefined): boolean {
@@ -712,6 +712,19 @@ export class Office {
     const info = this.agents.get(id)?.info;
     if (!info) return;
     this.notice('wait', id, 'alert', `🔐 ${info.name} pede permissão em ${this.roomName(info.roomId)}: ${what}`, info.roomId);
+    this.markDirty();
+  }
+
+  // ---------------------------------------------------------------- mensagens entre agentes (server/mensagens)
+
+  /**
+   * Aviso no feed quando um agente manda mensagem a outro pelo hb-msg ("📨 Flavia → Bruno"). Só os nomes: o texto
+   * é privado dos dois. `key` = id da mensagem (uma vez por mensagem).
+   */
+  noticeMessage(fromId: string | undefined, fromName: string, toName: string, key: string, reply = false): void {
+    const info = fromId ? this.agents.get(fromId)?.info : undefined;
+    const text = `📨 ${info?.name ?? fromName} → ${toName}${reply ? ' (resposta)' : ''}`;
+    this.notice('message', fromId ?? `msg:${key}`, 'info', text, info?.roomId, { dedupeKey: `msg|${key}` });
     this.markDirty();
   }
 

@@ -10,6 +10,13 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- Agentes conversando entre si: comando `hb-msg` (`quem`, `enviar`, `ler`, `responder`) e a skill `comunicacao` no
+  plugin do Claude Code (o mesmo SKILL.md serve ao Codex). A mensagem fica na caixa privada do destinatário e o
+  Habblaud digita o aviso no terminal dele quando ele fica livre; no feed aparece "📨 Flavia → Bruno". Limite de 8 KB
+  por mensagem e anti-loop por par (5/min, 30/h).
+
 ## [0.9.0] - 2026-10-15
 
 ### Adicionado

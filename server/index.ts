@@ -42,6 +42,8 @@ import { GithubService } from './github/service';
 import { createGithubRoutes, githubOffReason } from './github/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
+import { Carteiro } from './mensagens/carteiro';
+import { raizPadrao } from '../mod/habblaud/mensagens/caixa.mjs';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -189,6 +191,19 @@ const codexWatcher = codexOff
       screen: input && config.terminal ? (pid) => input.screen(`.codex:${pid}`) : undefined,
     });
 late.codex = codexWatcher;
+// Mensagens entre agentes (hb-msg): a CLI grava na caixa; o carteiro digita o aviso no tmux do destinatário quando ele
+// fica livre. Mesma trava de mandar mensagens pelo escritório (bind local, Linux).
+const carteiro =
+  config.terminal && input
+    ? new Carteiro({
+        raiz: raizPadrao(config.home, process.env),
+        agentes: () => office.list(),
+        disponivel: (id) => input.available(id),
+        digitar: (id, texto) => input.send(id, texto),
+        aoChegar: (m, de, para) =>
+          office.noticeMessage(de?.id, m.de.nome || m.de.sid.slice(0, 8), para?.name ?? (m.para.nome || m.para.sid.slice(0, 8)), m.id, !!m.respondeA),
+      })
+    : undefined;
 /** Sessões tmux agente-* abertas pelo escritório para o Codex (agente-codex-*) ou para o Claude (o resto). */
 const isCodexSession = (s: { session: string }) => s.session.startsWith('agente-codex-');
 // Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
@@ -269,6 +284,7 @@ if (timeline) {
 }
 permissions?.start();
 missions?.startTimer();
+carteiro?.start();
 // Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
 void missions?.evaluate();
 missions?.watchAuth();
