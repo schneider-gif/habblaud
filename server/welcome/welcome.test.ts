@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { setQuiet } from '../log';
 import { StateStore } from '../model/state';
-import { DELIVERY_SETTLE_MAX_MS, DELIVERY_TIMEOUT_MS, hasConversations, parseWelcomeRecord, WELCOME_KEY, WelcomeService, welcomeOff, type WelcomeDeps } from './welcome';
+import { DELIVERY_SETTLE_MAX_MS, DELIVERY_TIMEOUT_MS, hasConversations, PROMPT_RE, parseWelcomeRecord, WELCOME_KEY, WelcomeService, welcomeOff, type WelcomeDeps } from './welcome';
 
 setQuiet(true);
 
@@ -119,6 +119,18 @@ describe('boas-vindas', () => {
     const b = make();
     await b.svc.start('organizar');
     expect(b.spawned).toEqual(['']);
+  });
+
+  it('espera o campo de mensagem aparecer na tela antes de colar (abertura do Claude não conta)', async () => {
+    // sessão criada em 1 s, mas a caixa "│ > │" só é desenhada em 5 s
+    const { svc, sent } = make({ readyAt: 1_000, screens: (t) => (t < 5_000 ? 'Iniciando o Claude...' : '╭──╮\n│ > │\n╰──╯') });
+    await svc.start('explicar');
+    await svc.pending;
+    expect(sent).toHaveLength(1);
+    expect(sent[0].at).toBeGreaterThanOrEqual(6_000);
+    expect(sent[0].at).toBeLessThan(1_000 + DELIVERY_SETTLE_MAX_MS);
+    expect(PROMPT_RE.test('──────\n❯ \n──────')).toBe(true);
+    expect(PROMPT_RE.test('Welcome to Claude Code\n>_ tips')).toBe(false);
   });
 
   it('tela que não para de mudar: manda depois de DELIVERY_SETTLE_MAX_MS com o agente presente', async () => {

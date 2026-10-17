@@ -18,6 +18,11 @@ export const DELIVERY_POLL_MS = 1_000;
 export const DELIVERY_SETTLE_MAX_MS = 8_000;
 /** Desiste da entrega depois disso (cobre tema/configuração terminados no terminal). */
 export const DELIVERY_TIMEOUT_MS = 10 * 60_000;
+/**
+ * Campo de mensagem do Claude Code desenhado na tela: ">" ou "❯" no começo de uma linha (dentro da caixa "│ > " ou
+ * solto). Antes disso a tela ainda é a abertura do programa.
+ */
+export const PROMPT_RE = /(^|\n)[ \t│|]*[>❯](\s|$)/;
 /** Tentativas de envio (tmux recusou, pid trocou no meio). */
 const SEND_ATTEMPTS = 3;
 
@@ -203,8 +208,8 @@ export class WelcomeService {
 
   /**
    * Espera o Claude subir e cola a mensagem. Pronto = agente no escritório (sessão criada) e recebendo pelo tmux;
-   * depois, a tela do pane igual em duas leituras seguidas (o campo de mensagem já foi desenhado), ou
-   * DELIVERY_SETTLE_MAX_MS de agente presente.
+   * depois, a tela do pane com o campo de mensagem (PROMPT_RE) e igual em duas leituras seguidas, ou
+   * DELIVERY_SETTLE_MAX_MS de agente presente (versão do Claude com outra tela).
    */
   private async deliver(): Promise<void> {
     const dl = this.delivery;
@@ -223,7 +228,7 @@ export class WelcomeService {
       }
       readySince ??= this.now();
       const screen = (await this.d.screen(id))?.trimEnd();
-      const settled = !!screen && screen === lastScreen;
+      const settled = !!screen && screen === lastScreen && PROMPT_RE.test(screen);
       lastScreen = screen;
       if (!settled && this.now() - readySince < DELIVERY_SETTLE_MAX_MS) continue;
       try {
