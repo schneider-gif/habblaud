@@ -41,6 +41,7 @@ import { CodexWatcher } from './codex/watcher';
 import { codexAccountName, codexAccounts, codexAuth, discoverCodexDirs, isCodexAccount } from './codex/detect';
 import { withCodexPermissions } from './codex/approvals';
 import { GithubService } from './github/service';
+import { hasConversations, WelcomeService, welcomeOff } from './welcome/welcome';
 import { createGithubRoutes, githubOffReason } from './github/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
@@ -67,7 +68,7 @@ const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher; welcome?: WelcomeService } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -246,7 +247,10 @@ const setupWatcher = shellService
       restart: input
         ? async (s) => {
             const r = await input.spawn(s.cwd);
-            if (r.pid) office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
+            if (r.pid) {
+              office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
+              late.welcome?.moveAgent(`.claude:${s.pid}`, `.claude:${r.pid}`);
+            }
             await shellService.killAgentSession(s.session);
             log.info(`Agente reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
           }
@@ -329,6 +333,37 @@ const ticker = setInterval(() => {
   }
 }, 250);
 
+// Agentes abertos pelo escritório: depois do spawn, confere já os que ficaram no tema/login (bonecos provisórios).
+const officeInput =
+  input && (setupWatcher || codexSetupWatcher)
+    ? {
+        ...input,
+        spawn: async (...a: Parameters<typeof input.spawn>) => {
+          const r = await input.spawn(...a);
+          void setupWatcher?.scan();
+          void codexSetupWatcher?.scan();
+          return r;
+        },
+      }
+    : input;
+// Cartão de boas-vindas (docs/BOAS-VINDAS.md): decisão no state.json; abre agentes, então segue a trava do spawn.
+const welcome =
+  officeInput && config.terminal
+    ? new WelcomeService({
+        store: state,
+        enabled: () => !welcomeOff(process.env),
+        loggedIn: async () => (await claudeAuth({ home: config.home, configDirs: accounts.entries().map((a) => a.dir), env: process.env })).connected,
+        usedBefore: () => hasConversations(accounts.entries().map((a) => a.dir), codexAuthDirs()),
+        spawn: (cwd) => officeInput.spawn(cwd, { engine: 'claude' }),
+        // mesmo critério do SetupWatcher (hasAgentPid): o Claude já criou a sessão e entrou no escritório
+        agentReady: (id) => office.list().some((a) => a.id === id && a.kind === 'main' && a.status !== 'offline' && !a.setup),
+        available: (id) => officeInput.available(id),
+        screen: (id) => officeInput.screen(id),
+        send: (id, text) => officeInput.send(id, text),
+      })
+    : undefined;
+late.welcome = welcome;
+
 const api = createApiHandler({
   office,
   hub,
@@ -350,15 +385,11 @@ const api = createApiHandler({
       : permissions
         ? createPermissionRoutes(permissions)
         : undefined,
-  input: input && (setupWatcher || codexSetupWatcher) ? { ...input, spawn: async (...a: Parameters<typeof input.spawn>) => {
-    const r = await input.spawn(...a);
-    void setupWatcher?.scan();
-    void codexSetupWatcher?.scan();
-    return r;
-  } } : input,
+  input: officeInput,
   questions,
   dialogs,
   missions,
+  welcome,
   github: githubRoutes,
   shell: shellRoutes.api,
   shellAvailable: () => shellState.reason === undefined && !office.isDemo(),

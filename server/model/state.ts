@@ -7,7 +7,14 @@ import { errMsg, log } from '../log';
 
 /** Chaves aceitas (mesmos nomes do localStorage do cliente). */
 export const STATE_KEYS = ['habblaud.wallets.v1', 'habblaude.needs.v1', 'habblaude.social.v1'] as const;
-export type StateKey = (typeof STATE_KEYS)[number];
+/**
+ * Chaves que só o servidor grava (o PUT /api/state recusa): decisões que a página não pode desfazer sozinha, como
+ * o cartão de boas-vindas já pulado (server/welcome/welcome.ts). Vão no mesmo arquivo e no GET.
+ */
+export const SERVER_STATE_KEYS = ['habblaud.boasvindas.v1'] as const;
+export type ServerStateKey = (typeof SERVER_STATE_KEYS)[number];
+export type StateKey = (typeof STATE_KEYS)[number] | ServerStateKey;
+const ALL_KEYS: readonly StateKey[] = [...STATE_KEYS, ...SERVER_STATE_KEYS];
 /** Maior valor por chave (bytes do texto JSON). */
 export const STATE_MAX_BYTES = 200 * 1024; // cabe no limite de corpo da API (256 KB)
 
@@ -23,7 +30,7 @@ export class StateStore {
     if (!this.file) return;
     try {
       const j = JSON.parse(readFileSync(this.file, 'utf8')) as Record<string, unknown>;
-      for (const k of STATE_KEYS) if (typeof j[k] === 'string') this.data[k] = j[k] as string;
+      for (const k of ALL_KEYS) if (typeof j[k] === 'string') this.data[k] = j[k] as string;
     } catch {
       // primeira vez ou arquivo corrompido: começa vazio
     }
@@ -43,6 +50,17 @@ export class StateStore {
       throw new StateError('valor não é JSON');
     }
     this.data[key as StateKey] = value;
+    this.scheduleFlush();
+  }
+
+  /** Lê uma chave do servidor (texto JSON) ou undefined. */
+  getServer(key: ServerStateKey): string | undefined {
+    return this.data[key];
+  }
+
+  /** Grava uma chave que só o servidor controla (sem passar pela lista do PUT). */
+  setServer(key: ServerStateKey, value: string): void {
+    this.data[key] = value;
     this.scheduleFlush();
   }
 

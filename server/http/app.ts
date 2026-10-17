@@ -11,6 +11,7 @@ import { cleanProfile, ProfileError } from '../../shared/profile';
 import { type StateStore, StateError } from '../model/state';
 import { handleMissionsRoute } from './missions';
 import type { MissionsEngine } from '../missions/engine';
+import { type WelcomeService, WelcomeLoginError } from '../welcome/welcome';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
@@ -59,6 +60,11 @@ export interface ApiDeps {
    * trava das rotas que abrem agentes: só com bind local (`terminal`) e Host local; sem isto, 403.
    */
   missions?: MissionsEngine;
+  /**
+   * Cartão de boas-vindas (GET /api/welcome, POST /api/welcome/{start,skip}; welcome/welcome.ts). Abre agentes: a
+   * mesma trava do spawn (bind local + Host local). Sem isto (ou fora da trava) o GET diz {state: "off"}.
+   */
+  welcome?: WelcomeService;
   /** Terminal embutido (/api/shell*, shell/http.ts): a trava fica lá; devolve false para o resto. */
   shell?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Painel do GitHub (/api/github*, github/http.ts): a trava fica lá; devolve false para o resto. */
@@ -99,6 +105,8 @@ const CODEX_SPAWN_ACCOUNT = '.codex';
  * corpo é ignorado. GET devolve {available, folders, home}.
  */
 const NEW_AGENT_ROUTE = '/api/agents/new';
+/** GET /api/welcome (WelcomeView) e POST /api/welcome/start {choice} · /api/welcome/skip: cartão de boas-vindas. */
+const WELCOME_ROUTE = '/api/welcome';
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
 const TERMINAL_ROUTE = /^\/api\/agents\/([^/]+)\/terminal$/;
 
@@ -382,6 +390,35 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             })
             .catch((err) => failInput(res, err));
       }
+      return true;
+    }
+    if (path === WELCOME_ROUTE || path.startsWith(`${WELCOME_ROUTE}/`)) {
+      const welcome = deps.terminal && isLoopbackHost(req.headers.host) ? deps.welcome : undefined;
+      const action = path.slice(WELCOME_ROUTE.length);
+      if (action === '') {
+        if (!isRead) methodNotAllowed(res, 'GET');
+        else if (!welcome) sendJson(res, 200, { state: 'off', suggestions: [] });
+        else welcome.view().then((v) => sendJson(res, 200, v), (err) => fail(res, err));
+      } else if (action !== '/start' && action !== '/skip') {
+        req.resume();
+        sendJson(res, 404, { error: 'rota desconhecida' });
+      } else if (method !== 'POST') {
+        req.resume();
+        methodNotAllowed(res, 'POST');
+      } else if (!welcome) {
+        req.resume();
+        sendJson(res, 403, { error: 'boas-vindas só pelo próprio escritório (http://localhost ou http://127.0.0.1)' });
+      } else
+        readJson(req)
+          .then(async (body) => {
+            if (action === '/skip') {
+              welcome.skip();
+              return sendJson(res, 200, { ok: true, view: await welcome.view() });
+            }
+            const r = await welcome.start((body as { choice?: unknown } | null)?.choice);
+            sendJson(res, 201, { ok: true, ...r });
+          })
+          .catch((err) => (err instanceof WelcomeLoginError ? sendJson(res, 409, { error: err.message, login: true }) : failInput(res, err)));
       return true;
     }
     if (path === '/api/github' || path.startsWith('/api/github/')) {
