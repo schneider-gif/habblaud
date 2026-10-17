@@ -8,6 +8,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+## [0.10.2] - 2026-10-17
+
+### Corrigido
+
+- Criar um agente numa pasta que ainda não existe não dá mais erro 400: um nome simples (ex.: `meu-site`) vira
+  `~/projetos/meu-site` e um caminho novo é criado dentro do HOME. Caminhos que saem do HOME continuam recusados.
+
 ## [0.10.1] - 2026-10-16
 
 ### Adicionado
