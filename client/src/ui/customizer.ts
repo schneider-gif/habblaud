@@ -107,7 +107,7 @@ export class AgentCustomizer {
     const shuffle = h('button', { class: 'ui-btn', type: 'button', text: '🎲 Sortear', on: { click: () => this.randomize() } });
 
     this.nameInput = h('input', { class: 'ui-cust__input', type: 'text', attrs: { maxlength: String(NAME_MAX), placeholder: 'Ex.: Bia', autocomplete: 'off', id: 'ui-cust-name' } });
-    this.folderInput = h('input', { class: 'ui-cust__input', type: 'text', attrs: { placeholder: 'vazio = pasta inicial', list: 'ui-cust-folders', autocomplete: 'off', id: 'ui-cust-folder' } });
+    this.folderInput = h('input', { class: 'ui-cust__input', type: 'text', attrs: { placeholder: 'vazio = pasta inicial · nome novo = cria a pasta', title: 'Uma pasta do seu HOME. Um nome novo (ex.: meu-site) cria ~/projetos/meu-site; um caminho novo (ex.: clientes/site) é criado dentro do HOME.', list: 'ui-cust-folders', autocomplete: 'off', id: 'ui-cust-folder' } });
     this.folderList = h('datalist', { attrs: { id: 'ui-cust-folders' } });
     this.folderRow = h('label', { class: 'ui-cust__field' }, h('span', { text: 'Pasta do projeto' }), this.folderInput, this.folderList);
     // Claude ou Codex (só no agente novo): a última escolha fica lembrada no navegador.
@@ -385,7 +385,7 @@ export class AgentCustomizer {
     const url = this.mode.kind === 'edit' ? `/api/agents/${encodeURIComponent(this.mode.agent.id)}/profile` : '/api/agents/new';
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      const j = (await r.json().catch(() => ({}))) as { error?: string; cwd?: string; created?: boolean };
       if (!r.ok) {
         this.errEl.textContent = j.error ?? 'Não foi possível salvar.';
         this.errEl.hidden = false;
@@ -399,7 +399,7 @@ export class AgentCustomizer {
           rivals: [...this.bonds].filter(([, k]) => k === 'rivalidade').map(([n]) => n),
         });
       this.el.close();
-      this.ctx.notify(isNew ? arrivingText(name, this.engine) : 'Agente atualizado.');
+      this.ctx.notify(isNew ? `${arrivingText(name, this.engine)}${j.created && j.cwd ? ` Pasta nova criada: ${j.cwd}.` : ''}` : 'Agente atualizado.');
     } catch {
       this.errEl.textContent = 'Não foi possível falar com o escritório.';
       this.errEl.hidden = false;

@@ -5,9 +5,9 @@
 // /proc/<pid>/environ); em outro sistema, nada fica disponível.
 import { execFile } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
-import { access, mkdir, readdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 /** Maior mensagem aceita (caracteres). */
 export const INPUT_MAX_CHARS = 8000;
@@ -159,6 +159,75 @@ export function cleanInput(text: unknown): string {
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u0008\u000b-\u001f\u007f]/.test(t)) throw new InputError(400, 'a mensagem tem caracteres de controle');
   return t;
+}
+
+/** Pasta dos projetos novos dentro do HOME (a mesma das missões e do painel do GitHub). */
+export const NEW_PROJECTS_DIRNAME = 'projetos';
+
+/** `p` é `root` ou fica dentro dele (os dois já com links resolvidos). */
+function isInside(root: string, p: string): boolean {
+  const rel = relative(root, p);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/**
+ * Pasta de um agente novo a partir do que foi digitado em "Pasta do projeto" (texto livre):
+ * - vazio ou "~" = o HOME; "~/x" = x dentro do HOME; relativo = a partir do HOME;
+ * - pasta que existe: usada como está (precisa ficar dentro do HOME, com links resolvidos);
+ * - não existe e `create`: um nome simples, sem barra ("meu-site"), vira ~/projetos/meu-site; um caminho vira ele
+ *   mesmo. Antes de criar, sobe até o pai que existe e confere o realpath dele dentro do HOME (um link simbólico
+ *   para fora é recusado sem criar nada); só então `mkdir -p`.
+ * Caracteres de controle são recusados antes de tudo. Erros são InputError 400.
+ */
+export async function resolveSpawnDir(home: string, cwd: unknown, opts: { create: boolean }): Promise<{ dir: string; created: boolean }> {
+  const raw = typeof cwd === 'string' ? cwd.trim() : '';
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(raw)) throw new InputError(400, 'pasta com caracteres inválidos');
+  const realHome = await realpath(home);
+  const typed = raw === '~' ? '' : raw.startsWith('~/') ? raw.slice(2) : raw;
+  const wanted = typed ? resolve(home, typed) : home;
+  const outside = () => new InputError(400, 'a pasta precisa estar dentro do seu HOME');
+
+  let existing: string | undefined;
+  try {
+    existing = await realpath(wanted);
+  } catch {
+    // não existe (ou link quebrado): pode ser um projeto novo, abaixo
+  }
+  if (existing !== undefined) {
+    if (!isInside(realHome, existing)) throw outside();
+    if (!(await stat(existing)).isDirectory()) throw new InputError(400, 'isso é um arquivo, não uma pasta');
+    return { dir: existing, created: false };
+  }
+  if (!opts.create) throw new InputError(400, 'pasta não encontrada');
+
+  const simple = raw !== '' && !raw.includes('/') && typed !== '.' && typed !== '..';
+  const target = simple ? resolve(home, NEW_PROJECTS_DIRNAME, typed) : wanted;
+  // Pai existente mais próximo, com links resolvidos: é ele que decide se a pasta nova fica dentro do HOME.
+  const missing: string[] = [];
+  let base = target;
+  let realBase: string | undefined;
+  while (realBase === undefined) {
+    try {
+      realBase = await realpath(base);
+    } catch {
+      const parent = dirname(base);
+      if (parent === base) throw new InputError(400, 'pasta não encontrada');
+      missing.unshift(basename(base));
+      base = parent;
+    }
+  }
+  if (!isInside(realHome, realBase)) throw outside();
+  if (!missing.length) return { dir: realBase, created: false }; // ~/projetos/<nome> já existia
+  const dir = join(realBase, ...missing);
+  try {
+    await mkdir(dir, { recursive: true });
+  } catch {
+    throw new InputError(400, 'não foi possível criar a pasta');
+  }
+  const real = await realpath(dir);
+  if (!isInside(realHome, real)) throw outside();
+  return { dir: real, created: true };
 }
 
 export function createAgentInput(deps: AgentInputDeps = {}) {
@@ -342,20 +411,14 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
     /**
      * Abre um agente novo (claude numa sessão tmux própria) numa pasta dentro do HOME. Com `resume` (sessionId),
      * retoma aquela conversa (`claude --resume <uuid>`); a pasta passa pelas mesmas checagens e pela confiança.
+     * Pasta nova (só sem `resume`) é criada dentro do HOME (ver resolveSpawnDir); `created` diz que nasceu agora.
      */
-    async spawn(cwd: unknown, opts: { resume?: unknown; engine?: unknown } = {}): Promise<{ session: string; cwd: string; pid?: number; engine: SpawnEngine }> {
+    async spawn(cwd: unknown, opts: { resume?: unknown; engine?: unknown } = {}): Promise<{ session: string; cwd: string; pid?: number; engine: SpawnEngine; created?: boolean }> {
       const resume = cleanResumeId(opts.resume);
       const engine = cleanEngine(opts.engine);
       const command = engine === 'codex' ? codexShellCommand(resume, deps.codexCommand) : claudeShellCommand(resume, deps.claudeCommand);
-      const wanted = typeof cwd === 'string' && cwd.trim() ? resolve(home, cwd.trim()) : home;
-      let dir: string;
-      try {
-        dir = await realpath(wanted);
-      } catch {
-        throw new InputError(400, 'pasta não encontrada');
-      }
-      const rel = relative(await realpath(home), dir);
-      if (rel.startsWith('..') || isAbsolute(rel)) throw new InputError(400, 'a pasta precisa estar dentro do seu HOME');
+      // Retomar nunca cria pasta: a conversa é de uma pasta que existia (se sumiu, 400 como antes).
+      const { dir, created } = await resolveSpawnDir(home, cwd, { create: resume === undefined });
       if (engine === 'codex') await markCodexTrusted(dir);
       else await markTrusted(dir);
       const session = engine === 'codex' ? `agente-codex-${now().toString(36)}` : `agente-${now().toString(36)}`;
@@ -368,7 +431,7 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
       } catch {
         // sem o pid o agente chega com nome sorteado
       }
-      return { session, cwd: dir, pid, engine };
+      return { session, cwd: dir, pid, engine, ...(created ? { created: true } : {}) };
     },
   };
 }

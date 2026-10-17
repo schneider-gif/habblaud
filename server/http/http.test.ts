@@ -540,6 +540,21 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
       };
     }
 
+    it('agente novo com pasta que não existe: nome simples nasce em ~/projetos; ".." para fora -> 400', async () => {
+      const env = await setup();
+      try {
+        const r = await request(env.base, 'POST', '/api/agents/new', { cwd: 'meu-site' });
+        expect(r.status).toBe(201);
+        expect(r.json).toMatchObject({ ok: true, cwd: join(env.home, 'projetos', 'meu-site'), created: true, pid: 4242 });
+        const fora = await request(env.base, 'POST', '/api/agents/new', { cwd: '../hb-nao-deve-existir' });
+        expect(fora.status).toBe(400);
+        expect(fora.json.error).toMatch(/HOME/);
+        expect(env.calls.length).toBe(1);
+      } finally {
+        await env.done();
+      }
+    });
+
     it('abre claude --resume <uuid> na pasta original da sessão e devolve o pid', async () => {
       const env = await setup();
       try {
