@@ -5,7 +5,7 @@
 import type { MissionsView, MissionStartResult, MissionView } from '../../../shared/missions';
 import type { UiComponent, UiContext } from './context';
 import { h, prefersReducedMotion, setHidden, setText } from './dom';
-import { boardHint, confetti, currentMission, kicker, levelProgress, parseMissionsView, stepsText } from './missions-model';
+import { boardHint, confetti, currentMission, kicker, levelProgress, mostrarBalao, parseMissionsView, stepsText } from './missions-model';
 
 const URL_BASE = '/api/missions';
 const POLL_MS = 10_000;
@@ -391,7 +391,7 @@ export class MissionBoard implements UiComponent {
   private syncBalloon(): void {
     const v = this.view;
     const hint = v ? boardHint(v) : undefined;
-    const want = !!hint && (this.minimized() || !!v?.celebrate.length || !!v?.authLost || currentMission(v!)?.state === 'available' || currentMission(v!)?.number === 0);
+    const want = !!v && mostrarBalao(v, { fechadoPeloUsuario: this.ctx.prefs.missionsMinimized, recolhido: this.minimized() });
     if (!want) {
       setHidden(this.balloon, true);
       if (this.raf) cancelAnimationFrame(this.raf);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MissionsView, MissionView } from '../../../shared/missions';
-import { boardHint, confetti, currentMission, kicker, levelProgress, parseMissionsView, stepsText } from './missions-model';
+import { boardHint, confetti, currentMission, kicker, levelProgress, mostrarBalao, parseMissionsView, stepsText } from './missions-model';
 
 const m = (n: number, state: MissionView['state'], extra: Partial<MissionView> = {}): MissionView => ({
   id: (['primeiro-site', 'peca-melhoria', 'jogo-pixel', 'leve-github', 'api-banco'] as const)[n - 1],
@@ -77,5 +77,23 @@ describe('modelo do quadro de missões', () => {
       expect(p.x).toBeLessThanOrEqual(100);
       expect(p.delay).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('mostrarBalao', () => {
+  const aberto = { fechadoPeloUsuario: false, recolhido: false };
+  const fechado = { fechadoPeloUsuario: true, recolhido: true };
+  it('quadro aberto: balão de missão nova ou concluída', () => {
+    expect(mostrarBalao(view(['available', 'locked']), aberto)).toBe(true);
+    expect(mostrarBalao(view(['done', 'available'], { celebrate: ['primeiro-site'] }), aberto)).toBe(true);
+    expect(mostrarBalao(view(['active', 'locked']), aberto)).toBe(false);
+  });
+  it('fechado pelo cliente: nenhum balão de missão, só o aviso de conta desconectada', () => {
+    expect(mostrarBalao(view(['available', 'locked']), fechado)).toBe(false);
+    expect(mostrarBalao(view(['done', 'available'], { celebrate: ['primeiro-site'] }), fechado)).toBe(false);
+    expect(mostrarBalao(view(['active', 'locked'], { authLost: true }), fechado)).toBe(true);
+  });
+  it('recolhido só pelo celular (não foi o cliente): o balão avisa que tem missão', () => {
+    expect(mostrarBalao(view(['active', 'locked']), { fechadoPeloUsuario: false, recolhido: true })).toBe(true);
   });
 });

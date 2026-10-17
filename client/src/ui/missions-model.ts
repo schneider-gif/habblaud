@@ -32,6 +32,19 @@ export function boardHint(v: MissionsView): string | undefined {
   return c.state === 'available' ? `📋 Missão nova: ${c.title ?? `nº ${c.number}`}` : `📋 Missão ${c.number} em andamento`;
 }
 
+/**
+ * Mostrar o balão sobre o quadro? Quem fechou o quadro (recolheu de propósito) não vê mais balão de missão: o quadro só
+ * volta quando a pessoa clica nele ou na etiqueta. Exceção: conta do Claude desconectada, que trava os agentes.
+ * `fechadoPeloUsuario` = preferência salva; `recolhido` inclui o recolhimento automático do celular.
+ */
+export function mostrarBalao(v: MissionsView, o: { fechadoPeloUsuario: boolean; recolhido: boolean }): boolean {
+  if (!boardHint(v)) return false;
+  if (v.authLost) return true;
+  if (o.fechadoPeloUsuario) return false;
+  const c = currentMission(v);
+  return o.recolhido || !!v.celebrate.length || c?.state === 'available' || c?.number === 0;
+}
+
 /** "Missão 2 de 5" ou "Missão 0 · preparação" (a 0 é o login, antes das missões de criação). */
 export function kicker(m: MissionView, total: number): string {
   const base = m.number === 0 ? 'Missão 0 · preparação' : `Missão ${m.number} de ${total - 1}`;
