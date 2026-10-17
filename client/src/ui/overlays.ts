@@ -76,7 +76,11 @@ export class EmptyState implements UiComponent {
   private canSpawn = false;
   private busy = false;
 
-  constructor(private ctx: UiContext) {
+  constructor(
+    private ctx: UiContext,
+    /** Outro cartão ocupa o lugar (boas-vindas da primeira abertura). */
+    private covered: () => boolean = () => false,
+  ) {
     const art = h('div', { class: 'ui-empty__art', attrs: { 'aria-hidden': 'true' } });
     const img = h('img', { attrs: { src: '/assets/illustrations/empty-office.png', alt: '', draggable: 'false' } });
     img.addEventListener('error', () => {
@@ -118,7 +122,7 @@ export class EmptyState implements UiComponent {
   render(): void {
     const { store } = this.ctx;
     const snap = store.snapshot;
-    const show = officeIsEmpty(this.ctx);
+    const show = officeIsEmpty(this.ctx) && !this.covered();
     setHidden(this.el, !show);
     if (!show || !snap) return;
     const keys = shortcutHint(snap.accounts.filter((a) => a.engine !== 'codex'));

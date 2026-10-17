@@ -55,6 +55,18 @@ do meio (0.**3**.0).
 
 - Caixa de mensagem do chat com várias linhas: Enter envia, Shift+Enter quebra a linha.
 
+### Adicionado
+
+- Boas-vindas na primeira abertura: um agente sentado na mesa oferece 3 primeiras tarefas ("Crie um site simples
+  para mim", "Explique o que você sabe fazer", "Organize meus arquivos"). Um clique abre o agente e já manda o pedido
+  quando o Claude fica pronto; sem a conta conectada, o cartão leva ao login primeiro. **✕ Pular** sempre à vista, e
+  quem pula ou usa nunca mais vê (fica salvo no servidor). `HABBLAUD_BOAS_VINDAS=0` desliga.
+
+### Corrigido
+
+- "+ Novo agente" com uma pasta que ainda não existe não dá mais erro 400: um nome novo (ex.: `meu-site`) cria
+  `~/projetos/meu-site`, e um caminho novo é criado dentro do HOME. Pastas fora do HOME continuam recusadas.
+
 ## [0.9.0] - 2026-10-15
 
 ### Adicionado
