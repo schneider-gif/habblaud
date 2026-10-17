@@ -80,6 +80,9 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `POST /api/missions/:id/start` | `{}` → `201 MissionStartResult`: cria `~/projetos/<slug>` (só `mkdir`, nunca sobrescreve), ativa a missão e abre um agente lá **sem pedido pronto** (ou reaproveita um agente já na pasta); 404 desconhecida, 409 trancada/concluída |
 | `POST /api/missions/:id/complete` | `{confirm: true}` → "Concluí": confere antes (se a detecção achar, vale como automática); 400 sem `confirm`, 409 fora da missão ativa |
 | `POST /api/missions/:id/seen` | a comemoração da missão já foi mostrada |
+| `GET /api/welcome` | `WelcomeView` (`shared/welcome.ts`): cartão de boas-vindas `off` | `done` | `login` | `ready`, as 3 sugestões e a entrega da 1ª mensagem (`delivery`). Fora da trava do spawn responde `{state: "off"}` (ver `docs/BOAS-VINDAS.md`) |
+| `POST /api/welcome/start` | `{choice: "site"|"explicar"|"organizar"}` → `201 {agentId, cwd, choice}`: abre o Claude (mesmo `input.spawn`) e manda a sugestão quando ele estiver pronto; 400 escolha inválida, 403 desligado/fora da trava, 409 já usado/pulado ou `{login: true}` sem conta conectada |
+| `POST /api/welcome/skip` | "✕ Pular": grava `done` no `state.json` (nunca mais aparece) |
 | `GET /api/stats?day=AAAA-MM-DD&tz=<IANA>&source=real\|demo` | `DayStatsResponse` do "Meu dia" (ver abaixo); padrões: hoje, fuso do servidor, demo se ligado e o dia é hoje |
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
@@ -333,6 +336,7 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (releases do repositório do `package.json` no GitHub, a cada 6 h) |
 | `HABBLAUD_ANNOUNCE_URL` | — | JSON de aviso global (`{"id","title","body","logo"?,"until"?,"confetti"?}`), lido a cada 10 min; aparece uma vez por navegador, como modal com confete, só com alguém usando o escritório. `logo` precisa ser https na mesma origem do JSON. Sem a variável = desligado. |
+| `HABBLAUD_BOAS_VINDAS` | ligado | `0` desliga de vez o cartão de boas-vindas da primeira abertura (`welcome/`, `docs/BOAS-VINDAS.md`) |
 | `HABBLAUD_DEMO` | desligado | `1` liga o modo demonstração ao iniciar |
 | `HABBLAUD_IN_DOCKER` | auto (`/.dockerenv`) | `1` = não confere PIDs (são do host) |
 | `HABBLAUD_ACCOUNTS` | — | JSON com metadados das contas vindos do host (Docker): `[{id, configDir, mountDir, short, name, email, organization, plan, color, cachedUsage}]`, casados por `id`, `mountDir` ou `configDir` |
@@ -386,6 +390,7 @@ O repositório é também um marketplace de plugins do Claude Code (`.claude-plu
 - `http/` — proteções de borda (`guard.ts`), rotas (`app.ts`), SSE (`sse.ts`), terminal somente leitura (`terminal.ts`) e o histórico dele (`sessions.ts`), timelapse (`timeline.ts`), Meu dia (`stats.ts`), estáticos (`static.ts`).
 - `history/` — gravador da linha do tempo do timelapse (`timeline.ts`) e as estatísticas do Meu dia: amostragem, persistência e retenção (`daystats.ts`; o acumulador puro fica em `shared/daystats.ts`).
 - `permissions/` — responder pelo escritório: registro dos pedidos (`registry.ts`), rotas (`http.ts`) e a busca da chamada no transcript (`transcript.ts`).
+- `welcome/` — cartão de boas-vindas da primeira abertura (`welcome.ts`: estado no `state.json`, spawn e entrega da 1ª mensagem; ver `docs/BOAS-VINDAS.md`).
 - `updates/` — verificação de versão nova nas releases do GitHub (`checker.ts`).
 
 Testes: `npx vitest run server shared` (fixtures sintéticas em `server/test/fixtures.ts`; os scripts do host —
