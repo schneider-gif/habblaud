@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, realpath, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -74,10 +74,87 @@ describe('input pelo tmux', () => {
     expect(r.cwd.endsWith('/projeto')).toBe(true);
     await expect(input.spawn('../')).rejects.toMatchObject({ status: 400 });
     await expect(input.spawn('/etc')).rejects.toMatchObject({ status: 400 });
-    await expect(input.spawn('nao-existe')).rejects.toMatchObject({ status: 400 });
     expect((await input.spawn(undefined)).cwd).toBe(r.cwd.replace(/\/projeto$/, ''));
     const state = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'));
     expect(state.projects[r.cwd].hasTrustDialogAccepted).toBe(true);
+  });
+
+  describe('pasta que ainda não existe (campo "Pasta do projeto" é texto livre)', () => {
+    const setup = async () => {
+      const home = await realpath(await mkdtemp(join(tmpdir(), 'hb-home-')));
+      const calls: string[][] = [];
+      const input = createAgentInput({ home, run: async (a) => void calls.push(a), capture: async () => '4321\n', claudeCommand: 'claude' });
+      return { home, calls, input };
+    };
+
+    it('nome simples vira ~/projetos/<nome>, criado na hora, e o agente abre lá', async () => {
+      const { home, calls, input } = await setup();
+      const r = await input.spawn('meu-site');
+      expect(r.cwd).toBe(join(home, 'projetos', 'meu-site'));
+      expect(r.created).toBe(true);
+      expect((await stat(r.cwd)).isDirectory()).toBe(true);
+      expect(calls[0]).toEqual(['new-session', '-d', '-s', expect.stringMatching(/^agente-/), '-c', r.cwd, 'claude']);
+      const state = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'));
+      expect(state.projects[r.cwd].hasTrustDialogAccepted).toBe(true);
+      // de novo: a pasta já existe, nada é criado
+      const again = await input.spawn('meu-site');
+      expect(again.cwd).toBe(r.cwd);
+      expect(again.created).toBeUndefined();
+    });
+
+    it('caminho relativo aninhado (e ~/...) é criado a partir do HOME', async () => {
+      const { home, input } = await setup();
+      const r = await input.spawn('clientes/acme/site');
+      expect(r.cwd).toBe(join(home, 'clientes', 'acme', 'site'));
+      expect(r.created).toBe(true);
+      const t = await input.spawn('~/docs/novo');
+      expect(t.cwd).toBe(join(home, 'docs', 'novo'));
+      expect((await input.spawn('~')).cwd).toBe(home);
+    });
+
+    it('".." para fora do HOME, caminho absoluto de fora ou link simbólico para fora: 400 sem criar nada', async () => {
+      const { home, calls, input } = await setup();
+      const outside = await realpath(await mkdtemp(join(tmpdir(), 'hb-fora-')));
+      const name = `hb-escapou-${process.pid}`;
+      await expect(input.spawn(`../${name}`)).rejects.toMatchObject({ status: 400 });
+      await expect(input.spawn(`../../${name}/a/b`)).rejects.toMatchObject({ status: 400 });
+      await expect(input.spawn(`projetos/../../${name}`)).rejects.toMatchObject({ status: 400 });
+      await expect(input.spawn(join(outside, 'novo'))).rejects.toMatchObject({ status: 400 });
+      await symlink(outside, join(home, 'atalho'));
+      await expect(input.spawn('atalho/novo')).rejects.toMatchObject({ status: 400 });
+      await expect(stat(join(home, '..', name))).rejects.toThrow();
+      expect(await readdir(outside)).toEqual([]);
+      expect(await readdir(home)).toEqual(['atalho']); // nem ~/projetos nasceu
+      expect(calls).toEqual([]);
+    });
+
+    it('caracteres de controle e arquivo no lugar da pasta: 400', async () => {
+      const { home, calls, input } = await setup();
+      await expect(input.spawn('meu\nsite')).rejects.toMatchObject({ status: 400 });
+      await expect(input.spawn('a\u0007b/c')).rejects.toMatchObject({ status: 400 });
+      await writeFile(join(home, 'notas.txt'), 'x');
+      await expect(input.spawn('notas.txt')).rejects.toMatchObject({ status: 400 });
+      await expect(input.spawn('notas.txt/sub')).rejects.toMatchObject({ status: 400 });
+      expect(calls).toEqual([]);
+    });
+
+    it('pasta que já existe continua igual (inclusive no HOME, antes de ~/projetos)', async () => {
+      const { home, input } = await setup();
+      await mkdir(join(home, 'meu-site'));
+      await writeFile(join(home, 'meu-site', 'index.html'), 'oi');
+      const r = await input.spawn('meu-site');
+      expect(r.cwd).toBe(join(home, 'meu-site'));
+      expect(r.created).toBeUndefined();
+      expect(await readdir(r.cwd)).toEqual(['index.html']);
+      await expect(stat(join(home, 'projetos'))).rejects.toThrow();
+    });
+
+    it('retomar nunca cria a pasta da conversa', async () => {
+      const { home, calls, input } = await setup();
+      await expect(input.spawn('sumiu', { resume: '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d' })).rejects.toMatchObject({ status: 400 });
+      await expect(stat(join(home, 'projetos'))).rejects.toThrow();
+      expect(calls).toEqual([]);
+    });
   });
 
   it('spawn: marca a pasta como confiável preservando o resto do ~/.claude.json', async () => {
