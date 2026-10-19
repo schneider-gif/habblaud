@@ -8400,6 +8400,11 @@ html.is-replay #world {
 
 /* ---------------------------------------------------------------- boas-vindas (docs/BOAS-VINDAS.md)
    Mesmo lugar do cartão "escritório vazio"; fundo #181621, limão na ação, rosa no destaque. */
+
+/* Quadro e balão de missões somem enquanto o cartão está na tela: um passo de cada vez para quem acabou de chegar. */
+body:has(.ui-welcome:not([hidden])) :is(.ui-missions, .ui-missions-balloon) {
+  display: none !important;
+}
 .ui-welcome {
   position: fixed;
   /* acima do balão do quadro de missões (16), abaixo do terminal embutido (31) e dos avisos */

@@ -8,6 +8,20 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+## [0.11.0] - 2026-10-18
+
+### Adicionado
+
+- Boas-vindas na primeira abertura: um agente sentado na mesa oferece 3 primeiras tarefas ("Crie um site simples
+  para mim", "Explique o que você sabe fazer", "Organize meus arquivos"). Um clique abre o agente e já manda o pedido
+  quando o Claude fica pronto; sem a conta conectada, o cartão leva ao login primeiro. **✕ Pular** sempre à vista, e
+  quem pula ou usa nunca mais vê (fica salvo no servidor). Enquanto o cartão está na tela, o quadro de missões fica
+  escondido. `HABBLAUD_BOAS_VINDAS=0` desliga.
+
+### Corrigido
+
+- Versão do marketplace e dos plugins do Claude Code (mod) acompanha a do Habblaud de novo (tinha ficado em 0.10.1).
+
 ## [0.10.2] - 2026-10-17
 
 ### Corrigido
@@ -54,13 +68,6 @@ do meio (0.**3**.0).
 ### Adicionado
 
 - Caixa de mensagem do chat com várias linhas: Enter envia, Shift+Enter quebra a linha.
-
-### Adicionado
-
-- Boas-vindas na primeira abertura: um agente sentado na mesa oferece 3 primeiras tarefas ("Crie um site simples
-  para mim", "Explique o que você sabe fazer", "Organize meus arquivos"). Um clique abre o agente e já manda o pedido
-  quando o Claude fica pronto; sem a conta conectada, o cartão leva ao login primeiro. **✕ Pular** sempre à vista, e
-  quem pula ou usa nunca mais vê (fica salvo no servidor). `HABBLAUD_BOAS_VINDAS=0` desliga.
 
 ### Corrigido
 
