@@ -36,6 +36,7 @@ import {
   visibleShells,
 } from './model';
 import { PermissionCard } from './permission';
+import { DialogCard, QuestionCard } from './question';
 import { createAgentRow, updateAgentRow } from './rows';
 import { SocialSection } from './social';
 import { TERMINAL_UNAVAILABLE_HINT, type TerminalControl } from './terminal';
@@ -191,6 +192,8 @@ class AgentView {
   private alertText: HTMLElement;
   /** Pedido de permissão para responder por aqui (substitui o alerta genérico enquanto existe). */
   private perm: PermissionCard;
+  private ask: QuestionCard;
+  private dialog: DialogCard;
   private shellBox: HTMLElement;
   private shellText: HTMLElement;
   private shellMood: HTMLElement;
@@ -303,6 +306,8 @@ class AgentView {
     const nowSec = section('Agora', h('div', { class: 'ui-now' }, this.actIcon, h('div', { class: 'ui-now__body' }, this.actText, this.actTime)), this.actDetails);
     this.social = new SocialSection(ctx);
     this.perm = new PermissionCard(ctx);
+    this.ask = new QuestionCard(ctx, 'drawer');
+    this.dialog = new DialogCard(ctx, 'drawer');
 
     this.tasksBar = createProgress('Progresso das tarefas');
     const tasksList = h('ul', { class: 'ui-tasks' });
@@ -353,6 +358,8 @@ class AgentView {
       this.customBtn,
       this.alert,
       this.perm.el,
+      this.ask.el,
+      this.dialog.el,
       this.shellBox,
       this.shellsSec.el,
       nowSec.el,
@@ -451,7 +458,9 @@ class AgentView {
     // Alerta.
     const waiting = a.status === 'waiting' && !!live;
     this.perm.render(live);
-    setHidden(this.alert, !waiting || this.perm.visible);
+    this.ask.render(live);
+    this.dialog.render(live);
+    setHidden(this.alert, !waiting || this.perm.visible || this.ask.visible || this.dialog.visible);
     if (waiting) {
       setText(
         this.alertText,

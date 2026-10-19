@@ -3,6 +3,8 @@
 // chama commit() (com throttle) para obter o snapshot novo, o feed e os avisos pendentes.
 import type {
   AccountInfo,
+  AskQuestionInfo,
+  TerminalDialogInfo,
   Announcement,
   Activity,
   AgentDetail,
@@ -28,6 +30,8 @@ import type { AgentProfile } from '../../shared/profile';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
 import { applyPermission } from '../permissions/registry';
+import { applyDialog } from '../questions/dialogs';
+import { applyQuestion } from '../questions/service';
 import type { SetupAgent } from '../shell/setup';
 import type { NameStore } from './names';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
@@ -67,6 +71,10 @@ export interface OfficeDeps {
   terminal?: boolean;
   /** Pedidos de permissão pendentes por agente (PermissionRegistry.snapshot), postos no snapshot. */
   permissions?: () => ReadonlyMap<string, PermissionRequestInfo>;
+  /** Perguntas com opções pendentes (QuestionService.get): vão em AgentInfo.question. */
+  questions?: () => ReadonlyMap<string, AskQuestionInfo>;
+  /** Diálogos desconhecidos na tela dos agentes (DialogWatcher.get): vão em AgentInfo.dialog. */
+  dialogs?: () => ReadonlyMap<string, TerminalDialogInfo>;
   /** Verificação de versão nova no GitHub (ver OfficeSnapshot.meta.updates). */
   updates?: () => UpdateStatus;
   /** Aviso global (ver OfficeSnapshot.meta.announcement). */
@@ -76,7 +84,7 @@ export interface OfficeDeps {
   /** Painel do GitHub disponível agora (ver OfficeSnapshot.meta.github). */
   github?: () => boolean;
   /** Links rápidos da barra superior (ver OfficeSnapshot.meta.links). */
-  links?: { vscode?: string };
+  links?: { vscode?: string; bug?: string };
   now?: () => number;
 }
 
@@ -146,7 +154,7 @@ export interface CommitResult {
   notices: Notice[];
 }
 
-type NoticeKind = 'arrive' | 'room' | 'wait' | 'deliver' | 'done' | 'leave' | 'shell' | 'shellDone' | 'github';
+type NoticeKind = 'arrive' | 'room' | 'wait' | 'deliver' | 'done' | 'leave' | 'shell' | 'shellDone' | 'github' | 'message';
 
 /** Pergunta ainda sem resposta (o balão dela já diz que o agente espera você). */
 function isOpenQuestion(a: Activity | undefined): boolean {
@@ -715,6 +723,19 @@ export class Office {
     this.markDirty();
   }
 
+  // ---------------------------------------------------------------- mensagens entre agentes (server/mensagens)
+
+  /**
+   * Aviso no feed quando um agente manda mensagem a outro pelo hb-msg ("📨 Flavia → Bruno"). Só os nomes: o texto
+   * é privado dos dois. `key` = id da mensagem (uma vez por mensagem).
+   */
+  noticeMessage(fromId: string | undefined, fromName: string, toName: string, key: string, reply = false): void {
+    const info = fromId ? this.agents.get(fromId)?.info : undefined;
+    const text = `📨 ${info?.name ?? fromName} → ${toName}${reply ? ' (resposta)' : ''}`;
+    this.notice('message', fromId ?? `msg:${key}`, 'info', text, info?.roomId, { dedupeKey: `msg|${key}` });
+    this.markDirty();
+  }
+
   /** Decisão para um pedido fictício do demo. true = o pedido era do demo (e foi respondido). */
   decideDemoPermission(requestId: string, d: PermissionDecision): boolean {
     if (!this.demo) return false;
@@ -904,7 +925,12 @@ export class Office {
       if (effect) room.effect = { ...effect };
     }
     const perms = this.deps.permissions?.();
-    const real = [...[...this.agents.values()].map((r) => applyPermission(cloneAgent(r.info), perms?.get(r.info.id))), ...setup];
+    const asks = this.deps.questions?.();
+    const dialogs = this.deps.dialogs?.();
+    const real = [
+      ...[...this.agents.values()].map((r) => applyDialog(applyQuestion(applyPermission(cloneAgent(r.info), perms?.get(r.info.id)), asks?.get(r.info.id)), dialogs?.get(r.info.id))),
+      ...setup,
+    ];
     const trim = (a: AgentInfo): AgentInfo => (a.recent.length > SNAPSHOT_RECENT ? { ...a, recent: a.recent.slice(-SNAPSHOT_RECENT) } : a);
     const sessions = new Map<string, number>();
     for (const a of real) if (a.kind === 'main' && a.status !== 'offline') sessions.set(a.account, (sessions.get(a.account) ?? 0) + 1);
@@ -926,7 +952,9 @@ export class Office {
         announcement: this.deps.announcement?.(),
         shell: this.deps.shell?.() === true,
         github: this.deps.github?.() === true,
-        links: this.deps.links?.vscode ? { vscode: this.deps.links.vscode } : undefined,
+        links: this.deps.links?.vscode || this.deps.links?.bug
+          ? { ...(this.deps.links.vscode ? { vscode: this.deps.links.vscode } : {}), ...(this.deps.links.bug ? { bug: this.deps.links.bug } : {}) }
+          : undefined,
       },
     };
   }

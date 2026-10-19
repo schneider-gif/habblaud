@@ -51,6 +51,29 @@ Em palavras: só observa (nenhum hook decide nada: não aprova ferramentas, não
 grava um único arquivo (o de uso), fala só com `127.0.0.1` e lê quatro variáveis de ambiente. `$.clock.after` é o
 prazo de 2 s de cada pergunta ao Habblaud (`$.http.fetch` não aceita AbortSignal).
 
+### Skill `comunicacao` e o comando `hb-msg` — agentes conversando entre si
+
+`habblaud/skills/comunicacao/SKILL.md` ensina o agente a usar o `hb-msg` (`habblaud/mensagens/hb-msg.mjs`, Node puro;
+na imagem do escritório é `/usr/local/bin/hb-msg`, e o mesmo SKILL.md vai para `~/.codex/skills/` do Codex):
+
+```
+hb-msg quem                          # agentes de pé (nome, claude/codex, id curto, status, pasta) e quem sou eu
+hb-msg enviar <nome|id> "texto"      # grava na caixa do colega
+hb-msg ler [--esperar N]             # lê (e marca como lidas) as mensagens da própria caixa
+hb-msg responder <id-msg> "texto"
+```
+
+- **Caixas:** `~/.habblaud/mensagens/<sessionId>/{novas,avisadas,lidas}/<id>.json` (ou `HB_MSG_DIR`), um arquivo por
+  mensagem: gravar é tmp + rename e mudar de estado é rename (atômico, sem trava). Pastas 0700; lidas somem em 7 dias.
+- **Quem sou eu:** o primeiro processo pai que é um agente do escritório (lista de `GET /api/snapshot`), senão o mesmo
+  `TMUX_PANE`. Habblaud fora do ar: só as sessões do Claude Code (`~/.claude*/sessions`).
+- **Aviso:** o servidor (`server/mensagens/carteiro.ts`) olha as caixas a cada 2 s e, quando o destinatário está
+  livre há 1,5 s e roda no tmux, digita no pane dele `📨 Mensagem de <Nome> (<engine> · <id>) [m-...]: <texto>` com o
+  comando para responder (até 3 mensagens por aviso; texto acima de 1500 caracteres fica para o `hb-msg ler`).
+  Ocupado = espera. No feed do escritório aparece só `📨 Flavia → Bruno`.
+- **Limites:** 8 KB por mensagem; anti-loop de 5 mensagens/min e 30/h por par (nos dois sentidos, sob trava por
+  `mkdir` atômico). A privacidade é por convenção: todos os agentes são o mesmo usuário do sistema.
+
 ## `habblaud-permissoes` — responder permissões pelo escritório
 
 Um hook `PermissionRequest` comum (sem mod), em `habblaud-permissoes/hooks/hooks.json`:

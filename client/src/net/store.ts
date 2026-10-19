@@ -4,7 +4,7 @@
 // SSE segue conectado por baixo, com os snapshots ao vivo guardados até o stopReplay().
 // Também cuida da reconexão: quando o navegador desiste do stream (EventSource fechado após erro HTTP,
 // ex.: servidor reiniciando atrás de um proxy), tenta de novo com espera crescente.
-import type { Activity, AgentDetail, AgentInfo, FeedItem, Notice, OfficeSnapshot, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
+import type { Activity, AgentDetail, AgentInfo, AskAnswerRequest, FeedItem, Notice, OfficeSnapshot, PermissionDecision, PermissionRequestInfo, RoomInfo } from '../../../shared/types';
 import { DemoSimulator } from '../../../shared/demo/simulator';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'mock';
@@ -260,6 +260,45 @@ export class OfficeStore {
       // Resposta sem JSON (ex.: guard): usa a mensagem padrão.
     }
     return `Não foi possível responder (erro ${res.status}).`;
+  }
+
+  /**
+   * Responde uma pergunta com opções (AskUserQuestion) do agente: o servidor dirige o diálogo no terminal dele pelo
+   * tmux. Devolve undefined se deu certo, ou a mensagem de erro (já respondida, tela diferente da esperada...).
+   */
+  async answerQuestion(agentId: string, body: AskAnswerRequest): Promise<string | undefined> {
+    if (this.mock) return 'Na demonstração não há terminal de verdade para responder.';
+    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return undefined;
+    try {
+      const j = (await res.json()) as { error?: unknown };
+      if (typeof j.error === 'string') return j.error;
+    } catch {
+      // Resposta sem JSON (ex.: guard): usa a mensagem padrão.
+    }
+    return `Não foi possível responder (erro ${res.status}).`;
+  }
+
+  /** Aperta uma tecla (Up, Down, Enter, Escape) numa tela de seleção desconhecida no terminal do agente. */
+  async pressDialogKey(agentId: string, key: string): Promise<string | undefined> {
+    if (this.mock) return 'Na demonstração não há terminal de verdade.';
+    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    if (res.ok) return undefined;
+    try {
+      const j = (await res.json()) as { error?: unknown };
+      if (typeof j.error === 'string') return j.error;
+    } catch {
+      // Resposta sem JSON (ex.: guard): usa a mensagem padrão.
+    }
+    return `Não foi possível apertar a tecla (erro ${res.status}).`;
   }
 
   // ---------------------------------------------------------------- internos

@@ -282,7 +282,8 @@ export function detectAccounts(dirs: string[], opts: { home?: string; env?: Node
       id: p.id,
       configDir: str(p.ov?.configDir) ?? p.dir,
       short,
-      name: str(p.ov?.name) ?? `Conta ${short}`,
+      // "Conta Anthropic" ao lado da "Conta OpenAI" do Codex; com várias contas da Anthropic, a letra distingue
+      name: str(p.ov?.name) ?? (partial.length === 1 ? 'Conta Anthropic' : `Conta Anthropic ${short}`),
       color: str(p.ov?.color) ?? ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
     };
     const email = str(p.ov?.email) ?? p.cfg.email;

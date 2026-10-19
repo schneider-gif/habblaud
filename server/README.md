@@ -71,7 +71,7 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/agents/:id/terminal` | SSE do terminal somente leitura: eventos `init` e `append` (`TerminalMessage`); só com bind local (ver abaixo) |
 | `GET /api/sessions/recent` | `RecentSessionsResponse`: sessões dos últimos 7 dias de todas as contas (até 150); mesma trava do terminal |
 | `GET /api/sessions/:conta/:sessionId/terminal` | SSE da conversa de uma sessão do histórico (mesmo protocolo do terminal); mesma trava |
-| `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`input/tmux.ts`); com `{resume: <uuid>}` roda `claude --resume <uuid>` na pasta original da sessão (o `cwd` vem do transcript via `SessionHistory.resumeTarget`, nunca do corpo), só para a conta `.claude`; UUID estrito (400), sessão aberta ou sem pasta (409), pasta fora do HOME (400); o agente que chega com o pid devolvido herda o personagem da sessão (`Office.setPendingResume`). Mesma trava do terminal |
+| `GET`/`POST /api/agents/new` | `{available, folders, home}` / abre um agente novo no tmux (`input/tmux.ts`); com `{resume: <uuid>}` roda `claude --resume <uuid>` na pasta original da sessão (o `cwd` vem do transcript via `SessionHistory.resumeTarget`, nunca do corpo), só para a conta `.claude`; UUID estrito (400), sessão aberta ou sem pasta (409), pasta fora do HOME (400); sem `resume`, pasta que não existe é criada se ficar dentro do HOME (nome simples como `meu-site` vira `~/projetos/meu-site`; o pai existente mais próximo é conferido com `realpath` antes do `mkdir -p`, então link simbólico para fora dá 400 sem criar nada) e a resposta traz `created: true`; o agente que chega com o pid devolvido herda o personagem da sessão (`Office.setPendingResume`). Mesma trava do terminal |
 | `GET /api/github/status` | `{available, installed, loggedIn, login?, name?}` do `gh auth status` + `gh api user` (`?fresh=1` confere de novo). Mesma trava do terminal embutido; `HABBLAUD_GITHUB=0` desliga (ver `server/github/`) |
 | `GET /api/github/repos` · `/prs` · `/folders` | `gh repo list --limit 50`, `gh search prs --author @me --state open`, pastas de `~/projetos` (com `origin` ou não) |
 | `POST /api/github/clone` | `{repo: "dono/nome"}` → `201 {dir, name}`: `gh repo clone` em `~/projetos/<nome>` (409 se já existe) |
@@ -80,6 +80,9 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `POST /api/missions/:id/start` | `{}` → `201 MissionStartResult`: cria `~/projetos/<slug>` (só `mkdir`, nunca sobrescreve), ativa a missão e abre um agente lá **sem pedido pronto** (ou reaproveita um agente já na pasta); 404 desconhecida, 409 trancada/concluída |
 | `POST /api/missions/:id/complete` | `{confirm: true}` → "Concluí": confere antes (se a detecção achar, vale como automática); 400 sem `confirm`, 409 fora da missão ativa |
 | `POST /api/missions/:id/seen` | a comemoração da missão já foi mostrada |
+| `GET /api/welcome` | `WelcomeView` (`shared/welcome.ts`): cartão de boas-vindas `off` | `done` | `login` | `ready`, as 3 sugestões e a entrega da 1ª mensagem (`delivery`). Fora da trava do spawn responde `{state: "off"}` (ver `docs/BOAS-VINDAS.md`) |
+| `POST /api/welcome/start` | `{choice: "site"|"explicar"|"organizar"}` → `201 {agentId, cwd, choice}`: abre o Claude (mesmo `input.spawn`) e manda a sugestão quando ele estiver pronto; 400 escolha inválida, 403 desligado/fora da trava, 409 já usado/pulado ou `{login: true}` sem conta conectada |
+| `POST /api/welcome/skip` | "✕ Pular": grava `done` no `state.json` (nunca mais aparece) |
 | `GET /api/stats?day=AAAA-MM-DD&tz=<IANA>&source=real\|demo` | `DayStatsResponse` do "Meu dia" (ver abaixo); padrões: hoje, fuso do servidor, demo se ligado e o dia é hoje |
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
@@ -328,11 +331,13 @@ sugestão inválidos), 404 (pedido desconhecido, já entregue ou expirado), 405,
 | `HABBLAUD_TERMINAL` | — | `0` desliga o terminal somente leitura (não liga com a porta exposta) |
 | `HABBLAUD_SHELL` | ligado (com a trava do terminal) | `0` desliga o terminal embutido (`shell/`); também fica desligado fora do Linux, como root, com `HABBLAUD_DEMO` ou sem `tmux`/`script` |
 | `HABBLAUD_VSCODE_URL` | — | URL `http(s)` do botão **VS Code** (`meta.links.vscode`); ausente = sem botão |
+| `HABBLAUD_BUG_URL` | — | URL `http(s)` do botão **🐞 Bug** (`meta.links.bug`), ex.: formulário de bug do serviço que hospeda o escritório; ausente = sem botão |
 | `HABBLAUD_CLAUDE_DIRS` | — | config dirs separados por vírgula; substitui a detecção (`~/.claude*` com `projects/` ou `sessions/` + `CLAUDE_CONFIG_DIR`) |
 | `HABBLAUD_DATA_DIR` | `~/.habblaud` (Docker: `/data`) | estado do Habblaud (missões em `missions.json`, nomes persistidos em `names.json`, linha do tempo em `timeline/`, estatísticas do Meu dia em `stats/`, última verificação de versão em `updates.json`) |
 | `HABBLAUD_TIMELINE` | ligado | `0` desliga a gravação da linha do tempo do timelapse |
 | `HABBLAUD_UPDATE_CHECK` | ligado | `0` desliga a verificação de versão nova (releases do repositório do `package.json` no GitHub, a cada 6 h) |
 | `HABBLAUD_ANNOUNCE_URL` | — | JSON de aviso global (`{"id","title","body","logo"?,"until"?,"confetti"?}`), lido a cada 10 min; aparece uma vez por navegador, como modal com confete, só com alguém usando o escritório. `logo` precisa ser https na mesma origem do JSON. Sem a variável = desligado. |
+| `HABBLAUD_BOAS_VINDAS` | ligado | `0` desliga de vez o cartão de boas-vindas da primeira abertura (`welcome/`, `docs/BOAS-VINDAS.md`) |
 | `HABBLAUD_DEMO` | desligado | `1` liga o modo demonstração ao iniciar |
 | `HABBLAUD_IN_DOCKER` | auto (`/.dockerenv`) | `1` = não confere PIDs (são do host) |
 | `HABBLAUD_ACCOUNTS` | — | JSON com metadados das contas vindos do host (Docker): `[{id, configDir, mountDir, short, name, email, organization, plan, color, cachedUsage}]`, casados por `id`, `mountDir` ou `configDir` |
@@ -386,6 +391,7 @@ O repositório é também um marketplace de plugins do Claude Code (`.claude-plu
 - `http/` — proteções de borda (`guard.ts`), rotas (`app.ts`), SSE (`sse.ts`), terminal somente leitura (`terminal.ts`) e o histórico dele (`sessions.ts`), timelapse (`timeline.ts`), Meu dia (`stats.ts`), estáticos (`static.ts`).
 - `history/` — gravador da linha do tempo do timelapse (`timeline.ts`) e as estatísticas do Meu dia: amostragem, persistência e retenção (`daystats.ts`; o acumulador puro fica em `shared/daystats.ts`).
 - `permissions/` — responder pelo escritório: registro dos pedidos (`registry.ts`), rotas (`http.ts`) e a busca da chamada no transcript (`transcript.ts`).
+- `welcome/` — cartão de boas-vindas da primeira abertura (`welcome.ts`: estado no `state.json`, spawn e entrega da 1ª mensagem; ver `docs/BOAS-VINDAS.md`).
 - `updates/` — verificação de versão nova nas releases do GitHub (`checker.ts`).
 
 Testes: `npx vitest run server shared` (fixtures sintéticas em `server/test/fixtures.ts`; os scripts do host —

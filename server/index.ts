@@ -21,6 +21,8 @@ import { Office } from './model/office';
 import { openMainAgent, SessionHistory } from './sources/history';
 import { createPermissionRoutes } from './permissions/http';
 import { PermissionRegistry } from './permissions/registry';
+import { DialogWatcher } from './questions/dialogs';
+import { QuestionService } from './questions/service';
 import { ClaudeWatcher } from './sources/watcher';
 import { createBuildReader } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -39,9 +41,13 @@ import { CodexWatcher } from './codex/watcher';
 import { codexAccountName, codexAccounts, codexAuth, discoverCodexDirs, isCodexAccount } from './codex/detect';
 import { withCodexPermissions } from './codex/approvals';
 import { GithubService } from './github/service';
+import { hasConversations, WelcomeService, welcomeOff } from './welcome/welcome';
 import { createGithubRoutes, githubOffReason } from './github/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
+import { Carteiro } from './mensagens/carteiro';
+import { raizPadrao } from '../mod/habblaud/mensagens/caixa.mjs';
+import { startReopen } from './reopen';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -62,7 +68,7 @@ const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher; welcome?: WelcomeService } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -123,6 +129,8 @@ const office = new Office({
     for (const a of late.codex?.approvals() ?? []) if (!m.has(a.agentId)) m.set(a.agentId, { ...a.info, input: undefined });
     return m;
   },
+  questions: () => late.questions?.get() ?? new Map(),
+  dialogs: () => late.dialogs?.get() ?? new Map(),
   updates: () => updates.status(),
   announcement: () => announce.get(),
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
@@ -180,6 +188,21 @@ const missions = missionsStore
 if (missions) hub.onSnapshot((snap) => missions.ingest(snap));
 // Mandar mensagens e abrir agentes (tmux): só no Linux, que tem /proc.
 const input = process.platform === 'linux' ? createAgentInput({ remoteAccounts: new Set([...remoteDirs].map((d) => basename(d))) }) : undefined;
+// Perguntas com opções (AskUserQuestion): lidas do transcript e respondidas pelo chat dirigindo o diálogo no tmux.
+const questions = config.terminal
+  ? new QuestionService({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id), input: input && { screen: (id) => input.screen(id), driveKeys: (id, k) => input.driveKeys(id, k), typeText: (id, t) => input.typeText(id, t) } })
+  : undefined;
+late.questions = questions;
+// Telas de seleção que o Habblaud não conhece (ex.: "Teach auto mode"): trecho do terminal com ↑ ↓ Enter Esc no escritório.
+const dialogs =
+  config.terminal && input
+    ? new DialogWatcher({
+        office,
+        input: { screen: (id) => input.screen(id), navKeys: (id, k) => input.navKeys(id, k) },
+        covered: (id) => !!questions?.pendingOf(id) || !!late.permissions?.snapshot().has(id) || !!late.codex?.approvals().some((a) => a.agentId === id),
+      })
+    : undefined;
+late.dialogs = dialogs;
 // Fonte "codex": conversas abertas do Codex CLI; a tela do tmux diz quando ele pede aprovação ou login.
 const codexWatcher = codexOff
   ? undefined
@@ -189,6 +212,19 @@ const codexWatcher = codexOff
       screen: input && config.terminal ? (pid) => input.screen(`.codex:${pid}`) : undefined,
     });
 late.codex = codexWatcher;
+// Mensagens entre agentes (hb-msg): a CLI grava na caixa; o carteiro digita o aviso no tmux do destinatário quando ele
+// fica livre. Mesma trava de mandar mensagens pelo escritório (bind local, Linux).
+const carteiro =
+  config.terminal && input
+    ? new Carteiro({
+        raiz: raizPadrao(config.home, process.env),
+        agentes: () => office.list(),
+        disponivel: (id) => input.available(id),
+        digitar: (id, texto) => input.send(id, texto),
+        aoChegar: (m, de, para) =>
+          office.noticeMessage(de?.id, m.de.nome || m.de.sid.slice(0, 8), para?.name ?? (m.para.nome || m.para.sid.slice(0, 8)), m.id, !!m.respondeA),
+      })
+    : undefined;
 /** Sessões tmux agente-* abertas pelo escritório para o Codex (agente-codex-*) ou para o Claude (o resto). */
 const isCodexSession = (s: { session: string }) => s.session.startsWith('agente-codex-');
 // Agentes abertos pelo escritório parados na primeira execução do Claude (tema/login): bonecos provisórios.
@@ -211,7 +247,10 @@ const setupWatcher = shellService
       restart: input
         ? async (s) => {
             const r = await input.spawn(s.cwd);
-            if (r.pid) office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
+            if (r.pid) {
+              office.movePendingProfile(`.claude:${s.pid}`, `.claude:${r.pid}`);
+              late.welcome?.moveAgent(`.claude:${s.pid}`, `.claude:${r.pid}`);
+            }
             await shellService.killAgentSession(s.session);
             log.info(`Agente reaberto depois do login: ${s.session} -> ${r.session} (${r.cwd}).`);
           }
@@ -268,7 +307,10 @@ if (timeline) {
   timeline.ingest(hub.current());
 }
 permissions?.start();
+questions?.start();
+dialogs?.start();
 missions?.startTimer();
+carteiro?.start();
 // Missão 0 (conta do Claude): confere já no boot e, depois, a cada minuto (aviso "sua conta saiu" no quadro).
 void missions?.evaluate();
 missions?.watchAuth();
@@ -291,6 +333,37 @@ const ticker = setInterval(() => {
   }
 }, 250);
 
+// Agentes abertos pelo escritório: depois do spawn, confere já os que ficaram no tema/login (bonecos provisórios).
+const officeInput =
+  input && (setupWatcher || codexSetupWatcher)
+    ? {
+        ...input,
+        spawn: async (...a: Parameters<typeof input.spawn>) => {
+          const r = await input.spawn(...a);
+          void setupWatcher?.scan();
+          void codexSetupWatcher?.scan();
+          return r;
+        },
+      }
+    : input;
+// Cartão de boas-vindas (docs/BOAS-VINDAS.md): decisão no state.json; abre agentes, então segue a trava do spawn.
+const welcome =
+  officeInput && config.terminal
+    ? new WelcomeService({
+        store: state,
+        enabled: () => !welcomeOff(process.env),
+        loggedIn: async () => (await claudeAuth({ home: config.home, configDirs: accounts.entries().map((a) => a.dir), env: process.env })).connected,
+        usedBefore: () => hasConversations(accounts.entries().map((a) => a.dir), codexAuthDirs()),
+        spawn: (cwd) => officeInput.spawn(cwd, { engine: 'claude' }),
+        // mesmo critério do SetupWatcher (hasAgentPid): o Claude já criou a sessão e entrou no escritório
+        agentReady: (id) => office.list().some((a) => a.id === id && a.kind === 'main' && a.status !== 'offline' && !a.setup),
+        available: (id) => officeInput.available(id),
+        screen: (id) => officeInput.screen(id),
+        send: (id, text) => officeInput.send(id, text),
+      })
+    : undefined;
+late.welcome = welcome;
+
 const api = createApiHandler({
   office,
   hub,
@@ -312,13 +385,11 @@ const api = createApiHandler({
       : permissions
         ? createPermissionRoutes(permissions)
         : undefined,
-  input: input && (setupWatcher || codexSetupWatcher) ? { ...input, spawn: async (...a: Parameters<typeof input.spawn>) => {
-    const r = await input.spawn(...a);
-    void setupWatcher?.scan();
-    void codexSetupWatcher?.scan();
-    return r;
-  } } : input,
+  input: officeInput,
+  questions,
+  dialogs,
   missions,
+  welcome,
   github: githubRoutes,
   shell: shellRoutes.api,
   shellAvailable: () => shellState.reason === undefined && !office.isDemo(),
@@ -416,6 +487,20 @@ server.listen(config.port, config.host, () => {
       ? `   Versão nova: verificando as releases de github.com/${config.repo} a cada 6 h.`
       : `   Versão nova: verificação desligada (${config.repo ? 'HABBLAUD_UPDATE_CHECK' : 'package.json sem repositório no GitHub'}).`,
   );
+  // Reabre os agentes que estavam abertos quando o escritório desligou (HABBLAUD_REOPEN=0 desliga).
+  const reopenOff = /^(0|false|off|no|nao|não)$/i.test(process.env.HABBLAUD_REOPEN?.trim() ?? '');
+  if (input && config.terminal && !config.demo && !reopenOff) {
+    const self = `http://${config.host === '0.0.0.0' || config.host === '::' ? '127.0.0.1' : config.host.includes(':') ? `[${config.host}]` : config.host}:${config.port}`;
+    // ponytail: passa pela própria API (mesmas checagens do botão Retomar); extrair a função se precisar fora do HTTP
+    startReopen({
+      file: join(config.dataDir, 'abertos.json'),
+      snapshot: () => hub.current(),
+      post: async (body) => (await fetch(`${self}/api/agents/new`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json() as Promise<{ ok?: boolean; error?: string }>,
+      claudeDirs: accounts.entries().map((a) => a.dir),
+      cleanSessions: !config.inDocker,
+    });
+    log.info('   Reabrir agentes: ligado (lista em abertos.json; HABBLAUD_REOPEN=0 desliga).');
+  }
 });
 
 let shuttingDown = false;
@@ -431,6 +516,8 @@ function shutdown(signal: string): void {
   terminals?.stop();
   timeline?.stop();
   permissions?.stop();
+  questions?.stop();
+  dialogs?.stop();
   missions?.stop();
   setupWatcher?.stop();
   codexSetupWatcher?.stop();

@@ -37,6 +37,7 @@ import { UpdateToaster } from './version';
 import { TopBar } from './topbar';
 import { UpdateBanner } from './update';
 import { AnnouncementDialog } from './announce';
+import { WelcomeCard } from './welcome';
 import { FreeArea } from './viewport';
 
 /** Relógio dos tempos relativos ("há 5 s"). */
@@ -189,7 +190,9 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   help = new HelpDialog();
   const day = new DayLauncher(ctx, (el) => root.append(el));
   topbar.addPanelButton(day.button);
-  const empty = new EmptyState(ctx);
+  // Boas-vindas da primeira abertura (docs/BOAS-VINDAS.md): enquanto aparece, o "escritório vazio" fica escondido.
+  const welcome = new WelcomeCard(ctx);
+  const empty = new EmptyState(ctx, () => welcome.visible());
   const banner = new ConnectionBanner(ctx);
   const update = new UpdateBanner(store);
   const tip = new HoverTip(ctx);
@@ -202,7 +205,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
   const scrim = h('div', { class: 'ui-scrim', attrs: { 'aria-hidden': 'true' }, on: { click: () => ctx.togglePanel('sidebar', false) } });
 
   root.classList.add('ui-root');
-  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, shell.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, tip.el, settings.el, history.el, help.el, customizer.el, github.el, platformNotice.el, live, splash.el);
+  root.append(timelapse.vignette, topbar.el, sidebar.el, scrim, feed.el, missions.el, missions.balloon, missions.fx, drawer.el, terminal.el, shell.el, timelapse.el, timelapse.badge, toasts.el, banner.el, update.el, empty.el, welcome.el, tip.el, settings.el, history.el, help.el, customizer.el, github.el, platformNotice.el, live, splash.el);
   area = new FreeArea(world, { root, topbar: topbar.el, sidebar: sidebar.el, drawer: drawer.el, feed: feed.el }, () => ({
     sidebar: panels.sidebar,
     feed: panels.feed,
@@ -210,7 +213,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi)
     narrow: ctx.isNarrow(),
   }));
 
-  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, shell, history, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, missions, platformNotice];
+  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, shell, history, feed, toasts, settings, welcome, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, missions, platformNotice];
 
   // ---------------------------------------------------------------- renderização agrupada por quadro
   let rafId = 0;

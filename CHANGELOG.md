@@ -8,7 +8,71 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
-## [Não lançado]
+## [0.11.0] - 2026-10-18
+
+### Adicionado
+
+- Boas-vindas na primeira abertura: um agente sentado na mesa oferece 3 primeiras tarefas ("Crie um site simples
+  para mim", "Explique o que você sabe fazer", "Organize meus arquivos"). Um clique abre o agente e já manda o pedido
+  quando o Claude fica pronto; sem a conta conectada, o cartão leva ao login primeiro. **✕ Pular** sempre à vista, e
+  quem pula ou usa nunca mais vê (fica salvo no servidor). Enquanto o cartão está na tela, o quadro de missões fica
+  escondido. `HABBLAUD_BOAS_VINDAS=0` desliga.
+
+### Corrigido
+
+- Versão do marketplace e dos plugins do Claude Code (mod) acompanha a do Habblaud de novo (tinha ficado em 0.10.1).
+
+## [0.10.2] - 2026-10-17
+
+### Corrigido
+
+- Criar um agente numa pasta que ainda não existe não dá mais erro 400: um nome simples (ex.: `meu-site`) vira
+  `~/projetos/meu-site` e um caminho novo é criado dentro do HOME. Caminhos que saem do HOME continuam recusados.
+
+## [0.10.1] - 2026-10-16
+
+### Adicionado
+
+- Os agentes voltam sozinhos quando o escritório religa (por exemplo, depois de desligar por inatividade): o Habblaud
+  guarda em `abertos.json` os agentes abertos e, ao subir, retoma cada conversa com o mesmo nome e visual. Agente que
+  você fechou não volta. `HABBLAUD_REOPEN=0` desliga.
+
+## [0.10.0] - 2026-10-16
+
+### Adicionado
+
+- Agentes conversando entre si: comando `hb-msg` (`quem`, `enviar`, `ler`, `responder`) e a skill `comunicacao` no
+  plugin do Claude Code (o mesmo SKILL.md serve ao Codex). A mensagem fica na caixa privada do destinatário e o
+  Habblaud digita o aviso no terminal dele quando ele fica livre; no feed aparece "📨 Flavia → Bruno". Limite de 8 KB
+  por mensagem e anti-loop por par (5/min, 30/h).
+- A conta do Claude aparece como "Conta Anthropic", ao lado da "Conta OpenAI".
+- Botão 🐞 Bug na barra (`HABBLAUD_BUG_URL`): abre o formulário de bug da plataforma.
+
+## [0.9.2] - 2026-10-16
+
+### Corrigido
+
+- Perguntas com opções no Claude Code de verdade: o 2.1.295 só grava a pergunta no transcript depois da resposta, então
+  o Habblaud agora lê a pergunta da tela do diálogo (uma aba por vez quando há várias).
+- Telas de seleção que o Habblaud não conhece (ex.: "Teach auto mode about your environment?") não travam mais o agente:
+  o escritório mostra o trecho do terminal com os botões ↑ ↓ Enter Esc.
+
+## [0.9.1] - 2026-10-16
+
+### Corrigido
+
+- Perguntas com opções do Claude (AskUserQuestion, inclusive a tela "Review your answers"): aparecem num cartão no chat
+  e na gaveta do agente, com as opções, "Outro" e Enviar; o Habblaud responde dirigindo o diálogo no terminal.
+- Mensagem digitada enquanto o agente espera a resposta de uma pergunta não some mais: a caixa avisa e guarda o texto.
+
+### Adicionado
+
+- Caixa de mensagem do chat com várias linhas: Enter envia, Shift+Enter quebra a linha.
+
+### Corrigido
+
+- "+ Novo agente" com uma pasta que ainda não existe não dá mais erro 400: um nome novo (ex.: `meu-site`) cria
+  `~/projetos/meu-site`, e um caminho novo é criado dentro do HOME. Pastas fora do HOME continuam recusadas.
 
 ## [0.9.0] - 2026-10-15
 

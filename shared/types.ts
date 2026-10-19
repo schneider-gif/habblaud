@@ -152,6 +152,16 @@ export interface AgentInfo {
    */
   permission?: PermissionRequestInfo;
   /**
+   * Pergunta com opções (AskUserQuestion) aberta no terminal do agente, esperando resposta: dá para responder pelo
+   * chat do Habblaud (POST /api/agents/:id/answer, que dirige o diálogo pelo tmux). Ver AskQuestionInfo.
+   */
+  question?: AskQuestionInfo;
+  /**
+   * Tela de seleção/diálogo no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+   * environment?"): o escritório mostra o trecho com os botões ↑ ↓ Enter Esc (POST /api/agents/:id/keys).
+   */
+  dialog?: TerminalDialogInfo;
+  /**
    * Boneco provisório de um agente aberto pelo escritório que ainda não tem sessão (primeira execução do Claude
    * Code: tema e login no terminal). `session` é a sessão tmux (agente-*) a anexar no terminal embutido.
    */
@@ -346,7 +356,7 @@ export interface OfficeSnapshot {
      */
     github?: boolean;
     /** Link rápido "VS Code" da barra superior (HABBLAUD_VSCODE_URL, passado pelo template); ausente = sem o botão. */
-    links?: { vscode?: string };
+    links?: { vscode?: string; bug?: string };
   };
 }
 
@@ -559,4 +569,54 @@ export interface PermissionDecision {
   interrupt?: boolean;
   /** Aprovação: aplica junto a sugestão desta posição (PermissionSuggestionInfo.index). */
   suggestion?: number;
+}
+
+// ------------------------------------------------------------------ perguntas com opções (AskUserQuestion)
+
+/** Uma opção de uma pergunta do AskUserQuestion. */
+export interface AskOption {
+  label: string;
+  description?: string;
+}
+
+/** Uma pergunta do AskUserQuestion (o diálogo do Claude Code mostra uma por vez, com abas). */
+export interface AskQuestion {
+  question: string;
+  /** Rótulo curto da aba (ex.: "Banco"). */
+  header?: string;
+  /** Várias opções podem ser marcadas (caixas de seleção) em vez de uma só. */
+  multiSelect: boolean;
+  options: AskOption[];
+}
+
+/** Pergunta pendente de um agente: a chamada de AskUserQuestion do transcript que ainda não tem tool_result. */
+export interface AskQuestionInfo {
+  /** id do tool_use (a resposta é conferida pelo tool_result dele). */
+  toolUseId: string;
+  questions: AskQuestion[];
+  createdAt: number;
+  /**
+   * Lida da tela do diálogo (o Claude Code real só grava o tool_use no transcript depois da resposta): traz só a
+   * pergunta da aba à mostra; `tabs` diz quantas o diálogo tem (as próximas aparecem depois de responder esta).
+   */
+  fromScreen?: { tabs: number };
+}
+
+/** Resposta de uma pergunta: posições (0-based) das opções escolhidas e/ou o texto do "Outro". */
+export interface AskAnswer {
+  selected: number[];
+  other?: string;
+}
+
+/** Diálogo desconhecido na tela do agente: o trecho do terminal (texto puro) e quando apareceu. */
+export interface TerminalDialogInfo {
+  text: string;
+  at: number;
+}
+
+/** Corpo de POST /api/agents/:id/answer. */
+export interface AskAnswerRequest {
+  toolUseId: string;
+  /** Uma resposta por pergunta, na ordem. */
+  answers: AskAnswer[];
 }

@@ -10,7 +10,8 @@ import { setQuiet } from '../log';
 import { NameStore } from '../model/names';
 import { Office, type OfficeDeps } from '../model/office';
 import { tempDir } from '../test/fixtures';
-import { createApiHandler, type ApiDeps } from './app';
+import { createApiHandler, DIALOG_PENDING_ERROR, QUESTION_PENDING_ERROR, type ApiDeps } from './app';
+import { AnswerError } from '../questions/ask';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
 import { Hub } from './sse';
 import { createAgentInput } from '../input/tmux';
@@ -409,6 +410,74 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     }
   });
 
+  it('com pergunta pendente, recusa a mensagem (409) e /answer encaminha a resposta', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
+      run: async (a) => void calls.push(a),
+    });
+    const pending = { toolUseId: 't1', questions: [], createdAt: 0 };
+    const answers: unknown[] = [];
+    const questions = {
+      pendingOf: (id: string) => (id === '.claude:900' ? pending : undefined),
+      answer: async (id: string, body: unknown) => {
+        answers.push([id, body]);
+        if ((body as { toolUseId?: string }).toolUseId !== 't1') throw new AnswerError(404, 'esta pergunta já foi respondida');
+        return { answered: true };
+      },
+    };
+    const env = await start({ terminal: true, input, questions });
+    try {
+      const r = await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' });
+      expect(r).toMatchObject({ status: 409, json: { error: QUESTION_PENDING_ERROR } });
+      expect(calls).toEqual([]);
+      expect(await post(env.base, '/api/agents/.claude%3A901/input', { text: 'oi' })).toMatchObject({ status: 200 });
+      expect(await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] })).toMatchObject({ status: 200, json: { ok: true, answered: true } });
+      expect(answers[0]).toEqual(['.claude:900', { toolUseId: 't1', answers: [] }]);
+      expect((await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 'x', answers: [] })).status).toBe(404);
+      expect((await post(env.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] }, 'habblaud.lan')).status).toBe(403);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+    const off = await start({ terminal: false, input, questions });
+    try {
+      expect((await post(off.base, '/api/agents/.claude%3A900/answer', { toolUseId: 't1', answers: [] })).status).toBe(403);
+    } finally {
+      await off.close();
+      off.cleanup();
+    }
+  });
+
+  it('tela desconhecida no terminal: recusa a mensagem (409) e /keys aperta a tecla', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
+      run: async (a) => void calls.push(a),
+    });
+    const pressed: unknown[] = [];
+    const dialogs = {
+      dialogOf: (id: string) => (id === '.claude:900' ? { text: '❯ 1. Sim', at: 0 } : undefined),
+      pressKey: async (id: string, body: unknown) => {
+        pressed.push([id, body]);
+        return { dialog: false };
+      },
+    };
+    const env = await start({ terminal: true, input, dialogs });
+    try {
+      expect(await post(env.base, '/api/agents/.claude%3A900/input', { text: 'oi' })).toMatchObject({ status: 409, json: { error: DIALOG_PENDING_ERROR } });
+      expect(calls).toEqual([]);
+      expect(await post(env.base, '/api/agents/.claude%3A900/keys', { key: 'Escape' })).toMatchObject({ status: 200, json: { ok: true, dialog: false } });
+      expect(pressed).toEqual([['.claude:900', { key: 'Escape' }]]);
+      expect((await post(env.base, '/api/agents/.claude%3A900/keys', { key: 'Enter' }, 'habblaud.lan')).status).toBe(403);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+
   describe('Retomar (POST /api/agents/new com {resume})', () => {
     const OLD = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
     const OPEN = '11111111-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
@@ -470,6 +539,21 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
         },
       };
     }
+
+    it('agente novo com pasta que não existe: nome simples nasce em ~/projetos; ".." para fora -> 400', async () => {
+      const env = await setup();
+      try {
+        const r = await request(env.base, 'POST', '/api/agents/new', { cwd: 'meu-site' });
+        expect(r.status).toBe(201);
+        expect(r.json).toMatchObject({ ok: true, cwd: join(env.home, 'projetos', 'meu-site'), created: true, pid: 4242 });
+        const fora = await request(env.base, 'POST', '/api/agents/new', { cwd: '../hb-nao-deve-existir' });
+        expect(fora.status).toBe(400);
+        expect(fora.json.error).toMatch(/HOME/);
+        expect(env.calls.length).toBe(1);
+      } finally {
+        await env.done();
+      }
+    });
 
     it('abre claude --resume <uuid> na pasta original da sessão e devolve o pid', async () => {
       const env = await setup();
@@ -598,9 +682,99 @@ describe('estado da vida social (/api/state)', () => {
       expect((await put({ key: 'habblaude.needs.v1', value: 'não é json' })).status).toBe(400);
       const all = (await (await fetch(`${env.base}/api/state`)).json()) as Record<string, string>;
       expect(JSON.parse(all['habblaude.needs.v1']).Bia.agua).toBe(90);
+      // a decisão das boas-vindas só o servidor grava: a página não "despula" pelo PUT
+      expect((await put({ key: 'habblaud.boasvindas.v1', value: '{"state":"pending","since":1}' })).status).toBe(400);
     } finally {
       await env.close();
       env.cleanup();
+    }
+  });
+});
+
+describe('boas-vindas (/api/welcome)', () => {
+  async function setup(terminal = true) {
+    const { StateStore } = await import('../model/state');
+    const { WelcomeService } = await import('../welcome/welcome');
+    const store = new StateStore(null);
+    const spawned: string[] = [];
+    let logged = true;
+    const welcome = new WelcomeService({
+      store,
+      enabled: () => true,
+      loggedIn: async () => logged,
+      usedBefore: async () => false,
+      spawn: async (cwd) => {
+        spawned.push(cwd);
+        return { cwd: `/h/${cwd}`, pid: 31 };
+      },
+      agentReady: () => false,
+      available: async () => false,
+      screen: async () => undefined,
+      send: async () => undefined,
+      sleep: () => new Promise(() => undefined), // a entrega não anda neste teste
+    });
+    const env = await start({ terminal, welcome, state: store });
+    // http.request (e não fetch): o teste precisa trocar o cabeçalho Host
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      new Promise<{ status: number; json: () => Promise<Record<string, unknown>> }>((ok, fail) => {
+        const data = JSON.stringify(body);
+        const req = http.request(`${env.base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), ...headers } }, (res) => {
+          let txt = '';
+          res.on('data', (c) => (txt += c));
+          res.on('end', () => ok({ status: res.statusCode ?? 0, json: async () => JSON.parse(txt || '{}') }));
+        });
+        req.on('error', fail);
+        req.end(data);
+      });
+    return { env, store, spawned, post, setLogged: (v: boolean) => (logged = v) };
+  }
+
+  it('GET diz o estado; sem login, start devolve 409 {login}; com login abre o agente e responde 201', async () => {
+    const { env, spawned, post, setLogged } = await setup();
+    try {
+      setLogged(false);
+      expect(await (await fetch(`${env.base}/api/welcome`)).json()).toMatchObject({ state: 'login' });
+      const noLogin = await post('/api/welcome/start', { choice: 'site' });
+      expect(noLogin.status).toBe(409);
+      expect(await noLogin.json()).toMatchObject({ login: true });
+      setLogged(true);
+      expect(((await (await fetch(`${env.base}/api/welcome`)).json()) as { state: string }).state).toBe('ready');
+      expect((await post('/api/welcome/start', { choice: 'nada' })).status).toBe(400);
+      const ok = await post('/api/welcome/start', { choice: 'site' });
+      expect(ok.status).toBe(201);
+      expect(await ok.json()).toMatchObject({ agentId: '.claude:31', cwd: '/h/projetos/primeiro-projeto' });
+      expect(spawned).toEqual(['projetos/primeiro-projeto']);
+      const after = (await (await fetch(`${env.base}/api/welcome`)).json()) as { state: string; delivery?: unknown };
+      expect(after).toMatchObject({ state: 'done', delivery: { agentId: '.claude:31', state: 'waiting' } });
+      expect((await post('/api/welcome/start', { choice: 'site' })).status).toBe(409);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+
+  it('pular: 200 e nunca mais; mesma trava do spawn (Host, Origin, JSON); sem a trava o GET diz off', async () => {
+    const { env, post, spawned } = await setup();
+    try {
+      expect((await post('/api/welcome/skip', {}, { Host: 'habblaud.lan' })).status).toBe(403);
+      expect((await post('/api/welcome/skip', {}, { Origin: 'http://attacker.example' })).status).toBe(403);
+      const skip = await post('/api/welcome/skip', {});
+      expect(skip.status).toBe(200);
+      expect(await skip.json()).toMatchObject({ view: { state: 'done' } });
+      expect((await post('/api/welcome/start', { choice: 'explicar' })).status).toBe(409);
+      expect(spawned).toEqual([]);
+      expect((await fetch(`${env.base}/api/welcome/skip`)).status).toBe(405);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+    const off = await setup(false);
+    try {
+      expect(await (await fetch(`${off.env.base}/api/welcome`)).json()).toMatchObject({ state: 'off' });
+      expect((await off.post('/api/welcome/skip', {})).status).toBe(403);
+    } finally {
+      await off.env.close();
+      off.env.cleanup();
     }
   });
 });

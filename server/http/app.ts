@@ -11,10 +11,14 @@ import { cleanProfile, ProfileError } from '../../shared/profile';
 import { type StateStore, StateError } from '../model/state';
 import { handleMissionsRoute } from './missions';
 import type { MissionsEngine } from '../missions/engine';
+import { type WelcomeService, WelcomeLoginError } from '../welcome/welcome';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
 import { handleStatsRoute } from './stats';
 import type { TerminalStreams } from './terminal';
+import { AnswerError } from '../questions/ask';
+import type { DialogWatcher } from '../questions/dialogs';
+import type { QuestionService } from '../questions/service';
 
 export interface ApiDeps {
   office: Office;
@@ -42,10 +46,25 @@ export interface ApiDeps {
    */
   input?: AgentInput;
   /**
+   * Perguntas com opções (AskUserQuestion) respondidas pelo chat: POST /api/agents/:id/answer dirige o diálogo pelo tmux.
+   * Mesma trava das mensagens. Enquanto há pergunta pendente, POST /input recusa o texto (o TUI o perderia).
+   */
+  questions?: Pick<QuestionService, 'pendingOf' | 'answer'>;
+  /**
+   * Diálogo desconhecido na tela do agente: POST /api/agents/:id/keys {key: Up|Down|Enter|Escape} aperta a tecla.
+   * Mesma trava das mensagens. Enquanto ele está à mostra, POST /input também recusa o texto.
+   */
+  dialogs?: Pick<DialogWatcher, 'dialogOf' | 'pressKey'>;
+  /**
    * Quadro de missões (GET /api/missions, POST /api/missions/:id/{start,complete,seen}; http/missions.ts). Mesma
    * trava das rotas que abrem agentes: só com bind local (`terminal`) e Host local; sem isto, 403.
    */
   missions?: MissionsEngine;
+  /**
+   * Cartão de boas-vindas (GET /api/welcome, POST /api/welcome/{start,skip}; welcome/welcome.ts). Abre agentes: a
+   * mesma trava do spawn (bind local + Host local). Sem isto (ou fora da trava) o GET diz {state: "off"}.
+   */
+  welcome?: WelcomeService;
   /** Terminal embutido (/api/shell*, shell/http.ts): a trava fica lá; devolve false para o resto. */
   shell?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Painel do GitHub (/api/github*, github/http.ts): a trava fica lá; devolve false para o resto. */
@@ -63,6 +82,15 @@ export interface ApiDeps {
   };
 }
 
+/** POST {toolUseId, answers} /api/agents/:id/answer (pergunta com opções). */
+const ANSWER_ROUTE = /^\/api\/agents\/([^/]+)\/answer$/;
+/** Recusa de mensagem enquanto o agente espera a resposta de uma pergunta. */
+export const QUESTION_PENDING_ERROR = 'O agente está esperando você responder a pergunta acima';
+/** POST {key} /api/agents/:id/keys (diálogo desconhecido na tela do agente). */
+const KEYS_ROUTE = /^\/api\/agents\/([^/]+)\/keys$/;
+/** Recusa de mensagem enquanto o terminal do agente mostra um diálogo (o texto cairia nele). */
+export const DIALOG_PENDING_ERROR = 'O terminal do agente está mostrando uma tela que precisa de resposta: use os botões acima';
+
 /** GET (disponível?) e POST {text} /api/agents/:id/input. */
 const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
 /** POST {name?, appearance?} /api/agents/:id/profile: nome e boneco escolhidos no escritório. */
@@ -77,6 +105,8 @@ const CODEX_SPAWN_ACCOUNT = '.codex';
  * corpo é ignorado. GET devolve {available, folders, home}.
  */
 const NEW_AGENT_ROUTE = '/api/agents/new';
+/** GET /api/welcome (WelcomeView) e POST /api/welcome/start {choice} · /api/welcome/skip: cartão de boas-vindas. */
+const WELCOME_ROUTE = '/api/welcome';
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
 const TERMINAL_ROUTE = /^\/api\/agents\/([^/]+)\/terminal$/;
 
@@ -206,7 +236,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
   };
 
   const failInput = (res: ServerResponse, err: unknown) => {
-    if (err instanceof InputError) sendJson(res, err.status, { error: err.message });
+    if (err instanceof InputError || err instanceof AnswerError) sendJson(res, err.status, { error: err.message });
     else if (err instanceof ProfileError) sendJson(res, 400, { error: err.message });
     else if (err instanceof HttpError) sendJson(res, err.status, { error: err.message });
     else sendJson(res, 502, { error: 'o tmux não respondeu: o agente ainda está aberto?' });
@@ -253,6 +283,46 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         const own = { account: url.searchParams.get('account') || undefined, session: url.searchParams.get('session') || undefined };
         sendJson(res, 200, modSummary(hub.current(), (id) => office.has(id), deps.version, own));
       }
+      return true;
+    }
+    const keysMatch = KEYS_ROUTE.exec(path);
+    if (keysMatch) {
+      const dialogs = deps.terminal && deps.input ? deps.dialogs : undefined;
+      let id = '';
+      try {
+        id = decodeURIComponent(keysMatch[1]);
+      } catch {
+        // fica vazio: 400 abaixo
+      }
+      if (!dialogs) sendJson(res, 403, { error: 'responder telas do terminal pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      else if (!isLoopbackHost(req.headers.host)) sendJson(res, 403, { error: 'só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
+      else if (!id) sendJson(res, 400, { error: 'id inválido' });
+      else if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else
+        readJson(req)
+          .then((body) => dialogs.pressKey(id, body))
+          .then((r) => sendJson(res, 200, { ok: true, ...r }))
+          .catch((err) => failInput(res, err));
+      return true;
+    }
+    const answerMatch = ANSWER_ROUTE.exec(path);
+    if (answerMatch) {
+      const questions = deps.terminal && deps.input ? deps.questions : undefined;
+      let id = '';
+      try {
+        id = decodeURIComponent(answerMatch[1]);
+      } catch {
+        // fica vazio: 400 abaixo
+      }
+      if (!questions) sendJson(res, 403, { error: 'responder perguntas pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      else if (!isLoopbackHost(req.headers.host)) sendJson(res, 403, { error: 'respostas só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
+      else if (!id) sendJson(res, 400, { error: 'id inválido' });
+      else if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else
+        readJson(req)
+          .then((body) => questions.answer(id, body))
+          .then((r) => sendJson(res, 200, { ok: true, ...r }))
+          .catch((err) => failInput(res, err));
       return true;
     }
     const inputMatch = INPUT_ROUTE.exec(path);
@@ -307,7 +377,12 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         else if (method !== 'POST') methodNotAllowed(res, 'GET, POST');
         else
           readJson(req)
-            .then((body) => input.send(id, (body as { text?: unknown } | undefined)?.text))
+            .then((body) => {
+              // Diálogo de pergunta aberto: o TUI ignoraria (e perderia) o texto.
+              if (deps.questions?.pendingOf(id)) throw new InputError(409, QUESTION_PENDING_ERROR);
+              if (deps.dialogs?.dialogOf(id)) throw new InputError(409, DIALOG_PENDING_ERROR);
+              return input.send(id, (body as { text?: unknown } | undefined)?.text);
+            })
             .then(() => {
               // Missão "Peça uma melhoria": a mensagem pelo escritório é um dos fatos da detecção.
               deps.missions?.noteInput(id);
@@ -315,6 +390,35 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             })
             .catch((err) => failInput(res, err));
       }
+      return true;
+    }
+    if (path === WELCOME_ROUTE || path.startsWith(`${WELCOME_ROUTE}/`)) {
+      const welcome = deps.terminal && isLoopbackHost(req.headers.host) ? deps.welcome : undefined;
+      const action = path.slice(WELCOME_ROUTE.length);
+      if (action === '') {
+        if (!isRead) methodNotAllowed(res, 'GET');
+        else if (!welcome) sendJson(res, 200, { state: 'off', suggestions: [] });
+        else welcome.view().then((v) => sendJson(res, 200, v), (err) => fail(res, err));
+      } else if (action !== '/start' && action !== '/skip') {
+        req.resume();
+        sendJson(res, 404, { error: 'rota desconhecida' });
+      } else if (method !== 'POST') {
+        req.resume();
+        methodNotAllowed(res, 'POST');
+      } else if (!welcome) {
+        req.resume();
+        sendJson(res, 403, { error: 'boas-vindas só pelo próprio escritório (http://localhost ou http://127.0.0.1)' });
+      } else
+        readJson(req)
+          .then(async (body) => {
+            if (action === '/skip') {
+              welcome.skip();
+              return sendJson(res, 200, { ok: true, view: await welcome.view() });
+            }
+            const r = await welcome.start((body as { choice?: unknown } | null)?.choice);
+            sendJson(res, 201, { ok: true, ...r });
+          })
+          .catch((err) => (err instanceof WelcomeLoginError ? sendJson(res, 409, { error: err.message, login: true }) : failInput(res, err)));
       return true;
     }
     if (path === '/api/github' || path.startsWith('/api/github/')) {
