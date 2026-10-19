@@ -15,6 +15,9 @@ do meio (0.**3**.0).
 - Login do Claude pelo escritório: quando a conta sai (ou o login expira) e o agente pede para entrar, a tela com o
   link de login agora aparece no chat do agente, com o link clicável. Depois de entrar, é só colar o código na caixa
   de mensagem. Antes a tela sumia e o link não aparecia.
+- Agente com a mão levantada sem nada para responder: telas do terminal sem lista de opções (código de login
+  inválido "Press Enter to retry", "Login successful. Press Enter to continue…") agora aparecem no escritório com os
+  botões Enter e Esc.
 
 ## [0.11.0] - 2026-10-18
 

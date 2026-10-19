@@ -126,6 +126,13 @@ describe('findDialog', () => {
     expect(isLoginDialog(d!)).toBe(true);
     expect(isLoginDialog(findDialog(TRUST) ?? '')).toBe(false);
   });
+  it('login com código errado e login concluído (só Enter/Esc, sem cursor) também aparecem', () => {
+    const erro = [SEP, '  Login', '  OAuth error: Invalid code. Please make sure the full code was copied', '  Press Enter to retry.', '  Esc to cancel'].join('\n');
+    expect(findDialog(erro)).toContain('Press Enter to retry');
+    expect(isLoginDialog(findDialog(erro)!)).toBe(false);
+    const ok = [SEP, '  Login', '  Logged in as a@b.com', '  Login successful. Press Enter to continue…'].join('\n');
+    expect(findDialog(ok)).toContain('Login successful');
+  });
 });
 
 function setup(screens: { tui?: FakeTeachTui; text?: string; covered?: boolean } = {}) {

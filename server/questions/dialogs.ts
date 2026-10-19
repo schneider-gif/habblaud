@@ -29,11 +29,14 @@ const SEP = /^\s*[─━▔▁]{8,}/;
 /** Linha com o cursor de seleção (❯ ou ›) apontando uma opção. */
 const CURSOR = /^\s*[❯›>]\s*\S/;
 /**
- * Login do Claude Code (/login ou "Login expired"): link para abrir no navegador e campo para colar o código, sem
- * cursor de seleção. Sem isto a tela sumia do escritório e o cliente não via o link.
+ * Telas sem cursor de seleção que esperam a pessoa (sem isto sumiam do escritório e o agente ficava com a mão
+ * levantada sem nada para responder): o /login do Claude Code (link + "Paste code here", "OAuth error … Press Enter
+ * to retry", "Login successful. Press Enter to continue…") e qualquer "Press Enter to retry/continue".
  */
-const LOGIN = /Paste code here|Login successful/;
-export const isLoginDialog = (excerpt: string) => LOGIN.test(excerpt);
+const NO_CURSOR = /Paste code here|Login successful|OAuth error|Press Enter to (retry|continue)/;
+/** Login com o campo de colar o código: a caixa de mensagem do chat manda o texto para ele. */
+const LOGIN_INPUT = /Paste code here/;
+export const isLoginDialog = (excerpt: string) => LOGIN_INPUT.test(excerpt);
 
 /**
  * Trecho do diálogo de seleção na tela (texto puro do capture-pane), ou undefined se a tela não mostra um.
@@ -60,7 +63,7 @@ export function findDialog(text: string): string | undefined {
     }
   }
   const block = lines.slice(start, end + 1);
-  if (!block.some((l) => CURSOR.test(l) || LOGIN.test(l))) return undefined;
+  if (!block.some((l) => CURSOR.test(l) || NO_CURSOR.test(l))) return undefined;
   while (block.length && !block[0].trim()) block.shift();
   return block
     .map((l) => l.replace(/\s+$/, ''))
