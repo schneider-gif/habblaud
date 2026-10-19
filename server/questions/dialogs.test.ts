@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentInfo } from '../../shared/types';
 import { setQuiet } from '../log';
-import { applyDialog, DialogWatcher, findDialog, WAITING_FOR_DIALOG, type DialogKey } from './dialogs';
+import { applyDialog, DialogWatcher, findDialog, isLoginDialog, WAITING_FOR_DIALOG, type DialogKey } from './dialogs';
 import { FakeAskTui } from './fake-tui';
 
 setQuiet(true);
@@ -80,6 +80,19 @@ class FakeTeachTui {
   }
 }
 
+// tela real do /login do Claude Code 2.1.295 (capture-pane -J: o link fica numa linha só)
+const LOGIN_URL = 'https://claude.com/cai/oauth/authorize?code=true&client_id=x&response_type=code&state=abc';
+const LOGIN = [
+  '● Login expired · Please run /login',
+  '❯ /login',
+  SEP,
+  '  Login',
+  "  Browser didn't open? Use the url below to sign in (c to copy)",
+  LOGIN_URL,
+  '  Paste code here if prompted >',
+  '  Esc to cancel',
+].join('\n');
+
 describe('findDialog', () => {
   it('acha a tela de confiança na pasta (real) e corta no separador', () => {
     const d = findDialog(TRUST)!;
@@ -105,6 +118,13 @@ describe('findDialog', () => {
   });
   it('rodapé sem cursor de seleção: nada', () => {
     expect(findDialog([SEP, ' Carregando…', ' Esc to cancel'].join('\n'))).toBeUndefined();
+  });
+  it('tela de login do Claude (link + colar o código, sem cursor) aparece com o link inteiro', () => {
+    const d = findDialog(LOGIN);
+    expect(d).toContain(LOGIN_URL);
+    expect(d).toContain('Paste code here');
+    expect(isLoginDialog(d!)).toBe(true);
+    expect(isLoginDialog(findDialog(TRUST) ?? '')).toBe(false);
   });
 });
 

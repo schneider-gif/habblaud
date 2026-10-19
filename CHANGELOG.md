@@ -8,6 +8,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+## [0.11.1] - 2026-10-19
+
+### Corrigido
+
+- Login do Claude pelo escritório: quando a conta sai (ou o login expira) e o agente pede para entrar, a tela com o
+  link de login agora aparece no chat do agente, com o link clicável. Depois de entrar, é só colar o código na caixa
+  de mensagem. Antes a tela sumia e o link não aparecia.
+
 ## [0.11.0] - 2026-10-18
 
 ### Adicionado

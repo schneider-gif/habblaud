@@ -28,6 +28,12 @@ const FOOTER = /Enter to (confirm|select|continue|submit|choose)|Esc to (cancel|
 const SEP = /^\s*[─━▔▁]{8,}/;
 /** Linha com o cursor de seleção (❯ ou ›) apontando uma opção. */
 const CURSOR = /^\s*[❯›>]\s*\S/;
+/**
+ * Login do Claude Code (/login ou "Login expired"): link para abrir no navegador e campo para colar o código, sem
+ * cursor de seleção. Sem isto a tela sumia do escritório e o cliente não via o link.
+ */
+const LOGIN = /Paste code here|Login successful/;
+export const isLoginDialog = (excerpt: string) => LOGIN.test(excerpt);
 
 /**
  * Trecho do diálogo de seleção na tela (texto puro do capture-pane), ou undefined se a tela não mostra um.
@@ -54,7 +60,7 @@ export function findDialog(text: string): string | undefined {
     }
   }
   const block = lines.slice(start, end + 1);
-  if (!block.some((l) => CURSOR.test(l))) return undefined;
+  if (!block.some((l) => CURSOR.test(l) || LOGIN.test(l))) return undefined;
   while (block.length && !block[0].trim()) block.shift();
   return block
     .map((l) => l.replace(/\s+$/, ''))
@@ -157,7 +163,7 @@ export class DialogWatcher {
       return !!before;
     }
     if (before?.text === excerpt) return false;
-    this.dialogs.set(id, { text: excerpt, at: this.now() });
+    this.dialogs.set(id, isLoginDialog(excerpt) ? { text: excerpt, at: this.now(), login: true } : { text: excerpt, at: this.now() });
     return true;
   }
 

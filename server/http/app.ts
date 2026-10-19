@@ -380,7 +380,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             .then((body) => {
               // Diálogo de pergunta aberto: o TUI ignoraria (e perderia) o texto.
               if (deps.questions?.pendingOf(id)) throw new InputError(409, QUESTION_PENDING_ERROR);
-              if (deps.dialogs?.dialogOf(id)) throw new InputError(409, DIALOG_PENDING_ERROR);
+              if (deps.dialogs?.dialogOf(id) && !deps.dialogs.dialogOf(id)?.login) throw new InputError(409, DIALOG_PENDING_ERROR);
               return input.send(id, (body as { text?: unknown } | undefined)?.text);
             })
             .then(() => {

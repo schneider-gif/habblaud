@@ -612,6 +612,8 @@ export interface AskAnswer {
 export interface TerminalDialogInfo {
   text: string;
   at: number;
+  /** Tela de login do Claude: o trecho traz o link, e a mensagem do chat vai para o campo "Paste code here". */
+  login?: boolean;
 }
 
 /** Corpo de POST /api/agents/:id/answer. */
