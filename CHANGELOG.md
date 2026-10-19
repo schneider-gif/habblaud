@@ -8,7 +8,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
-## [Não lançado]
+## [0.10.1] - 2026-10-16
+
+### Adicionado
+
+- Os agentes voltam sozinhos quando o escritório religa (por exemplo, depois de desligar por inatividade): o Habblaud
+  guarda em `abertos.json` os agentes abertos e, ao subir, retoma cada conversa com o mesmo nome e visual. Agente que
+  você fechou não volta. `HABBLAUD_REOPEN=0` desliga.
 
 ## [0.10.0] - 2026-10-16
 

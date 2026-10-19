@@ -46,6 +46,7 @@ import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { Carteiro } from './mensagens/carteiro';
 import { raizPadrao } from '../mod/habblaud/mensagens/caixa.mjs';
+import { startReopen } from './reopen';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -455,6 +456,20 @@ server.listen(config.port, config.host, () => {
       ? `   Versão nova: verificando as releases de github.com/${config.repo} a cada 6 h.`
       : `   Versão nova: verificação desligada (${config.repo ? 'HABBLAUD_UPDATE_CHECK' : 'package.json sem repositório no GitHub'}).`,
   );
+  // Reabre os agentes que estavam abertos quando o escritório desligou (HABBLAUD_REOPEN=0 desliga).
+  const reopenOff = /^(0|false|off|no|nao|não)$/i.test(process.env.HABBLAUD_REOPEN?.trim() ?? '');
+  if (input && config.terminal && !config.demo && !reopenOff) {
+    const self = `http://${config.host === '0.0.0.0' || config.host === '::' ? '127.0.0.1' : config.host.includes(':') ? `[${config.host}]` : config.host}:${config.port}`;
+    // ponytail: passa pela própria API (mesmas checagens do botão Retomar); extrair a função se precisar fora do HTTP
+    startReopen({
+      file: join(config.dataDir, 'abertos.json'),
+      snapshot: () => hub.current(),
+      post: async (body) => (await fetch(`${self}/api/agents/new`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json() as Promise<{ ok?: boolean; error?: string }>,
+      claudeDirs: accounts.entries().map((a) => a.dir),
+      cleanSessions: !config.inDocker,
+    });
+    log.info('   Reabrir agentes: ligado (lista em abertos.json; HABBLAUD_REOPEN=0 desliga).');
+  }
 });
 
 let shuttingDown = false;
