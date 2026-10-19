@@ -8396,6 +8396,8 @@ html.is-replay #world {
 .ui-ask__key {
   min-width: 44px;
   font-family: var(--font-mono);
+}
+
 /* ---------------------------------------------------------------- boas-vindas (docs/BOAS-VINDAS.md)
    Mesmo lugar do cartão "escritório vazio"; fundo #181621, limão na ação, rosa no destaque. */
 .ui-welcome {
