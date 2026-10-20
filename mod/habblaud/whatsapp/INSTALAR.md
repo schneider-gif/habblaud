@@ -38,7 +38,7 @@ sudo docker run --rm --entrypoint grep habblaude-office:0.12.3 -n whatsapp-bot /
 ## Contrato com o portal (rotas em app.habblaude.com)
 
 - `POST /api/whatsapp/bot/registrar {agentToken}` -> `{token}` (409 = sem ChatBot/WhatsApp)
-- `GET /api/whatsapp/bot/config` -> `{ativo, pausado, instrucoes, ignorar[], numero, conhecimento?, conhecimentoVersao?, assumidas[]?}` (campos com ? são do portal v2; sem eles o bot funciona como na v1)
+- `GET /api/whatsapp/bot/config` -> `{ativo, pausado, instrucoes, ignorar[], numero, conhecimento?, conhecimentoVersao?, assumidas[]?, somente[]?}` (somente não vazio = só esses números; 9º dígito brasileiro tanto faz) (campos com ? são do portal v2; sem eles o bot funciona como na v1)
 - `GET /api/whatsapp/mensagens` -> mensagens podem trazer `midia {tipo: 'imagem'|'audio', id, legenda?, transcricao?}`
 - `GET /api/whatsapp/midia/{id}` -> `{mime, base64}` (imagem que vai para o Claude)
 - `POST /api/whatsapp/bot/registro {de, nome, tipo: pedido|orcamento|agendamento|contato, resumo, dados?}` (404 = portal v1: ignorado)

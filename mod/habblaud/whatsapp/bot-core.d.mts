@@ -1,7 +1,7 @@
 // Tipos de bot-core.mjs (os testes importam o módulo em JS puro).
 export interface MidiaWa { tipo: 'imagem' | 'audio'; id?: string; legenda?: string; transcricao?: string }
 export interface MensagemWa { id: number; de: string; nome?: string | null; texto: string; recebidaEm: string; midia?: MidiaWa; imagemFalhou?: boolean }
-export interface ConfigBot { ativo?: boolean; pausado?: boolean; instrucoes?: string; conhecimento?: string; conhecimentoVersao?: string; ignorar?: string[]; assumidas?: string[]; numero?: string | null }
+export interface ConfigBot { ativo?: boolean; pausado?: boolean; instrucoes?: string; conhecimento?: string; conhecimentoVersao?: string; ignorar?: string[]; assumidas?: string[]; somente?: string[]; numero?: string | null }
 export interface ItemHistorico { quem: 'cliente' | 'bot'; texto: string; em?: string }
 export interface Registro { tipo: 'pedido' | 'orcamento' | 'agendamento' | 'contato'; resumo: string; dados?: Record<string, unknown> }
 export interface Imagem { mime: string; base64: string }
@@ -20,6 +20,7 @@ export declare const SYSTEM_PROMPT: string;
 export declare function claudeArgs(): string[];
 export declare function mensagemClaude(prompt: string, imagens?: Imagem[]): string;
 export declare function soDigitos(s: unknown): string;
+export declare function chaveNumero(numero: unknown): string;
 export declare function mascarar(numero: unknown): string;
 export declare function filtrar<T extends MensagemWa>(mensagens: T[], cfg: ConfigBot, agora: number): T[];
 export declare function textoDaMensagem(m: MensagemWa): string;

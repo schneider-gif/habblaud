@@ -60,15 +60,26 @@ export function mascarar(numero) {
   return d.length <= 4 ? '****' : `******${d.slice(-4)}`;
 }
 
+/** Chave de comparação de número: celular brasileiro com e sem o 9º dígito (55+DDD+9XXXXXXXX = 55+DDD+XXXXXXXX). */
+export function chaveNumero(numero) {
+  const d = soDigitos(numero);
+  return d.length === 13 && d.startsWith('55') && d[4] === '9' ? d.slice(0, 4) + d.slice(5) : d;
+}
+
 const temConteudo = (m) => !!String(m.texto ?? '').trim() || m.midia?.tipo === 'imagem' || m.midia?.tipo === 'audio';
 
-/** Mensagens que o bot responde: não é do próprio número, nem ignorado, nem conversa que o dono assumiu; tem texto ou mídia e é recente. */
+/**
+ * Mensagens que o bot responde: não é do próprio número, nem ignorado, nem conversa que o dono assumiu; se houver lista
+ * `somente`, só os números dela; tem texto ou mídia e é recente.
+ */
 export function filtrar(mensagens, cfg, agora) {
-  const proprio = soDigitos(cfg.numero);
-  const fora = new Set([...(cfg.ignorar ?? []), ...(cfg.assumidas ?? [])].map(soDigitos));
+  const proprio = chaveNumero(cfg.numero);
+  const fora = new Set([...(cfg.ignorar ?? []), ...(cfg.assumidas ?? [])].map(chaveNumero));
+  const somente = new Set((cfg.somente ?? []).map(chaveNumero).filter(Boolean));
   return mensagens.filter((m) => {
-    const de = soDigitos(m.de);
+    const de = chaveNumero(m.de);
     if (!de || de === proprio || fora.has(de)) return false;
+    if (somente.size && !somente.has(de)) return false;
     if (!temConteudo(m)) return false;
     const t = Date.parse(m.recebidaEm);
     return Number.isFinite(t) && agora - t <= IDADE_MAX_MS;

@@ -1,7 +1,7 @@
 // Bot Habblaude (mod/habblaud/whatsapp): lógica pura do atendente do WhatsApp.
 import { describe, expect, it } from 'vitest';
 import {
-  aparar, backoff, CHAMAR_DONO, claudeArgs, ESPERA_PADRAO, filtrar, HISTORICO_MAX, lerResposta, lerSaidaClaude, mascarar, mensagemClaude,
+  aparar, backoff, CHAMAR_DONO, chaveNumero, claudeArgs, ESPERA_PADRAO, filtrar, HISTORICO_MAX, lerResposta, lerSaidaClaude, mascarar, mensagemClaude,
   montarPrompt, prontos, RAJADA_MS, REGISTRO, soAudioSemTexto, textoDaMensagem, validarRegistro,
 } from '../../mod/habblaud/whatsapp/bot-core.mjs';
 
@@ -23,6 +23,18 @@ describe('filtrar', () => {
       msg({ recebidaEm: '2026-10-20T19:49:00Z' }),
       msg({ recebidaEm: 'lixo' }),
     ], cfg, AGORA)).toEqual([]);
+  });
+  it('somente: só os números da lista respondem; 9º dígito brasileiro tanto faz', () => {
+    const c = { numero: '1', somente: ['+55 47 9 9999-0001'] };
+    expect(filtrar([msg({ de: '5547999990001' }), msg({ de: '554799990001' }), msg({ de: '5547999990009' })], c, AGORA).map((m) => m.de))
+      .toEqual(['5547999990001', '554799990001']);
+    expect(filtrar([msg({ de: '5547999990009' })], { numero: '1', somente: [] }, AGORA)).toHaveLength(1);
+  });
+  it('ignorados e próprio número também batem com ou sem o 9º dígito', () => {
+    expect(filtrar([msg({ de: '554799990002' })], { numero: '1', ignorar: ['5547999990002'] }, AGORA)).toEqual([]);
+    expect(chaveNumero('5547999990002')).toBe('554799990002');
+    expect(chaveNumero('5547399990002')).toBe('5547399990002');
+    expect(chaveNumero('14155550100')).toBe('14155550100');
   });
   it('config do portal antigo (sem assumidas) continua valendo', () => {
     expect(filtrar([msg({})], { numero: '1' }, AGORA)).toHaveLength(1);

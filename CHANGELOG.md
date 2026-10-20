@@ -18,6 +18,7 @@ do meio (0.**3**.0).
   - **Pedidos, orçamentos, agendamentos e contatos:** quando o cliente fecha algo, o bot registra no portal (lista no painel do WhatsApp), sem mostrar nada disso ao cliente.
   - **Imagens:** o bot vê a foto que o cliente manda (pedido, comprovante, produto). Áudio sem transcrição: pede gentilmente para o cliente escrever.
   - **Dono assume a conversa:** conversa assumida pelo dono no portal não recebe resposta do bot.
+  - **Só estes números:** com a lista "somente" preenchida no portal, o bot só responde esses números (com ou sem o 9º dígito).
   - **Mais natural:** mensagens que chegam em sequência são respondidas de uma vez (espera 4 s de silêncio), sem repetir saudação, em até 2 mensagens curtas.
 
 ## [0.12.2] - 2026-10-20
