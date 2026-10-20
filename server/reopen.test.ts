@@ -1,9 +1,9 @@
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { OfficeSnapshot } from '../shared/types';
-import { cleanDeadSessions, openAgents, openListSaver, readOpen, toReopen, type OpenAgent } from './reopen';
+import { cleanDeadSessions, openAgents, startReopen, openListSaver, readOpen, toReopen, type OpenAgent } from './reopen';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'hb-reopen-'));
 const a = (sessionId: string, account = '.claude'): OpenAgent => ({ account, sessionId });
@@ -67,5 +67,33 @@ describe('reabrir agentes', () => {
     expect(cleanDeadSessions([dir, join(dir, 'nao-existe')], (pid) => pid === 20)).toBe(2);
     expect(readdirSync(s)).toEqual(['20.json']);
     expect(JSON.parse(readFileSync(join(s, '20.json'), 'utf8')).pid).toBe(20);
+  });
+
+  it('startReopen: pending conta os retomáveis até terminar (e zera se ninguém precisa voltar)', async () => {
+    vi.useFakeTimers();
+    try {
+      const d = tmp();
+      const f = join(d, 'abertos.json');
+      writeFileSync(f, JSON.stringify([a('s1'), a('s2', '.codex'), a('s3', '.claude-trabalho')]));
+      const empty = { rooms: [], agents: [] } as unknown as OfficeSnapshot;
+      const posts: unknown[] = [];
+      let done = 0;
+      const st = startReopen({ file: f, snapshot: () => empty, post: async (b) => (posts.push(b), { ok: true }), claudeDirs: [], cleanSessions: false, settleMs: 10, graceMs: 100, saveEveryMs: 60_000, onDone: () => done++ });
+      expect(st.pending()).toBe(2);
+      await vi.advanceTimersByTimeAsync(10 + 2 * 2_000);
+      expect(posts).toHaveLength(2);
+      expect(st.pending()).toBe(2);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(st.pending()).toBe(0);
+      expect(done).toBe(1);
+
+      writeFileSync(f, '[]');
+      const none = startReopen({ file: f, snapshot: () => empty, post: async () => ({ ok: true }), claudeDirs: [], cleanSessions: false, settleMs: 10, onDone: () => done++ });
+      expect(none.pending()).toBe(0);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(done).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
