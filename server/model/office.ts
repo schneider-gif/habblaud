@@ -34,6 +34,7 @@ import { applyDialog } from '../questions/dialogs';
 import { applyQuestion } from '../questions/service';
 import type { SetupAgent } from '../shell/setup';
 import type { NameStore } from './names';
+import type { RoomLabelStore } from './room-labels';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
 
 export const OFFLINE_GRACE_MS = 20_000;
@@ -56,6 +57,8 @@ const FEED_LIMIT = 200;
 
 export interface OfficeDeps {
   names: NameStore;
+  /** Nomes de sala escolhidos no escritório (rooms.json); ausente = sempre o nome da pasta. */
+  roomLabels?: RoomLabelStore;
   /** Demonstração proibida: setDemo(true) não faz nada. */
   demoLocked?: boolean;
   version: string;
@@ -85,6 +88,8 @@ export interface OfficeDeps {
   github?: () => boolean;
   /** Links rápidos da barra superior (ver OfficeSnapshot.meta.links). */
   links?: { vscode?: string; bug?: string };
+  /** Agentes sendo retomados depois do boot (ver OfficeSnapshot.meta.reopening). */
+  reopening?: () => number;
   now?: () => number;
 }
 
@@ -257,7 +262,7 @@ export class Office {
   }
 
   roomName(roomId: string): string {
-    return this.roomNames.get(roomId) ?? roomId.split('/').filter(Boolean).pop() ?? roomId;
+    return this.deps.roomLabels?.get(roomId) ?? this.roomNames.get(roomId) ?? roomId.split('/').filter(Boolean).pop() ?? roomId;
   }
 
   detail(id: string): AgentDetail | undefined {
@@ -839,6 +844,14 @@ export class Office {
     return true;
   }
 
+  /** Renomeia uma sala de verdade (só o nome que aparece); '' volta ao nome da pasta. Devolve false se ela não existe. */
+  renameRoom(roomId: string, name: string): boolean {
+    if (!this.deps.roomLabels || !this.rooms.has(roomId)) return false;
+    this.deps.roomLabels.set(roomId, name);
+    this.markDirty();
+    return true;
+  }
+
   setDemo(enabled: boolean): void {
     if (enabled && this.deps.demoLocked) return;
     if (enabled === this.isDemo()) return;
@@ -955,6 +968,7 @@ export class Office {
         links: this.deps.links?.vscode || this.deps.links?.bug
           ? { ...(this.deps.links.vscode ? { vscode: this.deps.links.vscode } : {}), ...(this.deps.links.bug ? { bug: this.deps.links.bug } : {}) }
           : undefined,
+        ...(this.deps.reopening?.() ? { reopening: this.deps.reopening() } : {}),
       },
     };
   }

@@ -5,6 +5,7 @@
 import type { AgentInfo, AskAnswer, AskQuestion, AskQuestionInfo } from '../../../shared/types';
 import type { UiContext } from './context';
 import { h, setHidden, setText } from './dom';
+import { linkifyInto } from './linkify';
 
 /** Mesmo limite do servidor (server/questions/ask.ts OTHER_MAX). */
 export const OTHER_MAX = 1_000;
@@ -234,11 +235,16 @@ const DIALOG_BUTTONS: [key: string, text: string, title: string][] = [
  * Cartão de uma tela de seleção no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
  * environment?"): mostra o trecho do terminal e os botões ↑ ↓ Enter Esc, que apertam a tecla no pane.
  */
+const KIND_UNKNOWN = 'Tela que o Habblaud não conhece: use os botões como se fossem as teclas do terminal.';
+const KIND_LOGIN = 'Entrar na conta do Claude: abra o link, faça o login e cole o código na caixa de mensagem.';
+
 export class DialogCard {
   readonly el: HTMLElement;
   private agentId = '';
   private busy = false;
   private pre: HTMLElement;
+  private kind: HTMLElement;
+  private login = false;
   private status: HTMLElement;
   private buttons: HTMLButtonElement[];
 
@@ -247,6 +253,7 @@ export class DialogCard {
     variant: 'term' | 'drawer',
   ) {
     this.pre = h('pre', { class: 'ui-ask__screen', attrs: { 'aria-label': 'Trecho do terminal do agente' } });
+    this.kind = h('p', { class: 'ui-ask__kind' });
     this.status = h('p', { class: 'ui-perm__status', role: 'status', attrs: { 'aria-live': 'polite' } });
     this.buttons = DIALOG_BUTTONS.map(([key, text, title]) =>
       h('button', { class: 'ui-btn ui-perm__btn ui-ask__key', type: 'button', title, on: { click: () => void this.press(key) } }, text),
@@ -255,7 +262,7 @@ export class DialogCard {
       'section',
       { class: `ui-perm ui-ask ui-ask--${variant}`, hidden: true, tabIndex: -1, attrs: { 'aria-label': 'Tela no terminal do agente' } },
       h('div', { class: 'ui-perm__head ui-ask__head' }, h('span', { class: 'ui-perm__icon', text: '⌨', attrs: { 'aria-hidden': 'true' } }), h('strong', { class: 'ui-perm__title', text: 'O terminal do agente espera você' })),
-      h('p', { class: 'ui-ask__kind', text: 'Tela que o Habblaud não conhece: use os botões como se fossem as teclas do terminal.' }),
+      this.kind,
       this.pre,
       h('div', { class: 'ui-perm__actions' }, ...this.buttons),
       this.status,
@@ -264,6 +271,11 @@ export class DialogCard {
 
   get visible(): boolean {
     return !this.el.hidden;
+  }
+
+  /** Tela de login à mostra: a caixa de mensagem manda o código colado (as outras telas seguram o texto). */
+  get loginVisible(): boolean {
+    return this.visible && this.login;
   }
 
   render(agent: AgentInfo | undefined): void {
@@ -280,7 +292,11 @@ export class DialogCard {
       setText(this.status, '');
     }
     setHidden(this.el, false);
-    setText(this.pre, d.text);
+    this.login = !!d.login;
+    setText(this.kind, d.login ? KIND_LOGIN : KIND_UNKNOWN);
+    // o link do login precisa abrir: o trecho vira texto com as URLs clicáveis (nada de HTML vindo da tela)
+    this.pre.replaceChildren();
+    linkifyInto(this.pre, d.text);
     const local = this.ctx.store.mock || !!this.ctx.store.snapshot?.meta.terminal;
     for (const b of this.buttons) b.disabled = this.busy || !local;
   }

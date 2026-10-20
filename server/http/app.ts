@@ -8,6 +8,7 @@ import type { SessionHistory } from '../sources/history';
 import { isJsonContentType, isLoopbackHost } from './guard';
 import { type AgentInput, cleanEngine, cleanResumeId, InputError } from '../input/tmux';
 import { cleanProfile, ProfileError } from '../../shared/profile';
+import { cleanRoomName, RoomNameError } from '../model/room-labels';
 import { type StateStore, StateError } from '../model/state';
 import { handleMissionsRoute } from './missions';
 import type { MissionsEngine } from '../missions/engine';
@@ -95,6 +96,8 @@ export const DIALOG_PENDING_ERROR = 'O terminal do agente está mostrando uma te
 const INPUT_ROUTE = /^\/api\/agents\/([^/]+)\/input$/;
 /** POST {name?, appearance?} /api/agents/:id/profile: nome e boneco escolhidos no escritório. */
 const PROFILE_ROUTE = /^\/api\/agents\/([^/]+)\/profile$/;
+/** POST {name} /api/rooms/:id/name: nome da sala escolhido no escritório ('' volta ao nome da pasta). */
+const ROOM_NAME_ROUTE = /^\/api\/rooms\/([^/]+)\/name$/;
 /** Conta do Claude aberto pelo escritório (CLAUDE_CONFIG_DIR padrão: ~/.claude). */
 const SPAWN_ACCOUNT = '.claude';
 /** Conta do Codex aberto pelo escritório (CODEX_HOME padrão: ~/.codex). */
@@ -237,7 +240,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
 
   const failInput = (res: ServerResponse, err: unknown) => {
     if (err instanceof InputError || err instanceof AnswerError) sendJson(res, err.status, { error: err.message });
-    else if (err instanceof ProfileError) sendJson(res, 400, { error: err.message });
+    else if (err instanceof ProfileError || err instanceof RoomNameError) sendJson(res, 400, { error: err.message });
     else if (err instanceof HttpError) sendJson(res, err.status, { error: err.message });
     else sendJson(res, 502, { error: 'o tmux não respondeu: o agente ainda está aberto?' });
   };
@@ -380,7 +383,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             .then((body) => {
               // Diálogo de pergunta aberto: o TUI ignoraria (e perderia) o texto.
               if (deps.questions?.pendingOf(id)) throw new InputError(409, QUESTION_PENDING_ERROR);
-              if (deps.dialogs?.dialogOf(id)) throw new InputError(409, DIALOG_PENDING_ERROR);
+              if (deps.dialogs?.dialogOf(id) && !deps.dialogs.dialogOf(id)?.login) throw new InputError(409, DIALOG_PENDING_ERROR);
               return input.send(id, (body as { text?: unknown } | undefined)?.text);
             })
             .then(() => {
@@ -478,6 +481,29 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           .then((body) => {
             const profile = cleanProfile(body);
             if (!office.setProfile(id, profile)) throw new HttpError(404, 'agente não encontrado (só agentes principais presentes)');
+            sendJson(res, 200, { ok: true });
+          })
+          .catch((err) => failInput(res, err));
+      }
+      return true;
+    }
+    const roomNameMatch = ROOM_NAME_ROUTE.exec(path);
+    if (roomNameMatch) {
+      if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else if (!deps.terminal || !isLoopbackHost(req.headers.host)) {
+        sendJson(res, 403, { error: 'renomear salas só funciona pelo próprio escritório' });
+      } else {
+        let id: string;
+        try {
+          id = decodeURIComponent(roomNameMatch[1]);
+        } catch {
+          sendJson(res, 400, { error: 'id inválido' });
+          return true;
+        }
+        readJson(req)
+          .then((body) => {
+            const name = cleanRoomName((body as { name?: unknown } | null)?.name);
+            if (!office.renameRoom(id, name)) throw new HttpError(404, 'sala não encontrada');
             sendJson(res, 200, { ok: true });
           })
           .catch((err) => failInput(res, err));

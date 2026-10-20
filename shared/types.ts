@@ -357,6 +357,11 @@ export interface OfficeSnapshot {
     github?: boolean;
     /** Link rápido "VS Code" da barra superior (HABBLAUD_VSCODE_URL, passado pelo template); ausente = sem o botão. */
     links?: { vscode?: string; bug?: string };
+    /**
+     * Agentes que estavam abertos quando o escritório desligou e estão sendo retomados agora (server/reopen.ts).
+     * Enquanto > 0, um escritório sem ninguém mostra "Retomando seus agentes" e não o cartão de vazio. Ausente = 0.
+     */
+    reopening?: number;
   };
 }
 
@@ -612,6 +617,8 @@ export interface AskAnswer {
 export interface TerminalDialogInfo {
   text: string;
   at: number;
+  /** Tela de login do Claude: o trecho traz o link, e a mensagem do chat vai para o campo "Paste code here". */
+  login?: boolean;
 }
 
 /** Corpo de POST /api/agents/:id/answer. */

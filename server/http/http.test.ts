@@ -478,6 +478,24 @@ describe('mensagens pelo escritório (/api/agents/:id/input)', () => {
     }
   });
 
+  it('tela de login do Claude: a mensagem passa (é o código colado no "Paste code here")', async () => {
+    const calls: string[][] = [];
+    const input = createAgentInput({
+      readEnviron: async () => 'TMUX=/tmp/tmux-1/default,1,0\0TMUX_PANE=%2\0',
+      readCmdline: async () => 'claude\0',
+      run: async (a) => void calls.push(a),
+    });
+    const dialogs = { dialogOf: () => ({ text: '  Paste code here if prompted >', at: 0, login: true }), pressKey: async () => ({ dialog: true }) };
+    const env = await start({ terminal: true, input, dialogs });
+    try {
+      expect(await post(env.base, '/api/agents/.claude%3A900/input', { text: 'codigo#123' })).toMatchObject({ status: 200 });
+      expect(calls.some((c) => c.includes('codigo#123'))).toBe(true);
+    } finally {
+      await env.close();
+      env.cleanup();
+    }
+  });
+
   describe('Retomar (POST /api/agents/new com {resume})', () => {
     const OLD = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
     const OPEN = '11111111-4e5f-4a6b-8c7d-9e0f1a2b3c4d';

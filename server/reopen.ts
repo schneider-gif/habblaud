@@ -106,21 +106,38 @@ export interface ReopenOptions {
   /** Espera o watcher achar o que já está vivo antes de decidir (ms). */
   settleMs?: number;
   saveEveryMs?: number;
+  /** Depois de pedir a última reabertura, ainda espera os agentes aparecerem no escritório (ms). */
+  graceMs?: number;
+  /** A reabertura terminou: o escritório deixa de mostrar "Retomando seus agentes". */
+  onDone?: () => void;
+}
+
+export interface ReopenState {
+  /** Agentes da lista salva sendo retomados agora; 0 = nada a esperar (ver OfficeSnapshot.meta.reopening). */
+  pending(): number;
 }
 
 /** Liga a reabertura (no boot) e depois a gravação periódica da lista. */
-export function startReopen(o: ReopenOptions): void {
+export function startReopen(o: ReopenOptions): ReopenState {
   const saved = readOpen(o.file); // antes de qualquer gravação
   if (o.cleanSessions) {
     const n = cleanDeadSessions(o.claudeDirs);
     if (n) log.info(`   Reabrir agentes: ${n} registro(s) de sessão morta removido(s).`);
   }
+  // Até os agentes voltarem o escritório fica uns segundos sem ninguém: a tela diz "Retomando", não "vazio".
+  let pending = toReopen(saved, new Set()).reopen.length;
+  const done = (): void => {
+    if (!pending) return;
+    pending = 0;
+    o.onDone?.();
+  };
   const t = setTimeout(() => void run(), o.settleMs ?? 15_000);
   t.unref?.();
 
   async function run(): Promise<void> {
     const live = new Set(openAgents(o.snapshot()).map((a) => a.sessionId));
     const { reopen, skipped } = toReopen(saved, live);
+    if (!reopen.length) done();
     for (const e of skipped) log.info(`   Reabrir agentes: ${e.name ?? e.sessionId.slice(0, 8)} na conta ${e.account} fica para retomar à mão.`);
     for (const e of reopen) {
       const profile = { name: e.name, appearance: e.appearance };
@@ -134,11 +151,13 @@ export function startReopen(o: ReopenOptions): void {
       }
       await new Promise((ok) => setTimeout(ok, 2_000));
     }
+    if (reopen.length) setTimeout(done, o.graceMs ?? 20_000).unref?.();
     const save = openListSaver(o.file, saved);
     const tick = () => save(openAgents(o.snapshot()));
     tick();
     setInterval(tick, o.saveEveryMs ?? 10_000).unref?.();
   }
+  return { pending: () => pending };
 }
 
 /**

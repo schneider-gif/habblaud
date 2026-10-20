@@ -623,6 +623,10 @@ class RoomView {
   private last: RoomInfo | null = null;
   private swatch: HTMLElement;
   private name: HTMLElement;
+  private nameInput: HTMLInputElement;
+  private renameBtn: HTMLButtonElement;
+  private renaming = false;
+  private saving = false;
   private path: HTMLElement;
   private gone: HTMLElement;
   private accs: KeyedList<string>;
@@ -638,6 +642,25 @@ class RoomView {
   constructor(private ctx: UiContext) {
     this.swatch = h('span', { class: 'ui-room-hero__swatch', attrs: { 'aria-hidden': 'true' } });
     this.name = h('h2', { class: 'ui-hero__name' });
+    // Renomear muda só o nome que aparece (rooms.json no servidor): a pasta e os agentes ficam onde estão.
+    this.nameInput = h('input', {
+      class: 'ui-hero__name ui-room-rename',
+      type: 'text',
+      hidden: true,
+      attrs: { maxlength: '40', 'aria-label': 'Nome da sala', placeholder: 'vazio = nome da pasta', autocomplete: 'off' },
+      on: {
+        keydown: (e: Event) => {
+          const k = (e as KeyboardEvent).key;
+          if (k === 'Enter') void this.saveName();
+          else if (k === 'Escape') {
+            e.stopPropagation();
+            this.stopRename();
+          }
+        },
+        blur: () => void this.saveName(),
+      },
+    });
+    this.renameBtn = h('button', { class: 'ui-btn', type: 'button', text: '✎ Renomear', title: 'Trocar o nome da sala (a pasta continua a mesma)', on: { click: () => this.startRename() } });
     this.path = h('span', { class: 'ui-room-hero__path' });
     const centerBtn = h('button', { class: 'ui-btn', type: 'button', title: 'Levar a câmera até a sala', on: { click: () => ctx.focusSelection() } });
     centerBtn.innerHTML = ICONS.center;
@@ -681,10 +704,10 @@ class RoomView {
         'div',
         { class: 'ui-room-hero' },
         this.swatch,
-        h('div', { class: 'ui-hero__text' }, this.name, h('span', { class: 'ui-copy-row' }, this.path, copyButton(() => this.last?.path ?? '', 'Copiar caminho'))),
+        h('div', { class: 'ui-hero__text' }, this.name, this.nameInput, h('span', { class: 'ui-copy-row' }, this.path, copyButton(() => this.last?.path ?? '', 'Copiar caminho'))),
       ),
       this.gone,
-      h('div', { class: 'ui-status' }, accsEl, h('span', { class: 'ui-status__actions' }, centerBtn)),
+      h('div', { class: 'ui-status' }, accsEl, h('span', { class: 'ui-status__actions' }, this.renameBtn, centerBtn)),
       this.agentsSec.el,
       this.tasksSec.el,
       this.feedSec.el,
@@ -699,6 +722,7 @@ class RoomView {
     if (this.id === id) return;
     this.id = id;
     this.last = null;
+    this.stopRename();
     this.agents.clear();
     this.tasks.clear();
     this.feed.clear();
@@ -710,6 +734,11 @@ class RoomView {
     const r = this.last;
     if (!r) return;
     setText(this.name, r.name);
+    setHidden(this.name, this.renaming);
+    setHidden(this.nameInput, !this.renaming);
+    // Mesma trava de personalizar agentes: só pelo próprio escritório, sala ainda aberta, fora da demonstração.
+    const snapMeta = this.ctx.store.snapshot?.meta;
+    setHidden(this.renameBtn, this.renaming || !live || !snapMeta?.terminal || this.ctx.store.mock || r.id.startsWith('demo:') || snapMeta.demo);
     setText(this.path, shortPath(r.path));
     setTitle(this.path, r.path);
     try {
@@ -736,6 +765,44 @@ class RoomView {
     const feed = this.ctx.store.feed.filter((f) => f.roomId === r.id).slice(-ROOM_FEED_LIMIT).reverse();
     setHidden(this.feedSec.el, feed.length === 0);
     this.feed.sync(feed);
+  }
+
+  private startRename(): void {
+    if (!this.last) return;
+    this.renaming = true;
+    this.nameInput.value = this.last.name;
+    this.render();
+    this.nameInput.focus();
+    this.nameInput.select();
+  }
+
+  private stopRename(): void {
+    if (!this.renaming) return;
+    this.renaming = false;
+    this.render();
+  }
+
+  private async saveName(): Promise<void> {
+    const r = this.last;
+    if (!this.renaming || this.saving || !r) return;
+    const name = this.nameInput.value.trim();
+    if (name === r.name) return this.stopRename();
+    this.saving = true;
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(r.id)}/name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const j = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) this.ctx.announce(`Não foi possível renomear a sala: ${j?.error ?? `erro ${res.status}`}.`);
+      else this.ctx.announce(name ? `Sala renomeada para ${name}.` : 'A sala voltou ao nome da pasta.');
+    } catch {
+      this.ctx.announce('Não foi possível falar com o servidor.');
+    } finally {
+      this.saving = false;
+      this.stopRename();
+    }
   }
 }
 

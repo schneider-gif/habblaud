@@ -17,6 +17,7 @@ import { DayStatsService } from './history/daystats';
 import { describeStateMigration, legacyEnvWarning, migrateLegacyStateDir } from './legacy';
 import { errMsg, log } from './log';
 import { NameStore } from './model/names';
+import { RoomLabelStore } from './model/room-labels';
 import { Office } from './model/office';
 import { openMainAgent, SessionHistory } from './sources/history';
 import { createPermissionRoutes } from './permissions/http';
@@ -47,7 +48,7 @@ import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { Carteiro } from './mensagens/carteiro';
 import { raizPadrao } from '../mod/habblaud/mensagens/caixa.mjs';
-import { startReopen } from './reopen';
+import { startReopen, type ReopenState } from './reopen';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -64,11 +65,13 @@ if (legacyEnv) log.warn(legacyEnv);
 
 const names = new NameStore(join(config.dataDir, 'names.json'));
 names.load();
+const roomLabels = new RoomLabelStore(join(config.dataDir, 'rooms.json'));
+roomLabels.load();
 const state = new StateStore(join(config.dataDir, 'state.json'));
 state.load();
 
 // Office, contas e watcher se referenciam (avisos de mudança / fontes): ligação tardia.
-const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher; welcome?: WelcomeService } = {};
+const late: { office?: Office; watcher?: ClaudeWatcher; permissions?: PermissionRegistry; codex?: CodexWatcher; questions?: QuestionService; dialogs?: DialogWatcher; welcome?: WelcomeService; reopen?: ReopenState } = {};
 // Terminal embutido (shell de verdade; server/shell): permitido pela config e com tmux + script(1) na máquina.
 // O serviço existe com a trava do terminal no Linux (também acha os agentes em configuração); o shell em si só com config.shell.
 const shellService = config.terminal && process.platform === 'linux' ? new ShellService({ home: config.home, shell: safeShell() }) : undefined;
@@ -113,6 +116,7 @@ const codexRediscover = setInterval(() => {
 }, 15_000);
 codexRediscover.unref?.();
 const office = new Office({
+  roomLabels,
   names,
   version: config.version,
   // No modo dev o Vite serve o cliente direto do código-fonte: não há build para comparar.
@@ -136,6 +140,7 @@ const office = new Office({
   shell: () => shellState.reason === undefined && !late.office?.isDemo(),
   github: () => githubOffReason(process.env, shellState.reason) === undefined && !late.office?.isDemo(),
   links: config.links,
+  reopening: () => late.reopen?.pending() ?? 0,
 });
 // Ponte (ex.: Mac -> esta VM): config dirs espelhados, vivos pelo batimento e sem receber mensagens.
 const remoteDirs = new Set((process.env.HABBLAUD_REMOTE_DIRS ?? '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => resolve(expandHome(p, config.home))));
@@ -492,7 +497,8 @@ server.listen(config.port, config.host, () => {
   if (input && config.terminal && !config.demo && !reopenOff) {
     const self = `http://${config.host === '0.0.0.0' || config.host === '::' ? '127.0.0.1' : config.host.includes(':') ? `[${config.host}]` : config.host}:${config.port}`;
     // ponytail: passa pela própria API (mesmas checagens do botão Retomar); extrair a função se precisar fora do HTTP
-    startReopen({
+    late.reopen = startReopen({
+      onDone: () => late.office?.markDirty(),
       file: join(config.dataDir, 'abertos.json'),
       snapshot: () => hub.current(),
       post: async (body) => (await fetch(`${self}/api/agents/new`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json() as Promise<{ ok?: boolean; error?: string }>,

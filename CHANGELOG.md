@@ -8,6 +8,26 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+## [0.12.0] - 2026-10-19
+
+### Adicionado
+
+- Renomear sala: clique na sala e use **✎ Renomear** para dar o nome que quiser (ex.: "meu-site" vira "Site da
+  padaria"). Muda só o nome que aparece no escritório: a pasta, os agentes e o histórico continuam onde estão. Deixe
+  o nome em branco para voltar ao nome da pasta.
+
+### Corrigido
+
+- Depois de atualizar ou religar o escritório, aparecia "O escritório está vazio" por alguns segundos enquanto os
+  agentes voltavam. Agora aparece "Retomando seus agentes…" até eles chegarem.
+
+- Login do Claude pelo escritório: quando a conta sai (ou o login expira) e o agente pede para entrar, a tela com o
+  link de login agora aparece no chat do agente, com o link clicável. Depois de entrar, é só colar o código na caixa
+  de mensagem. Antes a tela sumia e o link não aparecia.
+- Agente com a mão levantada sem nada para responder: telas do terminal sem lista de opções (código de login
+  inválido "Press Enter to retry", "Login successful. Press Enter to continue…") agora aparecem no escritório com os
+  botões Enter e Esc.
+
 ## [0.11.0] - 2026-10-18
 
 ### Adicionado

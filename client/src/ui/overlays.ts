@@ -69,6 +69,7 @@ export function officeIsEmpty(ctx: UiContext): boolean {
 
 export class EmptyState implements UiComponent {
   readonly el: HTMLElement;
+  private title: HTMLElement;
   private hint: HTMLElement;
   private demoBtn: HTMLButtonElement;
   private newBtn: HTMLButtonElement;
@@ -96,6 +97,7 @@ export class EmptyState implements UiComponent {
       );
     });
     art.append(img);
+    this.title = h('h2', { class: 'ui-empty__title', text: 'O escritório está vazio', attrs: { id: 'ui-empty-title' } });
     this.hint = h('p', { class: 'ui-empty__text' });
     this.demoBtn = h('button', { class: 'ui-btn ui-btn--primary', type: 'button', text: 'Ver demonstração', on: { click: () => void this.startDemo() } });
     // Escritório do cliente (sem demonstração): o caminho é abrir um agente ou o terminal, não decorar um atalho.
@@ -113,7 +115,7 @@ export class EmptyState implements UiComponent {
       'section',
       { class: 'ui-empty', hidden: true, attrs: { 'aria-labelledby': 'ui-empty-title' } },
       art,
-      h('h2', { class: 'ui-empty__title', text: 'O escritório está vazio', attrs: { id: 'ui-empty-title' } }),
+      this.title,
       this.hint,
       h('div', { class: 'ui-empty__actions' }, this.newBtn, this.shellBtn, this.demoBtn),
     );
@@ -125,6 +127,15 @@ export class EmptyState implements UiComponent {
     const show = officeIsEmpty(this.ctx) && !this.covered();
     setHidden(this.el, !show);
     if (!show || !snap) return;
+    // Escritório acabou de ligar e os agentes de antes estão voltando: nada de "vazio" nem de botões.
+    const reopening = snap.meta.reopening ?? 0;
+    this.el.classList.toggle('is-reopening', reopening > 0);
+    setText(this.title, reopening > 0 ? 'Retomando seus agentes…' : 'O escritório está vazio');
+    if (reopening > 0) {
+      setText(this.hint, `${reopening === 1 ? 'O agente que estava aberto volta' : `Os ${reopening} agentes que estavam abertos voltam`} em alguns segundos.`);
+      for (const b of [this.newBtn, this.shellBtn, this.demoBtn]) setHidden(b, true);
+      return;
+    }
     const keys = shortcutHint(snap.accounts.filter((a) => a.engine !== 'codex'));
     const shell = this.ctx.isShellAvailable();
     setText(
