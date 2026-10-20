@@ -2,11 +2,11 @@
 // Bot Habblaude: atende o WhatsApp do cliente (add-on ChatBot) com o Claude da conta dele, sem ferramentas.
 // Sobe com o escritório (hb-supervise whatsapp-bot); sem ChatBot ativo fica ocioso, conferindo a cada 5 min.
 // Estado: ~/.habblaud/whatsapp-bot.json (token + cursor, 600); logs, histórico e status em ~/.habblaud/whatsapp-bot/.
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { aparar, backoff, claudeArgs, filtrar, lerResposta, lerSaidaClaude, mascarar, montarPrompt, soDigitos } from './bot-core.mjs';
+import { aparar, backoff, claudeArgs, filtrar, lerResposta, lerSaidaClaude, mascarar, mensagemClaude, montarPrompt, PEDIR_TEXTO, prontos, soAudioSemTexto, soDigitos, textoDaMensagem } from './bot-core.mjs';
 
 const PORTAL = (process.env.HABBLAUDE_PORTAL_URL || 'https://app.habblaude.com').replace(/\/$/, '');
 const HOME = homedir();
@@ -77,38 +77,78 @@ function guardar(de, item) {
   writeFileSync(arqHistorico(de), h.map((x) => JSON.stringify(x)).join('\n') + '\n');
 }
 
-function perguntarClaude(prompt) {
+function perguntarClaude(prompt, imagens) {
   // ambiente mínimo: nada de token do Coder nem segredos para o processo que lê texto de estranhos
   const env = { HOME, PATH: process.env.PATH, USER: process.env.USER ?? 'ubuntu', LANG: process.env.LANG ?? 'C.UTF-8' };
   return new Promise((ok) => {
-    execFile('claude', claudeArgs(prompt), { cwd: CWD, env, timeout: CLAUDE_MS, maxBuffer: 4_000_000 }, (err, stdout) => {
-      ok(err && !stdout ? null : lerSaidaClaude(stdout));
-    });
+    const p = spawn('claude', claudeArgs(), { cwd: CWD, env, stdio: ['pipe', 'pipe', 'ignore'] });
+    let out = '';
+    const fim = setTimeout(() => p.kill('SIGKILL'), CLAUDE_MS);
+    p.stdout.on('data', (d) => { if (out.length < 4_000_000) out += d; });
+    p.on('error', () => { clearTimeout(fim); ok(null); });
+    p.on('close', () => { clearTimeout(fim); ok(lerSaidaClaude(out)); });
+    p.stdin.end(mensagemClaude(prompt, imagens));
   });
 }
 
-async function atender(estado, cfg, m) {
-  const quem = mascarar(m.de);
-  log(`<- ${quem}`);
-  const h = historico(m.de);
-  guardar(m.de, { quem: 'cliente', texto: m.texto });
-  const saida = await perguntarClaude(montarPrompt(cfg.instrucoes, h, m));
+/** Baixa as imagens da rajada pelo portal; a que falhar vira "[imagem que não foi possível abrir]" no prompt. */
+async function imagensDe(estado, msgs) {
+  const imagens = [];
+  for (const m of msgs) {
+    if (m.midia?.tipo !== 'imagem' || !m.midia.id) continue;
+    try {
+      const j = await api(estado, 'GET', `/api/whatsapp/midia/${encodeURIComponent(m.midia.id)}`);
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(j.mime) || typeof j.base64 !== 'string' || j.base64.length > 7_000_000) throw new Error('imagem inválida');
+      imagens.push({ mime: j.mime, base64: j.base64 });
+    } catch (e) {
+      if (e.status === 401) throw e;
+      m.imagemFalhou = true;
+    }
+  }
+  return imagens;
+}
+
+async function enviar(estado, de, quem, texto) {
+  try {
+    await api(estado, 'POST', '/api/whatsapp/enviar', { para: de, texto });
+    guardar(de, { quem: 'bot', texto });
+    return true;
+  } catch (e) {
+    if (e.status === 401) throw e;
+    if (e.status === 429) { log('limite de envio: esperando'); await sleep(30_000); }
+    else log(`envio para ${quem} recusado: ${e.message}`); // 403/409: segue, não repete
+    return false;
+  }
+}
+
+/** Responde de uma vez todas as mensagens da rajada de um contato. */
+async function atender(estado, cfg, msgs) {
+  const de = msgs[0].de, quem = mascarar(de), nome = msgs[0].nome;
+  log(`<- ${quem} (${msgs.length} mensage${msgs.length > 1 ? 'ns' : 'm'})`);
+  if (soAudioSemTexto(msgs)) {
+    guardar(de, { quem: 'cliente', texto: '[áudio]' });
+    if (await enviar(estado, de, quem, PEDIR_TEXTO)) log(`-> ${quem} (pediu texto no lugar do áudio)`);
+    return;
+  }
+  const h = historico(de);
+  const imagens = await imagensDe(estado, msgs);
+  for (const m of msgs) guardar(de, { quem: 'cliente', texto: textoDaMensagem(m) });
+  const texto = msgs.map(textoDaMensagem).join('\n');
+  const saida = await perguntarClaude(montarPrompt(cfg, h, msgs), imagens);
   if (saida === null) {
     log(`!! Claude não respondeu para ${quem} (sem login ou erro): chamando o dono`);
-    await api(estado, 'POST', '/api/whatsapp/bot/pendente', { de: m.de, nome: m.nome, texto: m.texto }).catch(() => {});
+    await api(estado, 'POST', '/api/whatsapp/bot/pendente', { de, nome, texto }).catch(() => {});
     return;
   }
   const r = lerResposta(saida);
-  if (r.chamarDono) await api(estado, 'POST', '/api/whatsapp/bot/pendente', { de: m.de, nome: m.nome, texto: m.texto }).catch((e) => log(`pendente falhou: ${e.message}`));
-  try {
-    await api(estado, 'POST', '/api/whatsapp/enviar', { para: m.de, texto: r.resposta });
-    guardar(m.de, { quem: 'bot', texto: r.resposta });
-    log(`-> ${quem}${r.chamarDono ? ' (chamou o dono)' : ''}`);
-  } catch (e) {
-    if (e.status === 429) { log('limite de envio: esperando'); await sleep(30_000); }
-    else log(`envio para ${quem} recusado: ${e.message}`); // 403/409: segue, não repete
-    if (e.status === 401) throw e;
+  if (r.chamarDono) await api(estado, 'POST', '/api/whatsapp/bot/pendente', { de, nome, texto }).catch((e) => log(`pendente falhou: ${e.message}`));
+  for (const reg of r.registros) {
+    // 404 = portal ainda sem registros: ignora
+    await api(estado, 'POST', '/api/whatsapp/bot/registro', { de, nome, ...reg }).then(() => log(`registro ${reg.tipo} de ${quem}`), (e) => { if (e.status !== 404) log(`registro falhou: ${e.message}`); });
   }
+  let enviadas = 0;
+  for (const t of r.mensagens) if (await enviar(estado, de, quem, t)) enviadas++;
+  log(`-> ${quem}${enviadas > 1 ? ` (${enviadas} mensagens)` : ''}${r.chamarDono ? ' (chamou o dono)' : ''}`);
 }
 
 async function main() {
@@ -123,11 +163,24 @@ async function main() {
       if (estado.cursor === undefined) { estado.cursor = await cursorAtual(estado); gravarEstado(estado); log('começando das mensagens novas'); }
       status('ativo');
       const j = await api(estado, 'GET', `/api/whatsapp/mensagens?depois=${estado.cursor}&limite=50`);
-      // cursor anda mensagem a mensagem: uma falha no meio não faz responder de novo quem já foi atendido
+      // a fila de rajada fica no estado em disco: o cursor anda ao enfileirar e nada se perde se o bot reiniciar
+      estado.fila ??= {};
       for (const m of j.mensagens ?? []) {
-        if (filtrar([m], cfg, Date.now()).length) await atender(estado, cfg, m);
+        if (filtrar([m], cfg, Date.now()).length) {
+          const f = (estado.fila[soDigitos(m.de)] ??= { msgs: [] });
+          f.msgs.push(m);
+          f.ultimaEm = Date.now();
+        }
         estado.cursor = m.id;
         gravarEstado(estado);
+      }
+      for (const de of prontos(estado.fila, Date.now())) {
+        const msgs = estado.fila[de].msgs;
+        delete estado.fila[de];
+        gravarEstado(estado);
+        // o dono pode ter assumido a conversa enquanto a rajada esperava
+        const ok = filtrar(msgs.map((m) => ({ ...m, recebidaEm: new Date().toISOString() })), cfg, Date.now());
+        if (ok.length) await atender(estado, cfg, ok);
       }
       falhas = 0;
       await sleep(POLL_MS);

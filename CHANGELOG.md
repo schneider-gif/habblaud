@@ -9,6 +9,17 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.3] - 2026-10-20
+
+### Adicionado
+
+- Bot Habblaude v2:
+  - **Base de conhecimento:** o bot usa o cardápio, catálogo ou tabela de preços que o dono cadastrar no portal para responder preço, produto e prazo; o que não estiver lá vai para o dono.
+  - **Pedidos, orçamentos, agendamentos e contatos:** quando o cliente fecha algo, o bot registra no portal (lista no painel do WhatsApp), sem mostrar nada disso ao cliente.
+  - **Imagens:** o bot vê a foto que o cliente manda (pedido, comprovante, produto). Áudio sem transcrição: pede gentilmente para o cliente escrever.
+  - **Dono assume a conversa:** conversa assumida pelo dono no portal não recebe resposta do bot.
+  - **Mais natural:** mensagens que chegam em sequência são respondidas de uma vez (espera 4 s de silêncio), sem repetir saudação, em até 2 mensagens curtas.
+
 ## [0.12.2] - 2026-10-20
 
 ### Adicionado

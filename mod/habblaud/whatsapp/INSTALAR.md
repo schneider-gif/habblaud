@@ -1,39 +1,47 @@
-# Bot Habblaude no escritório (imagem habblaude-office:0.12.2)
+# Bot Habblaude no escritório (imagem habblaude-office:0.12.3)
 
 O daemon `hb-wa-bot.mjs` vai no pacote do release (pasta `mod/`), então fica em
 `/opt/habblaud/mod/habblaud/whatsapp/hb-wa-bot.mjs`. Ele sobe pelo `hb-entrypoint`, supervisionado como `ubuntu`,
 e herda `CODER_AGENT_TOKEN` do container (o `runuser` sem `-l` mantém o ambiente). Sem ChatBot ativo, o portal
 responde 409 e o bot dorme 5 min entre conferências (ocioso, sem chamar o Claude).
 
-## Dockerfile.0.12.2
+A 0.12.2 já instalou a linha do `hb-supervise whatsapp-bot` no `hb-entrypoint`; a 0.12.3 só troca o release.
+
+## Dockerfile.0.12.3
 
 ```dockerfile
-# habblaude-office:0.12.2 = 0.12.1 + Habblaud 0.12.2 (Bot Habblaude do WhatsApp supervisionado)
-FROM habblaude-office:0.12.1
-ARG HABBLAUD_VERSION=0.12.2
-RUN --mount=type=bind,target=/ctx mkdir -p /opt/habblaud-releases/v${HABBLAUD_VERSION} \
- && tar xzf /ctx/habblaud-v${HABBLAUD_VERSION}.tgz --no-same-owner -C /opt/habblaud-releases/v${HABBLAUD_VERSION} \
- && test -f /opt/habblaud-releases/v${HABBLAUD_VERSION}/mod/habblaud/whatsapp/hb-wa-bot.mjs \
- && ln -sfn /opt/habblaud-releases/v${HABBLAUD_VERSION} /opt/habblaud-releases/current \
- && chown -R ubuntu:ubuntu /opt/habblaud-releases/v${HABBLAUD_VERSION} \
- && chmod 0755 /opt/habblaud/mod/habblaud/mensagens/hb-msg.mjs /opt/habblaud/mod/habblaud/whatsapp/hb-wa-bot.mjs \
- && grep -q whatsapp-bot /usr/local/bin/hb-entrypoint || sed -i 's|^if \[ -n "\${HB_AGENT_INIT:-}" \]; then|# 0.12.2: Bot Habblaude (WhatsApp do add-on ChatBot); ocioso sem ChatBot\nas_ubuntu /usr/local/bin/hb-supervise whatsapp-bot node /opt/habblaud/mod/habblaud/whatsapp/hb-wa-bot.mjs \&\n\n&|' /usr/local/bin/hb-entrypoint \
- && grep -q 'hb-supervise whatsapp-bot' /usr/local/bin/hb-entrypoint
+# habblaude-office:0.12.3 = 0.12.2 + Habblaud 0.12.3 (Bot Habblaude v2: base de conhecimento, registros, imagens, rajadas)
+FROM habblaude-office:0.12.2
+ARG HABBLAUD_VERSION=0.12.3
+RUN --mount=type=bind,target=/ctx set -e; mkdir -p /opt/habblaud-releases/v${HABBLAUD_VERSION}; \
+ tar xzf /ctx/habblaud-v${HABBLAUD_VERSION}.tgz --no-same-owner -C /opt/habblaud-releases/v${HABBLAUD_VERSION}; \
+ test -f /opt/habblaud-releases/v${HABBLAUD_VERSION}/mod/habblaud/whatsapp/hb-wa-bot.mjs; \
+ ln -sfn /opt/habblaud-releases/v${HABBLAUD_VERSION} /opt/habblaud-releases/current; \
+ chown -R ubuntu:ubuntu /opt/habblaud-releases/v${HABBLAUD_VERSION}; \
+ chmod 0755 /opt/habblaud/mod/habblaud/mensagens/hb-msg.mjs /opt/habblaud/mod/habblaud/whatsapp/hb-wa-bot.mjs; \
+ if ! grep -q 'hb-supervise whatsapp-bot' /usr/local/bin/hb-entrypoint; then \
+   sed -i 's|^if \[ -n "\${HB_AGENT_INIT:-}" \]; then|# Bot Habblaude (WhatsApp do add-on ChatBot); ocioso sem ChatBot\nas_ubuntu /usr/local/bin/hb-supervise whatsapp-bot node /opt/habblaud/mod/habblaud/whatsapp/hb-wa-bot.mjs \&\n\n&|' /usr/local/bin/hb-entrypoint; \
+ fi; \
+ grep -q 'hb-supervise whatsapp-bot' /usr/local/bin/hb-entrypoint; \
+ bash -n /usr/local/bin/hb-entrypoint
 LABEL habblaud.version="${HABBLAUD_VERSION}"
 ```
 
 Montar (no nó, contexto com o `.tgz` do release, sem `.map`):
 
 ```sh
-COPYFILE_DISABLE=1 tar --no-xattrs --exclude='*.map' -czf habblaud-v0.12.2.tgz package.json dist mod .claude-plugin LICENSE
-sudo docker build -f Dockerfile.0.12.2 -t habblaude-office:0.12.2 .
-sudo docker run --rm --entrypoint grep habblaude-office:0.12.2 -n whatsapp-bot /usr/local/bin/hb-entrypoint
+COPYFILE_DISABLE=1 tar --no-xattrs --exclude='*.map' -czf habblaud-v0.12.3.tgz package.json dist mod .claude-plugin LICENSE
+sudo docker build -f Dockerfile.0.12.3 -t habblaude-office:0.12.3 .
+sudo docker run --rm --entrypoint grep habblaude-office:0.12.3 -n whatsapp-bot /usr/local/bin/hb-entrypoint
 ```
 
 ## Contrato com o portal (rotas em app.habblaude.com)
 
 - `POST /api/whatsapp/bot/registrar {agentToken}` -> `{token}` (409 = sem ChatBot/WhatsApp)
-- `GET /api/whatsapp/bot/config` -> `{ativo, pausado, instrucoes, ignorar[], numero}`
+- `GET /api/whatsapp/bot/config` -> `{ativo, pausado, instrucoes, ignorar[], numero, conhecimento?, conhecimentoVersao?, assumidas[]?}` (campos com ? são do portal v2; sem eles o bot funciona como na v1)
+- `GET /api/whatsapp/mensagens` -> mensagens podem trazer `midia {tipo: 'imagem'|'audio', id, legenda?, transcricao?}`
+- `GET /api/whatsapp/midia/{id}` -> `{mime, base64}` (imagem que vai para o Claude)
+- `POST /api/whatsapp/bot/registro {de, nome, tipo: pedido|orcamento|agendamento|contato, resumo, dados?}` (404 = portal v1: ignorado)
 - `GET /api/whatsapp/mensagens?depois=<cursor>&limite=50` -> `{mensagens[], cursor}`
 - `POST /api/whatsapp/bot/pendente {de, nome, texto}` (avisa o dono)
 - `POST /api/whatsapp/enviar {para, texto}` (403 = quem não escreveu nos últimos 7 dias)
