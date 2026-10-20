@@ -8,6 +8,15 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+
+## [0.12.2] - 2026-10-20
+
+### Adicionado
+
+- Bot Habblaude: com o add-on ChatBot (WhatsApp 24h) ativo, o escritório atende o WhatsApp sozinho, seguindo as
+  instruções que o dono escreve no portal. Responde só conversas novas de outros números, chama o dono quando não sabe,
+  e o Claude roda sem nenhuma ferramenta (texto de estranhos nunca chega a arquivos ou comandos).
+
 ## [0.12.1] - 2026-10-20
 
 ### Alterado
