@@ -19,7 +19,7 @@ const RESUME_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 const DEFAULT_CLAUDE = "bash -lc 'exec claude'";
 /**
  * Agente novo do Codex: `--no-daemon` faz o próprio TUI gravar a conversa e segurar a trava dela
- * (thread-writer-locks/<id>.lock), que é como o Habblaud acha o agente e o pid dele (ver server/codex/proc.ts).
+ * (thread-writer-locks/<id>.lock), que é como o Habblaude acha o agente e o pid dele (ver server/codex/proc.ts).
  */
 const DEFAULT_CODEX = "bash -lc 'exec codex --no-daemon'";
 

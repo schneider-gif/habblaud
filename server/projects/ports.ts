@@ -1,6 +1,6 @@
 // Portas TCP escutando por pasta de projeto, lidas do /proc (Linux). Nada de porta fixa: vários escritórios
 // (VMs ou contêineres no mesmo host) rodam lado a lado, então cada projeto usa a porta que o agente escolher e o
-// Habblaud só descobre qual é, mapeando socket → processo → pasta (cwd). Fora do Linux, nada é encontrado.
+// Habblaude só descobre qual é, mapeando socket → processo → pasta (cwd). Fora do Linux, nada é encontrado.
 import { readdir, readFile, readlink } from 'node:fs/promises';
 import { inside } from '../missions/detect';
 

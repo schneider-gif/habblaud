@@ -1,5 +1,5 @@
 // O que a tela do Codex (TUI no tmux) está pedindo. O rollout não registra pedidos de aprovação nem a tela de login,
-// então o Habblaud lê a tela do pane (tmux capture-pane) e reconhece os textos fixos do Codex CLI 0.162.1:
+// então o Habblaude lê a tela do pane (tmux capture-pane) e reconhece os textos fixos do Codex CLI 0.162.1:
 //
 //   aprovação de comando:  "Would you like to run the following command?"  1. Yes, proceed (y)
 //                          2. Yes, and don't ask again for commands that start with `…` (p)   3. No, … (esc)

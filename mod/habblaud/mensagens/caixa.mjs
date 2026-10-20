@@ -1,5 +1,5 @@
 // Núcleo das mensagens entre agentes do mesmo escritório (hb-msg). Node puro (só node:*), sem build: usado pela CLI
-// (hb-msg.mjs, roda dentro do agente) e pelo servidor do Habblaud (server/mensagens/carteiro.ts, que avisa o
+// (hb-msg.mjs, roda dentro do agente) e pelo servidor do Habblaude (server/mensagens/carteiro.ts, que avisa o
 // destinatário quando ele fica livre).
 //
 // Caixas: <raiz>/<sessionId>/{novas,avisadas,lidas}/<id>.json, um arquivo por mensagem (estilo maildir). Gravar é

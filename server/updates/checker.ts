@@ -244,7 +244,7 @@ export class UpdateChecker {
     const s = this.status();
     if (!s.available || s.latest === this.announced) return;
     this.announced = s.latest;
-    log.info(`⬆️  Nova versão do Habblaud: v${s.latest} (em uso: v${this.opts.current}). Novidades: ${s.url}`);
+    log.info(`⬆️  Nova versão do Habblaude: v${s.latest} (em uso: v${this.opts.current}). Novidades: ${s.url}`);
   }
 }
 

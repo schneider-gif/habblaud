@@ -1,4 +1,4 @@
-/* Interface do Habblaud: painéis escuros translúcidos sobre o escritório em pixel art.
+/* Interface do Habblaude: painéis escuros translúcidos sobre o escritório em pixel art.
    Tipografia: logotipo em pixels (SVG); Pixelify Sans só em rótulos fixos de painel sem "C" maiúsculo nem
    dígitos (na Pixelify o "C" parece "O" e o "5" parece "S"); system-ui para o corpo, nomes, letras de conta e números.
    Identidade: detalhes "em pixel" (pontos de status quadrados, barras segmentadas de uso, ícones em pixels). */
@@ -3253,7 +3253,7 @@
   animation: ui-blink 1s steps(2, jump-none) infinite;
 }
 
-/* Aviso de versão nova (página aberta antes de uma atualização do Habblaud). */
+/* Aviso de versão nova (página aberta antes de uma atualização do Habblaude). */
 .ui-banner--update {
   z-index: 46;
   border-color: rgba(74, 168, 232, 0.55);

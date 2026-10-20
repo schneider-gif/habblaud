@@ -1,4 +1,4 @@
-// Servidor do Habblaud: observa as sessões abertas do Claude Code (todas as contas),
+// Servidor do Habblaude: observa as sessões abertas do Claude Code (todas as contas),
 // mantém o modelo do escritório e transmite via SSE. Sem dependências de runtime.
 //   npm run dev    -> tsx server/index.ts --dev (Vite em middleware mode, HMR no mesmo servidor)
 //   npm start      -> node dist/server/index.js (serve dist/client)
@@ -102,7 +102,7 @@ const accounts = new AccountsService({
   onChange: () => late.office?.markDirty(),
 });
 // Codex CLI (OpenAI): pastas ~/.codex (e CODEX_HOME, ~/.codex-*). A pasta nasce na primeira execução do codex, que
-// pode ser depois de o Habblaud subir: redescobre a cada 15 s. HABBLAUD_CODEX=0 desliga a fonte.
+// pode ser depois de o Habblaude subir: redescobre a cada 15 s. HABBLAUD_CODEX=0 desliga a fonte.
 let codexDirs = discoverCodexDirs(process.env, config.home);
 const codexOff = process.env.HABBLAUD_CODEX?.trim() && /^(0|false|off|no|nao|não)$/i.test(process.env.HABBLAUD_CODEX.trim());
 /** Onde procurar o login da OpenAI mesmo antes de a pasta existir (Missão 0, agentes em configuração). */
@@ -198,7 +198,7 @@ const questions = config.terminal
   ? new QuestionService({ office, transcriptPathOf: (id) => watcher.transcriptPathOf(id), input: input && { screen: (id) => input.screen(id), driveKeys: (id, k) => input.driveKeys(id, k), typeText: (id, t) => input.typeText(id, t) } })
   : undefined;
 late.questions = questions;
-// Telas de seleção que o Habblaud não conhece (ex.: "Teach auto mode"): trecho do terminal com ↑ ↓ Enter Esc no escritório.
+// Telas de seleção que o Habblaude não conhece (ex.: "Teach auto mode"): trecho do terminal com ↑ ↓ Enter Esc no escritório.
 const dialogs =
   config.terminal && input
     ? new DialogWatcher({
@@ -467,7 +467,7 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 
 server.listen(config.port, config.host, () => {
   const host = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
-  log.info(`🏢 Habblaud ${config.version}${config.dev ? ' (dev)' : ''}${config.inDocker ? ' (docker)' : ''} em http://${host}:${config.port}`);
+  log.info(`🏢 Habblaude ${config.version}${config.dev ? ' (dev)' : ''}${config.inDocker ? ' (docker)' : ''} em http://${host}:${config.port}`);
   const list = accounts.entries();
   if (!list.length) log.warn('Nenhuma pasta do Claude Code encontrada (defina HABBLAUD_CLAUDE_DIRS).');
   for (const a of list) {

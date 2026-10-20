@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// hb-msg: agentes do Claude Code e do Codex no mesmo escritório Habblaud conversando entre si.
+// hb-msg: agentes do Claude Code e do Codex no mesmo escritório Habblaude conversando entre si.
 //   hb-msg quem                         quem está de pé e quem sou eu
-//   hb-msg enviar <nome|id> "texto"     grava na caixa do colega (o Habblaud avisa quando ele ficar livre)
+//   hb-msg enviar <nome|id> "texto"     grava na caixa do colega (o Habblaude avisa quando ele ficar livre)
 //   hb-msg ler [--esperar N]            lê (e marca como lidas) as mensagens da sua caixa
 //   hb-msg responder <id-msg> "texto"   responde uma mensagem recebida
-// Node puro, sem dependências. A lista de agentes vem do Habblaud local (GET /api/snapshot); fora do ar, só os
+// Node puro, sem dependências. A lista de agentes vem do Habblaude local (GET /api/snapshot); fora do ar, só os
 // agentes do Claude Code (registro ~/.claude*/sessions).
 import { readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -51,7 +51,7 @@ async function snapshot() {
   }
 }
 
-/** Habblaud fora do ar: agentes do Claude Code pelo registro de sessões abertas (status e nome do names.json). */
+/** Habblaude fora do ar: agentes do Claude Code pelo registro de sessões abertas (status e nome do names.json). */
 function agentesLocais() {
   let nomes = {};
   try {
@@ -114,7 +114,7 @@ function exigirEu(ctx) {
   throw new ErroMsg(
     ctx.online
       ? 'não descobri qual agente você é: rode o hb-msg de dentro de um agente do Claude Code ou do Codex aberto no escritório'
-      : `o Habblaud não respondeu em ${base} e não achei você entre as sessões do Claude Code abertas`,
+      : `o Habblaude não respondeu em ${base} e não achei você entre as sessões do Claude Code abertas`,
     2,
   );
 }
@@ -142,7 +142,7 @@ function textoDe(partes) {
 }
 
 function avisoEntrega(dest, online) {
-  if (!online) return `⚠ o Habblaud não respondeu em ${base}: ${dest.nome} só vai ver quando rodar hb-msg ler.`;
+  if (!online) return `⚠ o Habblaude não respondeu em ${base}: ${dest.nome} só vai ver quando rodar hb-msg ler.`;
   if (dest.status === 'idle' || dest.status === 'shell') return `${dest.nome} está livre: o aviso chega no terminal em instantes.`;
   return `${dest.nome} está ${STATUS[dest.status] ?? dest.status}: o aviso vai quando ficar livre.`;
 }
@@ -155,7 +155,7 @@ async function cmdQuem(args) {
     return;
   }
   const linhas = [];
-  if (!ctx.online) linhas.push(`⚠ Habblaud fora do ar (${base}): lista só com as sessões do Claude Code.`);
+  if (!ctx.online) linhas.push(`⚠ Habblaude fora do ar (${base}): lista só com as sessões do Claude Code.`);
   linhas.push(ctx.eu ? `Você: ${eAgente(ctx.eu)} em ${curtaPasta(ctx.eu.pasta)}` : 'Você: (não identificado: rode de dentro de um agente do escritório)');
   const outros = ctx.agentes.filter((a) => !ctx.eu || a.sid !== ctx.eu.sid);
   if (!outros.length) linhas.push('Nenhum outro agente de pé no escritório.');

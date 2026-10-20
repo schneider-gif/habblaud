@@ -66,7 +66,7 @@ function isClaudeAlive(pid: number): boolean {
 
 /**
  * Remove ~/.claude*\/sessions/<pid>.json de processos mortos: sobram do boot anterior e, com o pid reaproveitado,
- * viram agente fantasma. Só faz sentido com o Habblaud no mesmo espaço de pids do claude (não no modo Docker).
+ * viram agente fantasma. Só faz sentido com o Habblaude no mesmo espaço de pids do claude (não no modo Docker).
  */
 export function cleanDeadSessions(claudeDirs: string[], alive = isClaudeAlive): number {
   let n = 0;
@@ -161,7 +161,7 @@ export function startReopen(o: ReopenOptions): ReopenState {
 }
 
 /**
- * Grava a lista (tmp + rename) só quando muda. Ao desligar, os agentes morrem antes do Habblaud: uma lista que
+ * Grava a lista (tmp + rename) só quando muda. Ao desligar, os agentes morrem antes do Habblaude: uma lista que
  * perdeu alguém só é gravada se vier igual duas vezes seguidas (o usuário fechou mesmo, não é o desligamento).
  */
 export function openListSaver(file: string, initial: OpenAgent[] = []): (now: OpenAgent[]) => void {

@@ -147,17 +147,17 @@ export interface AgentInfo {
   /** Subagente rodando em segundo plano. */
   background?: boolean;
   /**
-   * Pedido de permissão que dá para responder pelo Habblaud (hook PermissionRequest; o mais antigo, se
+   * Pedido de permissão que dá para responder pelo Habblaude (hook PermissionRequest; o mais antigo, se
    * houver vários). Enquanto existe, o agente aparece como 'waiting'. Ver PermissionRequestInfo.
    */
   permission?: PermissionRequestInfo;
   /**
    * Pergunta com opções (AskUserQuestion) aberta no terminal do agente, esperando resposta: dá para responder pelo
-   * chat do Habblaud (POST /api/agents/:id/answer, que dirige o diálogo pelo tmux). Ver AskQuestionInfo.
+   * chat do Habblaude (POST /api/agents/:id/answer, que dirige o diálogo pelo tmux). Ver AskQuestionInfo.
    */
   question?: AskQuestionInfo;
   /**
-   * Tela de seleção/diálogo no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+   * Tela de seleção/diálogo no terminal do agente que o Habblaude não conhece (ex.: "Teach auto mode about your
    * environment?"): o escritório mostra o trecho com os botões ↑ ↓ Enter Esc (POST /api/agents/:id/keys).
    */
   dialog?: TerminalDialogInfo;
@@ -277,12 +277,12 @@ export interface AccountUsage {
   sevenDaySonnet?: UsageWindow;
   /**
    * Origem dos números (as duas são arquivos locais gravados a partir do próprio Claude Code):
-   * - 'statusline': capturado ao vivo e gravado em ~/.habblaud/usage/<conta>.json pelo mod do Habblaud
+   * - 'statusline': capturado ao vivo e gravado em ~/.habblaud/usage/<conta>.json pelo mod do Habblaude
    *   (mod/habblaud, recomendado) ou pelo scripts/statusline-tap.mjs (campo rate_limits do statusline);
    * - 'cache': `cachedUsageUtilization` gravado pelo próprio Claude Code (atualiza quando alguém roda /usage).
    */
   source: 'cache' | 'statusline';
-  /** Quem gravou o arquivo ao vivo ('statusline'): o mod do Habblaud no Claude Code ou o tap de statusline. */
+  /** Quem gravou o arquivo ao vivo ('statusline'): o mod do Habblaude no Claude Code ou o tap de statusline. */
   via?: 'mod' | 'tap';
   /** Quando os números foram obtidos na origem (epoch ms). */
   fetchedAt: number;
@@ -337,7 +337,7 @@ export interface OfficeSnapshot {
      */
     build?: string;
     /**
-     * Terminal somente leitura (GET /api/agents/:id/terminal) disponível: só quando o Habblaud não fica
+     * Terminal somente leitura (GET /api/agents/:id/terminal) disponível: só quando o Habblaude não fica
      * exposto além do próprio computador (bind local). Ausente/false = recurso desligado.
      */
     terminal?: boolean;
@@ -413,7 +413,7 @@ export interface AgentDetail {
  * de quem pergunta: o agente principal dela e os subagentes.
  */
 export interface ModSummary {
-  /** Versão do Habblaud em uso. */
+  /** Versão do Habblaude em uso. */
   version: string;
   /** Agentes presentes e quantos estão trabalhando. */
   agents: number;
@@ -535,9 +535,9 @@ export interface PermissionSuggestionInfo {
 }
 
 /**
- * Pedido de permissão pendente que dá para responder pelo Habblaud: o hook PermissionRequest do Claude Code
+ * Pedido de permissão pendente que dá para responder pelo Habblaude: o hook PermissionRequest do Claude Code
  * (mod/habblaud-permissoes/hooks/permission-hook.mjs) o registra e fica esperando a decisão. Só existe com bind local (a mesma
- * trava do terminal somente leitura) e com alguma página do Habblaud aberta.
+ * trava do terminal somente leitura) e com alguma página do Habblaude aberta.
  * No snapshot vai sem `input` (os argumentos completos só saem por GET /api/permissions/:id, com acesso
  * local); os pedidos fictícios do demo já vêm com ele.
  */
@@ -553,7 +553,7 @@ export interface PermissionRequestInfo {
   /** Argumentos (comando, diff, JSON...), mascarados e truncados. */
   input?: string;
   inputKind?: TerminalInputKind;
-  /** Pedido de um subagente que o Habblaud ainda não mostra: o tipo dele (ex.: "Explore"). */
+  /** Pedido de um subagente que o Habblaude ainda não mostra: o tipo dele (ex.: "Explore"). */
   subagent?: string;
   /** Regras "sempre permitir" que podem ser aplicadas junto com a aprovação. */
   suggestions?: PermissionSuggestionInfo[];

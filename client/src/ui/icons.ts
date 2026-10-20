@@ -280,7 +280,7 @@ export const ICONS = {
 
 export type IconKey = keyof typeof ICONS;
 
-/** Marca do Habblaud em pixels (usada quando /assets/brand/logo-mark.png não existe): prédio com janelas acesas. */
+/** Marca do Habblaude em pixels (usada quando /assets/brand/logo-mark.png não existe): prédio com janelas acesas. */
 export const FALLBACK_MARK = pixelIcon(
   [
     '.....######.....',

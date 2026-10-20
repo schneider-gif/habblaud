@@ -8,6 +8,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 [versionamento semântico](https://semver.org/lang/pt-BR/): correção sobe o último número (0.2.**1**), novidade sobe o
 do meio (0.**3**.0).
 
+## [0.12.1] - 2026-10-20
+
+### Alterado
+
+- Nome Habblaude em todo o escritório: título da página, barra, Sobre, ajuda, avisos, mensagens de erro, textos dos
+  plugins e do hb-msg agora dizem "Habblaude" (habblaude.com). "habblaud" fica só nos nomes técnicos internos
+  (pastas, plugins, variáveis, comando /habblaud). A skill de comunicação avisa isso aos agentes.
+
 ## [0.12.0] - 2026-10-19
 
 ### Adicionado

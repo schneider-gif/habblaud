@@ -74,7 +74,7 @@ export class QuestionCard {
     this.body = h('div', { class: 'ui-ask__body' });
     this.sendBtn = h('button', { class: 'ui-btn ui-perm__btn ui-perm__btn--allow', type: 'submit' }, 'Enviar resposta');
     this.status = h('p', { class: 'ui-perm__status', role: 'status', attrs: { 'aria-live': 'polite' } });
-    this.remote = h('p', { class: 'ui-perm__note', hidden: true, text: 'Responder por aqui só funciona com o Habblaud acessível pelo próprio computador. Por enquanto, responda no terminal.' });
+    this.remote = h('p', { class: 'ui-perm__note', hidden: true, text: 'Responder por aqui só funciona com o Habblaude acessível pelo próprio computador. Por enquanto, responda no terminal.' });
     const form = h(
       'form',
       { class: 'ui-ask__form' },
@@ -207,7 +207,7 @@ export class QuestionCard {
     try {
       error = await this.ctx.store.answerQuestion(agentId, { toolUseId: q.toolUseId, answers: draftsToAnswers(this.drafts) });
     } catch {
-      error = 'Não foi possível falar com o Habblaud. Responda no terminal.';
+      error = 'Não foi possível falar com o Habblaude. Responda no terminal.';
     }
     if (this.key !== key) return;
     if (error) {
@@ -232,10 +232,10 @@ const DIALOG_BUTTONS: [key: string, text: string, title: string][] = [
 ];
 
 /**
- * Cartão de uma tela de seleção no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+ * Cartão de uma tela de seleção no terminal do agente que o Habblaude não conhece (ex.: "Teach auto mode about your
  * environment?"): mostra o trecho do terminal e os botões ↑ ↓ Enter Esc, que apertam a tecla no pane.
  */
-const KIND_UNKNOWN = 'Tela que o Habblaud não conhece: use os botões como se fossem as teclas do terminal.';
+const KIND_UNKNOWN = 'Tela que o Habblaude não conhece: use os botões como se fossem as teclas do terminal.';
 const KIND_LOGIN = 'Entrar na conta do Claude: abra o link, faça o login e cole o código na caixa de mensagem.';
 
 export class DialogCard {
@@ -311,7 +311,7 @@ export class DialogCard {
     try {
       error = await this.ctx.store.pressDialogKey(agentId, key);
     } catch {
-      error = 'Não foi possível falar com o Habblaud. Responda no terminal.';
+      error = 'Não foi possível falar com o Habblaude. Responda no terminal.';
     }
     this.busy = false;
     if (this.agentId === agentId) {

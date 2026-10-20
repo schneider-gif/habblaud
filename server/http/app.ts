@@ -297,7 +297,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } catch {
         // fica vazio: 400 abaixo
       }
-      if (!dialogs) sendJson(res, 403, { error: 'responder telas do terminal pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      if (!dialogs) sendJson(res, 403, { error: 'responder telas do terminal pelo escritório desligado: só funciona com o Habblaude acessível apenas pelo próprio computador' });
       else if (!isLoopbackHost(req.headers.host)) sendJson(res, 403, { error: 'só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       else if (!id) sendJson(res, 400, { error: 'id inválido' });
       else if (method !== 'POST') methodNotAllowed(res, 'POST');
@@ -317,7 +317,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } catch {
         // fica vazio: 400 abaixo
       }
-      if (!questions) sendJson(res, 403, { error: 'responder perguntas pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+      if (!questions) sendJson(res, 403, { error: 'responder perguntas pelo escritório desligado: só funciona com o Habblaude acessível apenas pelo próprio computador' });
       else if (!isLoopbackHost(req.headers.host)) sendJson(res, 403, { error: 'respostas só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       else if (!id) sendJson(res, 400, { error: 'id inválido' });
       else if (method !== 'POST') methodNotAllowed(res, 'POST');
@@ -332,7 +332,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (inputMatch || path === NEW_AGENT_ROUTE) {
       const input = deps.terminal ? deps.input : undefined;
       if (!input) {
-        sendJson(res, 403, { error: 'enviar mensagens pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+        sendJson(res, 403, { error: 'enviar mensagens pelo escritório desligado: só funciona com o Habblaude acessível apenas pelo próprio computador' });
       } else if (!isLoopbackHost(req.headers.host)) {
         sendJson(res, 403, { error: 'mensagens só são enviadas pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else if (!inputMatch) {
@@ -434,7 +434,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (path === '/api/shell' || path.startsWith('/api/shell/')) {
       if (!deps.shell?.(req, res, url)) {
         req.resume();
-        sendJson(res, 403, { error: 'terminal embutido desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+        sendJson(res, 403, { error: 'terminal embutido desligado: só funciona com o Habblaude acessível apenas pelo próprio computador' });
       }
       return true;
     }
@@ -442,7 +442,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       // Começar uma missão abre agentes: a mesma trava do spawn (bind local + Host local; Origin e JSON no guard).
       if (!deps.terminal || !deps.missions) {
         req.resume();
-        sendJson(res, 403, { error: 'missões desligadas: só funcionam com o Habblaud acessível apenas pelo próprio computador' });
+        sendJson(res, 403, { error: 'missões desligadas: só funcionam com o Habblaude acessível apenas pelo próprio computador' });
       } else if (!isLoopbackHost(req.headers.host)) {
         req.resume();
         sendJson(res, 403, { error: 'missões só pelo próprio computador (http://localhost ou http://127.0.0.1)' });
@@ -514,7 +514,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (terminalMatch) {
       if (method !== 'GET') methodNotAllowed(res, 'GET');
       else if (!terminals) {
-        sendJson(res, 403, { error: 'terminal somente leitura desligado: ele só funciona com o Habblaud acessível apenas pelo próprio computador' });
+        sendJson(res, 403, { error: 'terminal somente leitura desligado: ele só funciona com o Habblaude acessível apenas pelo próprio computador' });
       } else if (!isLoopbackHost(req.headers.host)) {
         sendJson(res, 403, { error: 'o terminal somente leitura só abre pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else {
@@ -536,7 +536,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (path === '/api/permissions' || path.startsWith('/api/permissions/')) {
       // Responder pelo escritório age sobre as sessões: a mesma trava do terminal (bind local + Host local).
       if (!deps.permissions) {
-        sendJson(res, 403, { error: 'responder pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador' });
+        sendJson(res, 403, { error: 'responder pelo escritório desligado: só funciona com o Habblaude acessível apenas pelo próprio computador' });
       } else if (!isLoopbackHost(req.headers.host)) {
         sendJson(res, 403, { error: 'pedidos de permissão só são respondidos pelo próprio computador (http://localhost ou http://127.0.0.1)' });
       } else {

@@ -1,5 +1,5 @@
 // Responder pelo escritório os pedidos de aprovação do Codex. Não há API para isso no Codex CLI 0.162.1 (o pedido
-// não passa por hook nem fica no rollout): o Habblaud lê a tela do pane no tmux e, com a decisão da página, manda a
+// não passa por hook nem fica no rollout): o Habblaude lê a tela do pane no tmux e, com a decisão da página, manda a
 // tecla que o próprio Codex mostra — "y" (aprovar), "p"/"a" (aprovar e não perguntar de novo, quando oferecido) ou
 // Esc (recusar). Antes de digitar, a tela é conferida de novo: se o pedido já foi respondido no terminal, nada é
 // enviado (404). Mesmas rotas e formato dos pedidos do Claude (/api/permissions/:id, ids "codex-...").

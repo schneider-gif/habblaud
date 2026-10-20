@@ -278,7 +278,7 @@ describe('mod-install.ts (funções puras)', () => {
       enabledPlugins: { [MOD_PLUGIN]: true },
     };
 
-    it('com os dois plugins instalados: devolve o statusline original e tira só o hook do Habblaud, numa gravação', () => {
+    it('com os dois plugins instalados: devolve o statusline original e tira só o hook do Habblaude, numa gravação', () => {
       const m = planMigration(settings, { modInstalled: true, permissionsInstalled: true, permissions: true });
       expect(m.settings).toEqual({
         model: 'opus',
@@ -593,15 +593,15 @@ describe('mod-install.ts (CLI falso, HOME falso)', () => {
     out = [];
     expect(await exec('status')).toBe(0);
     const text = out.join('\n');
-    expect(text).toContain('Claude Code 2.1.293 · Habblaud 0.2.0');
+    expect(text).toContain('Claude Code 2.1.293 · Habblaude 0.2.0');
     expect(text).toMatch(/• \.claude \(~\/\.claude\)\n {4}marketplace habblaud: esta pasta\n {4}habblaud: instalado, ligado, versão 0.2.0\n {4}habblaud-permissoes: não instalado/);
     expect(text).toContain('! tap de statusline antigo ainda instalado junto com o mod');
     expect(text).toContain('hook de permissão antigo instalado (jeito antigo');
     expect(text).toContain('último uso capturado há 5 min (pelo mod)');
-    expect(text).toContain('Habblaud em http://127.0.0.1:4747: fora do ar');
+    expect(text).toContain('Habblaude em http://127.0.0.1:4747: fora do ar');
     out = [];
     await exec('status', {}, { permissions: true });
-    expect(out.join('\n')).toContain('Habblaud em http://127.0.0.1:4747: no ar e respondendo pedidos de permissão');
+    expect(out.join('\n')).toContain('Habblaude em http://127.0.0.1:4747: no ar e respondendo pedidos de permissão');
     expect(fake.mutating).toEqual([`plugin marketplace add ${root}`, `plugin install ${MOD_PLUGIN} --scope user`, `plugin marketplace add ${root}`, `plugin install ${MOD_PLUGIN} --scope user`]);
 
     out = [];

@@ -1,4 +1,4 @@
-// Instala (ou remove) o tap de statusline do Habblaud em cada conta do Claude Code. Roda no HOST, com tsx:
+// Instala (ou remove) o tap de statusline do Habblaude em cada conta do Claude Code. Roda no HOST, com tsx:
 //
 //   npm run usage:install     # envolve o statusLine.command de cada conta com o tap (backup antes)
 //   npm run usage:uninstall   # devolve o comando original
@@ -7,7 +7,7 @@
 //
 // O tap (scripts/statusline-tap.mjs) recebe do Claude Code o mesmo JSON que o statusline já recebe
 // e guarda só os percentuais de uso de 5h/semana em ~/.habblaud/usage/<conta>.json, repassando tudo
-// ao statusline original. Assim o Habblaud mostra o uso ao vivo sem ler credenciais.
+// ao statusline original. Assim o Habblaude mostra o uso ao vivo sem ler credenciais.
 //
 // Em <conta>/settings.json só o campo statusLine.command muda (os demais campos e chaves ficam como
 // estão); antes de gravar, uma cópia vai para settings.json.habblaud-backup-<data>.
@@ -27,7 +27,7 @@ const TAP_NAME = 'statusline-tap.mjs';
 
 const USAGE = `Uso: npm run usage:<install|uninstall|status> [-- opções]
 
-  install     envolve o statusline de cada conta com o tap do Habblaud (faz backup do settings.json)
+  install     envolve o statusline de cada conta com o tap do Habblaude (faz backup do settings.json)
   uninstall   restaura o statusline original de cada conta
   status      mostra se o tap está instalado e quando chegou o último uso de cada conta
 
@@ -135,7 +135,7 @@ export function planInstall(settings: Settings, nodeCmd: string, tapPath: string
     if (!cur) return { action: 'skip', message: 'o comando já menciona o tap, mas não no formato esperado; confira à mão' };
     const next = wrapCommand(nodeCmd, tapPath, cur.original);
     if (next === sl.command) return { action: 'none', message: 'já instalado' };
-    return { action: 'install', settings: { ...settings, statusLine: { ...sl, command: next } }, message: 'atualizado (novo caminho do Habblaud ou do node)' };
+    return { action: 'install', settings: { ...settings, statusLine: { ...sl, command: next } }, message: 'atualizado (novo caminho do Habblaude ou do node)' };
   }
   return {
     action: 'install',
@@ -153,7 +153,7 @@ export function planUninstall(settings: Settings): PlanAction {
   if (!cur.original) {
     const rest = { ...settings };
     delete rest.statusLine;
-    return { action: 'uninstall', settings: rest, message: 'statusline criado pelo Habblaud removido' };
+    return { action: 'uninstall', settings: rest, message: 'statusline criado pelo Habblaude removido' };
   }
   return { action: 'uninstall', settings: { ...settings, statusLine: { ...sl, command: cur.original } }, message: `restaurado: ${cur.original}` };
 }
@@ -389,7 +389,7 @@ export function run(opts: RunOptions, ctx: RunContext): number {
   }
   if (opts.command === 'install' && changed) {
     out('');
-    out('Pronto. Os números aparecem no Habblaud depois da próxima resposta de cada sessão. Sessões já');
+    out('Pronto. Os números aparecem no Habblaude depois da próxima resposta de cada sessão. Sessões já');
     out('abertas costumam recarregar o settings.json sozinhas; se o uso não aparecer, reabra a sessão.');
     out(`Uso capturado em ${tildify(usageDirOf(env, home), home)}. Para desfazer: npm run usage:uninstall`);
   }

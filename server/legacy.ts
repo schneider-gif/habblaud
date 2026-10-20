@@ -1,4 +1,4 @@
-// Migração do nome antigo do projeto (CodeTown, até a 0.3.2) para Habblaud. O que ainda precisa conhecer o
+// Migração do nome antigo do projeto (CodeTown, até a 0.3.2) para Habblaude. O que ainda precisa conhecer o
 // nome antigo fica aqui, para sair de uma vez quando ninguém mais vier de uma instalação da 0.3.
 import { existsSync, readdirSync, renameSync, rmdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';

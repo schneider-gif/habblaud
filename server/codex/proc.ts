@@ -7,7 +7,7 @@
 // sobraram de um processo morto.
 //
 // Quem segura a trava: o próprio TUI quando ele roda sem o servidor compartilhado (`codex --no-daemon`, que é como o
-// Habblaud abre o Codex, ou `features.daemon_auto_start = false` no config.toml); com o servidor compartilhado
+// Habblaude abre o Codex, ou `features.daemon_auto_start = false` no config.toml); com o servidor compartilhado
 // ("app-server daemon", padrão do 0.162), é o daemon — que segura a conversa um tempo depois de o TUI fechar e não
 // está no tmux. Nesse caso o agente aparece, mas não recebe mensagens pelo escritório.
 import { readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
@@ -120,7 +120,7 @@ export function isCodexCmdline(cmd: string | undefined): boolean {
 
 /**
  * Pid que identifica o agente: o do processo que segura a trava ou, se o pai dele for o lançador do Codex em Node
- * (`node /usr/local/bin/codex` → binário nativo), o do pai — que é o pid do pane no tmux quando o Habblaud abre
+ * (`node /usr/local/bin/codex` → binário nativo), o do pai — que é o pid do pane no tmux quando o Habblaude abre
  * `exec codex`, o mesmo que o "+ Novo agente" devolve.
  */
 export function agentPidOf(holder: number, proc: ProcReader = realProc): number {

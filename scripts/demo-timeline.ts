@@ -31,7 +31,7 @@ Opções:
   --pace X            ritmo do simulador: 1 = o do modo demonstração ao vivo (turnos de 40 s a 4 min);
                       0.25 = 4× mais lento, o de um dia de trabalho (padrão: 0.25)
   --seed N            semente (padrão: 1; a mesma semente gera o mesmo dia)
-  --data-dir PASTA    pasta de dados do Habblaud (padrão: <tmp>/habblaud-demo); o arquivo vai em PASTA/timeline/
+  --data-dir PASTA    pasta de dados do Habblaude (padrão: <tmp>/habblaud-demo); o arquivo vai em PASTA/timeline/
   --force             sobrescreve o arquivo do dia, se existir
   -h, --help          mostra esta ajuda
 

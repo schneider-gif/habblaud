@@ -1,4 +1,4 @@
-// Instala (ou remove) o mod do Habblaud no Claude Code de cada conta. Roda no HOST, com tsx:
+// Instala (ou remove) o mod do Habblaude no Claude Code de cada conta. Roda no HOST, com tsx:
 //
 //   npm run mod:install      # marketplace "habblaud" (esta pasta) + plugins habblaud e habblaud-permissoes
 //   npm run mod:uninstall    # tira os dois plugins e o marketplace de cada conta
@@ -69,10 +69,10 @@ const CLI_TIMEOUT_MS = 120_000;
 
 const USAGE = `Uso: npm run mod:<install|uninstall|status> [-- opções]
 
-  install     instala o mod do Habblaud no Claude Code de cada conta (marketplace desta pasta + plugins)
+  install     instala o mod do Habblaude no Claude Code de cada conta (marketplace desta pasta + plugins)
               e tira o que ele substitui: o tap de statusline e o hook de permissão antigos e o mod do
               nome antigo (codetown)
-  uninstall   tira os plugins e o marketplace do Habblaud de cada conta (e os do nome antigo, se sobraram)
+  uninstall   tira os plugins e o marketplace do Habblaude de cada conta (e os do nome antigo, se sobraram)
   status      mostra, por conta, o marketplace, os plugins (e versões) e o que sobrou do jeito antigo
 
 Opções:
@@ -243,7 +243,7 @@ export function parseMarketplaceList(stdout: string): MarketplaceInfo[] | undefi
   return out;
 }
 
-/** O que uma conta tem do Habblaud no Claude Code. */
+/** O que uma conta tem do Habblaude no Claude Code. */
 export interface AccountState {
   marketplace?: MarketplaceInfo;
   /** O marketplace do nome antigo (codetown), se ainda estiver registrado. */
@@ -359,7 +359,7 @@ export function planInstall(state: AccountState, o: PlanOptions): InstallPlan {
   } else if (m.path && same(m.path, o.root)) {
     plan.items.push({ args: ['plugin', 'marketplace', 'update', MARKETPLACE], message: `marketplace ${MARKETPLACE}: catálogo relido desta pasta` });
   } else {
-    // Outra pasta (o Habblaud mudou de lugar) ou outra origem: o add com a mesma chave só troca a origem e
+    // Outra pasta (o Habblaude mudou de lugar) ou outra origem: o add com a mesma chave só troca a origem e
     // mantém os plugins instalados.
     plan.items.push({
       args: ['plugin', 'marketplace', 'add', o.root],
@@ -592,7 +592,7 @@ export interface RunContext {
   version: string;
   claude: ClaudeRunner;
   out: (line: string) => void;
-  /** Consulta o /api/health do Habblaud no status (testes injetam um falso). */
+  /** Consulta o /api/health do Habblaude no status (testes injetam um falso). */
   health?: (port: number) => Promise<{ permissions?: boolean } | undefined>;
 }
 
@@ -608,7 +608,7 @@ async function fetchHealth(port: number): Promise<{ permissions?: boolean } | un
   }
 }
 
-/** Porta do Habblaud (HABBLAUD_PORT ou a padrão). */
+/** Porta do Habblaude (HABBLAUD_PORT ou a padrão). */
 function habblaudPort(env: NodeJS.ProcessEnv): number {
   const p = Number.parseInt(env.HABBLAUD_PORT ?? '', 10);
   return Number.isInteger(p) && p > 0 && p < 65_536 ? p : DEFAULT_PORT;
@@ -696,7 +696,7 @@ export async function run(opts: RunOptions, ctx: RunContext): Promise<number> {
   }
   const manifest = join(ctx.root, '.claude-plugin', 'marketplace.json');
   if (opts.command === 'install' && !existsSync(manifest)) {
-    out(`Não achei ${tildify(manifest, home)}: esta pasta não tem o mod (versão antiga do Habblaud? rode git pull).`);
+    out(`Não achei ${tildify(manifest, home)}: esta pasta não tem o mod (versão antiga do Habblaude? rode git pull).`);
     return 1;
   }
 
@@ -719,7 +719,7 @@ export async function run(opts: RunOptions, ctx: RunContext): Promise<number> {
     }
   }
   if (opts.command === 'status') {
-    out(`Claude Code ${cliVersion ?? '(versão desconhecida)'}${cliVersion && !versionAtLeast(cliVersion, MIN_CLAUDE_VERSION) ? ` — o mod precisa do ${MIN_CLAUDE_VERSION}+` : ''} · Habblaud ${ctx.version} em ${tildify(ctx.root, home)}`);
+    out(`Claude Code ${cliVersion ?? '(versão desconhecida)'}${cliVersion && !versionAtLeast(cliVersion, MIN_CLAUDE_VERSION) ? ` — o mod precisa do ${MIN_CLAUDE_VERSION}+` : ''} · Habblaude ${ctx.version} em ${tildify(ctx.root, home)}`);
   }
 
   // Nome antigo: ~/.codetown vira ~/.habblaud antes de criar (ou usar) a pasta do uso.
@@ -844,7 +844,7 @@ export async function run(opts: RunOptions, ctx: RunContext): Promise<number> {
   if (opts.command === 'install' && !opts.dryRun && !failures) {
     out('');
     out('Pronto. Sessões novas do Claude Code já carregam o mod; nas que já estão abertas, rode /reload-plugins (ou');
-    out('reabra a sessão). O uso de 5h/semanal chega ao Habblaud depois da próxima resposta de cada sessão.');
+    out('reabra a sessão). O uso de 5h/semanal chega ao Habblaude depois da próxima resposta de cada sessão.');
     out('Para conferir: npm run mod:status · Para desfazer: npm run mod:uninstall');
   }
   if (opts.command === 'uninstall' && !opts.dryRun && changed) {
@@ -853,10 +853,10 @@ export async function run(opts: RunOptions, ctx: RunContext): Promise<number> {
     out('Para voltar ao jeito antigo (Claude Code anterior ao 2.1.287): npm run usage:install e npm run hooks:install');
   }
   if (opts.command === 'status') {
-    // O mod e o plugin de permissões só falam com o Habblaud local: diz se ele está lá para responder.
+    // O mod e o plugin de permissões só falam com o Habblaude local: diz se ele está lá para responder.
     const port = habblaudPort(env);
     const health = await (ctx.health ?? fetchHealth)(port);
-    const at = `Habblaud em http://127.0.0.1:${port}`;
+    const at = `Habblaude em http://127.0.0.1:${port}`;
     if (!health) out(`${at}: fora do ar (o mod segue gravando o uso; os pedidos de permissão ficam só no terminal).`);
     else if (health.permissions) out(`${at}: no ar e respondendo pedidos de permissão (com alguma página aberta).`);
     else out(`${at}: no ar, mas responder pelo escritório está desligado (porta exposta na rede ou HABBLAUD_TERMINAL=0).`);

@@ -1,4 +1,4 @@
-// Perguntas com opções (ferramenta AskUserQuestion do Claude Code) respondidas pelo chat do Habblaud. Peças puras:
+// Perguntas com opções (ferramenta AskUserQuestion do Claude Code) respondidas pelo chat do Habblaude. Peças puras:
 // - a pergunta pendente sai do transcript: o Claude Code 2.1.295 grava o tool_use do AskUserQuestion assim que o
 //   diálogo abre, e o tool_result só quando a pessoa responde (no terminal ou por aqui);
 // - a tela do diálogo (capture-pane do tmux) vira um modelo: opções numeradas, caixas [✔] do multiSelect, o

@@ -253,8 +253,8 @@ describe('CLI hb-msg (processo de verdade)', () => {
     expect(r.stderr).toMatch(/comando desconhecido/);
   });
 
-  it('sem Habblaud e fora de um agente: quem avisa; enviar sai com código 2', () => {
-    expect(run(['quem']).stdout).toMatch(/Habblaud fora do ar/);
+  it('sem Habblaude e fora de um agente: quem avisa; enviar sai com código 2', () => {
+    expect(run(['quem']).stdout).toMatch(/Habblaude fora do ar/);
     const r = run(['enviar', 'Bruno', 'oi']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/não achei você|não descobri/);

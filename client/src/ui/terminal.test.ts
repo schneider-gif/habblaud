@@ -296,7 +296,7 @@ describe('mensagens pelo terminal: avisos visíveis', () => {
   });
 
   it('sendBlockedText: recurso desligado no escritório (403) diz isso, e não "fora do tmux"', () => {
-    const reason = 'enviar mensagens pelo escritório desligado: só funciona com o Habblaud acessível apenas pelo próprio computador';
+    const reason = 'enviar mensagens pelo escritório desligado: só funciona com o Habblaude acessível apenas pelo próprio computador';
     expect(sendBlockedText({ session: false, mock: false, checked: true, reason })).toBe(`Este escritório não manda mensagens aos agentes (${reason}).`);
     expect(sendBlockedText({ session: true, mock: false, checked: true, reason })).toMatch(/encerrada/);
   });

@@ -1,4 +1,4 @@
-// GitHub no escritório: tudo pelo GitHub CLI (`gh`) no shell do próprio usuário. O Habblaud nunca vê, guarda nem
+// GitHub no escritório: tudo pelo GitHub CLI (`gh`) no shell do próprio usuário. O Habblaude nunca vê, guarda nem
 // mostra token: o login acontece no terminal embutido (`gh auth login --web`, código de dispositivo) e o gh guarda a
 // credencial dele. Aqui só rodamos comandos de leitura (`gh auth status`, `gh api user`, `gh repo list`,
 // `gh search prs`) e, com confirmação explícita na página, `gh repo clone` e `gh repo create --source --push`.
@@ -26,7 +26,7 @@ export const realRunner: Runner = (cmd, args, opts = {}) =>
     });
   });
 
-/** Ambiente do gh: sem as variáveis do Habblaud/Coder; GH_PROMPT_DISABLED para nunca travar esperando teclado. */
+/** Ambiente do gh: sem as variáveis do Habblaude/Coder; GH_PROMPT_DISABLED para nunca travar esperando teclado. */
 function ghEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) if (!/^(HABBLAUD_.*|CODER_AGENT_TOKEN.*|CODER_AGENT_AUTH|TMUX|TMUX_PANE)$/.test(k)) env[k] = v;

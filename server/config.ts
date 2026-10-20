@@ -22,7 +22,7 @@ export interface ServerConfig {
   home: string;
   /** Config dirs do Claude Code observados (um por conta). */
   claudeDirs: string[];
-  /** Onde o Habblaud guarda o próprio estado (nomes persistidos). */
+  /** Onde o Habblaude guarda o próprio estado (nomes persistidos). */
   dataDir: string;
   /**
    * Pasta com o uso capturado pelo statusline do Claude Code (scripts/statusline-tap.mjs):
@@ -33,7 +33,7 @@ export interface ServerConfig {
   allowedHosts: Set<string>;
   /**
    * Terminal somente leitura (GET /api/agents/:id/terminal) ligado: só com bind local, isto é, com o
-   * Habblaud acessível apenas pelo próprio computador (ver terminalOffReason).
+   * Habblaude acessível apenas pelo próprio computador (ver terminalOffReason).
    */
   terminal: boolean;
   /**
@@ -114,7 +114,7 @@ export function isLoopbackBind(value: string | undefined): boolean {
 
 /**
  * Por que o terminal somente leitura fica desligado (undefined = ligado). Os transcripts têm a conversa
- * inteira, então ele só liga quando o Habblaud não fica exposto além do próprio computador:
+ * inteira, então ele só liga quando o Habblaude não fica exposto além do próprio computador:
  * - Node: o HABBLAUD_HOST precisa ser loopback;
  * - Docker: o processo sempre escuta em 0.0.0.0 dentro do container e quem decide a exposição é a porta
  *   publicada no host, HABBLAUD_BIND (o docker-compose.yml repassa o mesmo valor ao container). Ausente
@@ -135,7 +135,7 @@ export function terminalOffReason(env: NodeJS.ProcessEnv, host: string, inDocker
 
 /**
  * Por que o terminal embutido fica desligado (undefined = permitido; o tmux e o script(1) ainda são conferidos na
- * partida). É um shell como o usuário do Habblaud, então exige tudo o que o terminal somente leitura exige e mais:
+ * partida). É um shell como o usuário do Habblaude, então exige tudo o que o terminal somente leitura exige e mais:
  * - HABBLAUD_SHELL com valor "desligado" (0, false, off...) desliga;
  * - mesma trava do terminal (terminalOffReason: acessível só pelo próprio computador ou pelo proxy de HABBLAUD_LOCAL_HOSTS);
  * - Linux (tmux + script do util-linux);
@@ -153,7 +153,7 @@ export function shellOffReason(
   const term = terminalOffReason(env, host, inDocker);
   if (term) return term;
   if (sys.platform !== 'linux') return 'o terminal embutido só funciona no Linux';
-  if (sys.uid === 0) return 'o Habblaud está rodando como root (o shell seria root): rode como um usuário comum';
+  if (sys.uid === 0) return 'o Habblaude está rodando como root (o shell seria root): rode como um usuário comum';
   if (isTruthy(env.HABBLAUD_DEMO)) return 'modo demonstração ligado';
   return undefined;
 }

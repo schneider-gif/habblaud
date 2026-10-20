@@ -1,8 +1,8 @@
-// Instala (ou remove) o hook de permissão do Habblaud em cada conta do Claude Code. Roda no HOST, com tsx:
+// Instala (ou remove) o hook de permissão do Habblaude em cada conta do Claude Code. Roda no HOST, com tsx:
 //
 //   npm run hooks:install     # acrescenta o hook PermissionRequest em <conta>/settings.json (backup antes)
-//   npm run hooks:uninstall   # tira só o hook do Habblaud (os seus hooks ficam)
-//   npm run hooks:status      # mostra, por conta, se está instalado, e se o Habblaud está respondendo pedidos
+//   npm run hooks:uninstall   # tira só o hook do Habblaude (os seus hooks ficam)
+//   npm run hooks:status      # mostra, por conta, se está instalado, e se o Habblaude está respondendo pedidos
 //   (opções: --dry-run, --node <caminho>, --port <n>, --timeout <s>)
 //
 // No Claude Code 2.1.287+ o mesmo hook vem pronto no plugin `habblaud-permissoes` do marketplace do
@@ -11,10 +11,10 @@
 //
 // O hook (mod/habblaud-permissoes/hooks/permission-hook.mjs) deixa aprovar ou recusar pelo escritório os
 // pedidos de permissão ("Do you want to…"): o Claude Code continua mostrando o diálogo no terminal e vale o
-// que você responder primeiro. Sem o Habblaud no ar ou sem nenhuma página aberta, o hook sai na hora e nada muda.
+// que você responder primeiro. Sem o Habblaude no ar ou sem nenhuma página aberta, o hook sai na hora e nada muda.
 //
 // Em <conta>/settings.json só a lista hooks.PermissionRequest muda: entra um grupo {matcher: "*", hooks:
-// [{type: "command", command: 'node "<Habblaud>/mod/habblaud-permissoes/hooks/permission-hook.mjs"', timeout,
+// [{type: "command", command: 'node "<Habblaude>/mod/habblaud-permissoes/hooks/permission-hook.mjs"', timeout,
 // statusMessage}]} (os demais hooks e chaves ficam como estão). Antes de gravar, uma cópia vai para
 // settings.json.habblaud-backup-<data>. Rodar de novo atualiza o caminho/opções sem duplicar (e troca o
 // caminho antigo, scripts/permission-hook.mjs, de antes da 0.3, e o do nome antigo, mod/codetown-permissoes/).
@@ -40,19 +40,19 @@ export const DEFAULT_PORT = 4747;
 export const DEFAULT_TIMEOUT_S = 300;
 /** Folga do tempo limite do Claude Code sobre o do hook (o hook sempre desiste antes). */
 const TIMEOUT_SLACK_S = 30;
-export const STATUS_MESSAGE = 'Aguardando resposta no Habblaud';
+export const STATUS_MESSAGE = 'Aguardando resposta no Habblaude';
 
 const USAGE = `Uso: npm run hooks:<install|uninstall|status> [-- opções]
 
-  install     acrescenta o hook de permissão do Habblaud em cada conta (faz backup do settings.json)
-  uninstall   tira o hook do Habblaud de cada conta (os outros hooks ficam)
-  status      mostra se o hook está instalado e se o Habblaud está respondendo pedidos
+  install     acrescenta o hook de permissão do Habblaude em cada conta (faz backup do settings.json)
+  uninstall   tira o hook do Habblaude de cada conta (os outros hooks ficam)
+  status      mostra se o hook está instalado e se o Habblaude está respondendo pedidos
 
 Opções:
   --dry-run        mostra o que mudaria, sem gravar nada
   --node <cmd>     comando do node usado no hook (padrão: detectado no PATH)
-  --port <n>       porta do Habblaud (padrão: HABBLAUD_PORT ou ${DEFAULT_PORT})
-  --timeout <s>    quanto o hook espera sua resposta no Habblaud antes de devolver o pedido ao terminal
+  --port <n>       porta do Habblaude (padrão: HABBLAUD_PORT ou ${DEFAULT_PORT})
+  --timeout <s>    quanto o hook espera sua resposta no Habblaude antes de devolver o pedido ao terminal
                    (padrão: ${DEFAULT_TIMEOUT_S} s)
   -h, --help       mostra esta ajuda
 
@@ -107,7 +107,7 @@ function eventList(settings: Settings): { hooks: Rec; list: unknown[] } | string
   return { hooks, list: (hooks[EVENT] as unknown[] | undefined) ?? [] };
 }
 
-/** Lista sem os hooks do Habblaud (grupos que ficarem vazios saem); `removed` = quantos saíram. */
+/** Lista sem os hooks do Habblaude (grupos que ficarem vazios saem); `removed` = quantos saíram. */
 function withoutOurs(list: unknown[]): { list: unknown[]; removed: number } {
   let removed = 0;
   const out: unknown[] = [];
@@ -139,10 +139,10 @@ export function planInstall(settings: Settings, entry: Rec): PlanAction {
   }
   const rest = withoutOurs(ev.list).list;
   const next: Settings = { ...settings, hooks: { ...ev.hooks, [EVENT]: [...rest, { matcher: '*', hooks: [entry] }] } };
-  return { action: 'install', settings: next, message: mine.length ? 'atualizado (novo caminho do Habblaud, do node ou das opções)' : 'instalado' };
+  return { action: 'install', settings: next, message: mine.length ? 'atualizado (novo caminho do Habblaude, do node ou das opções)' : 'instalado' };
 }
 
-/** Plano de remoção: tira só os hooks do Habblaud (e o que ficar vazio por causa disso). */
+/** Plano de remoção: tira só os hooks do Habblaude (e o que ficar vazio por causa disso). */
 export function planUninstall(settings: Settings): PlanAction {
   const ev = eventList(settings);
   if (typeof ev === 'string') return { action: 'skip', message: ev };
@@ -154,10 +154,10 @@ export function planUninstall(settings: Settings): PlanAction {
   const next: Settings = { ...settings };
   if (Object.keys(hooks).length) next.hooks = hooks;
   else delete next.hooks;
-  return { action: 'uninstall', settings: next, message: 'hook do Habblaud removido' };
+  return { action: 'uninstall', settings: next, message: 'hook do Habblaude removido' };
 }
 
-/** Hook do Habblaud instalado nesta conta (o primeiro), ou undefined. */
+/** Hook do Habblaude instalado nesta conta (o primeiro), ou undefined. */
 export function installedHook(settings: Settings): Rec | undefined {
   const ev = eventList(settings);
   if (typeof ev === 'string') return undefined;
@@ -181,7 +181,7 @@ export function scriptPathOf(command: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Efeitos (arquivos e o /api/health do Habblaud)
+// Efeitos (arquivos e o /api/health do Habblaude)
 // ---------------------------------------------------------------------------------------------
 
 export interface RunOptions extends HookOptions {
@@ -196,7 +196,7 @@ export interface RunContext {
   now: Date;
   hookPath: string;
   out: (line: string) => void;
-  /** Consulta o /api/health do Habblaud (testes injetam um falso). */
+  /** Consulta o /api/health do Habblaude (testes injetam um falso). */
   health?: (port: number) => Promise<{ permissions?: boolean } | undefined>;
 }
 
@@ -300,13 +300,13 @@ export async function run(opts: RunOptions, ctx: RunContext): Promise<number> {
   }
   if (opts.command === 'status') {
     const health = await (ctx.health ?? fetchHealth)(opts.port);
-    if (!health) out(`Habblaud em http://127.0.0.1:${opts.port}: fora do ar (com ele parado, o hook sai na hora e o terminal segue normal).`);
-    else if (health.permissions) out(`Habblaud em http://127.0.0.1:${opts.port}: respondendo pedidos de permissão (com alguma página aberta).`);
-    else out(`Habblaud em http://127.0.0.1:${opts.port}: no ar, mas responder pelo escritório está desligado (porta exposta na rede ou HABBLAUD_TERMINAL=0).`);
+    if (!health) out(`Habblaude em http://127.0.0.1:${opts.port}: fora do ar (com ele parado, o hook sai na hora e o terminal segue normal).`);
+    else if (health.permissions) out(`Habblaude em http://127.0.0.1:${opts.port}: respondendo pedidos de permissão (com alguma página aberta).`);
+    else out(`Habblaude em http://127.0.0.1:${opts.port}: no ar, mas responder pelo escritório está desligado (porta exposta na rede ou HABBLAUD_TERMINAL=0).`);
   }
   if (opts.command === 'install' && changed) {
     out('');
-    out('Pronto. Com o Habblaud aberto no navegador, os pedidos de permissão aparecem no escritório e você');
+    out('Pronto. Com o Habblaude aberto no navegador, os pedidos de permissão aparecem no escritório e você');
     out('pode aprovar ou recusar por lá; o diálogo continua no terminal e vale o que responder primeiro.');
     out('Sessões abertas costumam recarregar o settings.json sozinhas; se não, reabra a sessão.');
     out('Para desfazer: npm run hooks:uninstall');

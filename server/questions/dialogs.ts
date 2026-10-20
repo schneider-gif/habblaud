@@ -1,4 +1,4 @@
-// Telas de seleção/diálogo no terminal do agente que o Habblaud não conhece (ex.: "Teach auto mode about your
+// Telas de seleção/diálogo no terminal do agente que o Habblaude não conhece (ex.: "Teach auto mode about your
 // environment?", confiança na pasta, imports do CLAUDE.md, telas novas de versões futuras do Claude Code ou do Codex).
 // Sem isto o agente ficava preso esperando uma tecla que ninguém via no escritório. O DialogWatcher lê a tela (tmux)
 // dos agentes a cada poucos segundos e, se achar um diálogo, põe o trecho dele no snapshot (AgentInfo.dialog); o

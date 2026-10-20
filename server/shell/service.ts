@@ -1,4 +1,4 @@
-// Terminal embutido: shell de verdade dentro do escritório, como o usuário que roda o Habblaud (nunca root).
+// Terminal embutido: shell de verdade dentro do escritório, como o usuário que roda o Habblaude (nunca root).
 //
 // Cada aba é uma sessão tmux própria, `terminal-N`, no servidor tmux padrão do usuário: sobrevive a recarregar a
 // página (e a fechar o navegador) e aparece no VS Code (`tmux attach -t terminal-1`). Sessão por aba, e não janelas
@@ -40,7 +40,7 @@ export function cleanProgram(v: unknown, login?: unknown): ShellProgram | undefi
 
 /**
  * Login no GitHub pelo terminal embutido. Tudo pelo gh no shell do usuário: o token fica com o gh (keyring/arquivo
- * dele), nunca passa pelo Habblaud. Depois do login: credential helper do git e user.name/user.email (e-mail público
+ * dele), nunca passa pelo Habblaude. Depois do login: credential helper do git e user.name/user.email (e-mail público
  * ou o noreply do GitHub), só se ainda não houver.
  */
 export const GH_LOGIN_SCRIPT = [

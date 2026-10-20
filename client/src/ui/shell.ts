@@ -78,7 +78,7 @@ export function clipboardKey(e: { key: string; ctrlKey: boolean; metaKey: boolea
   return 'pass';
 }
 export const SHELL_UNAVAILABLE_HINT =
-  'O terminal embutido só funciona com o Habblaud acessível apenas pelo próprio computador (ou pelo seu escritório na nuvem), no Linux e fora da demonstração';
+  'O terminal embutido só funciona com o Habblaude acessível apenas pelo próprio computador (ou pelo seu escritório na nuvem), no Linux e fora da demonstração';
 
 /** Teclas da barra do celular (o teclado virtual não tem Esc, Tab, Ctrl nem setas). */
 export const MOBILE_KEYS: [string, string, string][] = [

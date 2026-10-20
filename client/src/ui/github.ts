@@ -179,7 +179,7 @@ export class GithubPanel {
     if (this.msg) parts.push(h('p', { class: `ui-gh__msg ui-gh__msg--${this.msg.level}`, role: this.msg.level === 'warn' ? 'alert' : 'status', text: this.msg.text }));
     if (s && s.available !== false && s.installed && !s.loggedIn) {
       parts.push(
-        h('p', { class: 'ui-gh__hint', text: 'Conecte a sua conta do GitHub pelo terminal do escritório (código de dispositivo). O Habblaud nunca vê nem guarda o seu token: ele fica com o gh.' }),
+        h('p', { class: 'ui-gh__hint', text: 'Conecte a sua conta do GitHub pelo terminal do escritório (código de dispositivo). O Habblaude nunca vê nem guarda o seu token: ele fica com o gh.' }),
         h(
           'div',
           { class: 'ui-gh__row' },

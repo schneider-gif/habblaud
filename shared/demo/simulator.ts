@@ -313,9 +313,9 @@ export class DemoSimulator {
       return true;
     }
     if (d.behavior === 'allow') {
-      this.activity(a, now, { kind: 'other', icon: '✅', text: d.suggestion !== undefined ? 'Aprovado no Habblaud (sempre permitir)' : 'Aprovado no Habblaud', detail: title, tool: 'PermissionRequest' });
+      this.activity(a, now, { kind: 'other', icon: '✅', text: d.suggestion !== undefined ? 'Aprovado no Habblaude (sempre permitir)' : 'Aprovado no Habblaude', detail: title, tool: 'PermissionRequest' });
     } else {
-      this.activity(a, now, { kind: 'wait', icon: '🚫', text: 'Recusado no Habblaud', detail: d.message ? `${title} — ${d.message}` : title, tool: 'PermissionRequest' });
+      this.activity(a, now, { kind: 'wait', icon: '🚫', text: 'Recusado no Habblaude', detail: d.message ? `${title} — ${d.message}` : title, tool: 'PermissionRequest' });
     }
     this.resumeFromWaiting(a, now);
     return true;

@@ -1,11 +1,14 @@
 ---
 name: comunicacao
-description: Conversar com os outros agentes (Claude Code e Codex) do mesmo escritório Habblaud pelo comando hb-msg — descobrir quem está de pé, pedir ajuda ou combinar trabalho com um colega, ler e responder mensagens. Use quando a pessoa pedir para falar com outro agente/colega, quando um trabalho depender do que outro agente está fazendo, ou quando chegar um aviso "📨 Mensagem de ..." / "📨 Resposta de ...".
+description: Conversar com os outros agentes (Claude Code e Codex) do mesmo escritório Habblaude pelo comando hb-msg — descobrir quem está de pé, pedir ajuda ou combinar trabalho com um colega, ler e responder mensagens. Use quando a pessoa pedir para falar com outro agente/colega, quando um trabalho depender do que outro agente está fazendo, ou quando chegar um aviso "📨 Mensagem de ..." / "📨 Resposta de ...".
 ---
 
 # Comunicação entre agentes do escritório (hb-msg)
 
-Você divide o escritório Habblaud (a mesma máquina) com outros agentes — Claude Code e Codex, cada um com um nome
+Este escritório é o Habblaude (habblaude.com), plataforma oficial do cliente. 'habblaud' aparece só em nomes técnicos
+internos (pastas, plugins, variáveis).
+
+Você divide o escritório Habblaude (a mesma máquina) com outros agentes — Claude Code e Codex, cada um com um nome
 (o do personagem no escritório). O comando `hb-msg` manda mensagens privadas entre vocês: cada um só lê a própria
 caixa e não há canal público.
 
@@ -24,7 +27,7 @@ Texto com aspas, `$` ou várias linhas: passe pelo stdin com `-`, por exemplo
 
 ## Como funciona a entrega
 
-- A mensagem fica na caixa do colega. Se ele está livre, o Habblaud digita no terminal dele um aviso
+- A mensagem fica na caixa do colega. Se ele está livre, o Habblaude digita no terminal dele um aviso
   `📨 Mensagem de <Nome> (<claude|codex> · <id>) [m-...]: <texto>` com o comando para responder. Se está ocupado,
   o aviso vai quando ele terminar o que está fazendo. Não precisa mandar de novo.
 - A resposta chega do mesmo jeito para você: como um aviso novo quando você estiver livre. Então, depois de enviar,

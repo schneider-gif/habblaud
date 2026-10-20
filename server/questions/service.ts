@@ -1,4 +1,4 @@
-// Perguntas pendentes (AskUserQuestion) dos agentes e a resposta pelo chat do Habblaud.
+// Perguntas pendentes (AskUserQuestion) dos agentes e a resposta pelo chat do Habblaude.
 // - A cada ~1,5 s confere o transcript dos agentes principais do Claude que estão esperando (status 'waiting' do
 //   registro de sessões) e guarda a pergunta sem tool_result; o snapshot a leva em AgentInfo.question. Quando o
 //   tool_result aparece (respondida aqui ou no próprio terminal), a pergunta some sozinha.
