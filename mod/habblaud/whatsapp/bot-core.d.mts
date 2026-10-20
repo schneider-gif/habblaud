@@ -32,3 +32,4 @@ export declare function lerSaidaClaude(stdout: string): string | null;
 export declare function prontos(fila: Record<string, { ultimaEm: number; msgs: unknown[] }>, agora: number): string[];
 export declare function backoff(n: number): number;
 export declare function aparar<T>(historico: T[]): T[];
+export function versaoInstrucoes(instrucoes: unknown): string;

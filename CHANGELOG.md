@@ -9,6 +9,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.4] - 2026-10-20
+
+### Corrigido
+
+- Bot Habblaude segue o personagem das instruções do dono (nome, jeito de falar) em vez de responder como "atendente
+  virtual" padrão, e não chama o dono por papo casual.
+- Trocar as instruções do bot descarta o histórico antigo das conversas, e o bot passa a reler o painel a cada 15 s.
+
 ## [0.12.3] - 2026-10-20
 
 ### Adicionado

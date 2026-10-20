@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { aparar, backoff, claudeArgs, filtrar, lerResposta, lerSaidaClaude, mascarar, mensagemClaude, montarPrompt, PEDIR_TEXTO, prontos, soAudioSemTexto, soDigitos, textoDaMensagem } from './bot-core.mjs';
+import { aparar, backoff, claudeArgs, filtrar, lerResposta, lerSaidaClaude, mascarar, mensagemClaude, montarPrompt, PEDIR_TEXTO, prontos, soAudioSemTexto, soDigitos, textoDaMensagem, versaoInstrucoes } from './bot-core.mjs';
 
 const PORTAL = (process.env.HABBLAUDE_PORTAL_URL || 'https://app.habblaude.com').replace(/\/$/, '');
 const HOME = homedir();
@@ -14,7 +14,7 @@ const ESTADO = join(HOME, '.habblaud', 'whatsapp-bot.json');
 const DIR = join(HOME, '.habblaud', 'whatsapp-bot');
 const CWD = join(DIR, 'cwd');
 const LOG = join(DIR, 'bot.log');
-const POLL_MS = 3_000, CONFIG_MS = 60_000, OCIOSO_MS = 30_000, SEM_CHATBOT_MS = 300_000, CLAUDE_MS = 90_000;
+const POLL_MS = 3_000, CONFIG_MS = 15_000, OCIOSO_MS = 30_000, SEM_CHATBOT_MS = 300_000, CLAUDE_MS = 90_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 mkdirSync(CWD, { recursive: true });
@@ -72,8 +72,10 @@ const arqHistorico = (de) => join(DIR, `${soDigitos(de)}.jsonl`);
 function historico(de) {
   try { return readFileSync(arqHistorico(de), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; }
 }
+// versão das instruções em uso: cada linha do histórico leva a sua, e só as da versão atual entram no prompt
+let versaoAtual = '';
 function guardar(de, item) {
-  const h = aparar([...historico(de), { ...item, em: new Date().toISOString() }]);
+  const h = aparar([...historico(de), { ...item, v: versaoAtual, em: new Date().toISOString() }]);
   writeFileSync(arqHistorico(de), h.map((x) => JSON.stringify(x)).join('\n') + '\n');
 }
 
@@ -130,7 +132,8 @@ async function atender(estado, cfg, msgs) {
     if (await enviar(estado, de, quem, PEDIR_TEXTO)) log(`-> ${quem} (pediu texto no lugar do áudio)`);
     return;
   }
-  const h = historico(de);
+  versaoAtual = versaoInstrucoes(cfg.instrucoes);
+  const h = historico(de).filter((x) => x.v === versaoAtual);
   const imagens = await imagensDe(estado, msgs);
   for (const m of msgs) guardar(de, { quem: 'cliente', texto: textoDaMensagem(m) });
   const texto = msgs.map(textoDaMensagem).join('\n');
