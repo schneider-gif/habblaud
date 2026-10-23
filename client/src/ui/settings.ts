@@ -116,7 +116,7 @@ export class SettingsPopover implements UiComponent {
       ],
       (v) => ctx.updatePrefs({ decoration: v }),
     );
-    this.decoration.row.append(h('span', { class: 'ui-set__hint', text: 'Bandeirinhas e um coração verde e amarelo nas paredes. Só neste navegador.' }));
+    this.decoration.row.append(h('span', { class: 'ui-set__hint', text: 'Bandeirinhas, bandeiras, balões e confete verde e amarelo. Só neste navegador.' }));
     this.soundGroup = new SoundSettingsGroup(ctx, sound);
 
     this.demoGroup = h(

@@ -21,7 +21,8 @@ import { Lighting } from './lighting';
 import { Particles } from './particles';
 import { carSprite, propSprite, shadowSprite } from './props';
 import { countBadge, fallbackIcon } from './shell-sprites';
-import { drawDecor, planDecor, type DecorPlan, type Decoration } from './decor';
+import { hash32 } from '../../../../shared/hash';
+import { drawDecor, drawDeskFlag, drawFloorDecor, drawOverhead, planDecor, planOverhead, type DecorPlan, type Decoration, type OverheadPlan } from './decor';
 import { buildAreaVis, furnitureSprites, opaqueBounds, paintShell, toWallVis, WALL_MARGIN, wallItemOrigin, wallSprites, type AreaVis, type FurnVis, type WallVis } from './scene';
 
 const enum K {
@@ -378,6 +379,7 @@ export class Renderer {
       if (!visible(p.x, p.y - WALL_MARGIN, p.w, p.h + WALL_MARGIN)) continue;
       const anim = vis.room ? buildAnim(vis.room.phase, vis.room.progress(now)) : NO_ANIM;
       this.drawFloor(vis, anim);
+      if (this.decoration === 'brasil' && anim.floor >= 1) drawFloorDecor(ctx, vis.layout.kind, vis.px, hash32(vis.id));
     }
     for (const vis of this.areas.values()) {
       const p = vis.px;
@@ -490,6 +492,17 @@ export class Renderer {
     this.roomFx.emit(this.particles, this.sim, now, dt, view);
     this.particles.update(dt);
     this.particles.draw(ctx, vx0, vy0, vx1, vy1, now);
+    // ---- decoração Brasil: varais cruzando as salas e balões (por cima de móveis e personagens, sob a luz da noite)
+    if (this.decoration === 'brasil') {
+      for (const vis of this.areas.values()) {
+        const p = vis.px;
+        if (!visible(p.x, p.y, p.w, p.h)) continue;
+        if (vis.room && vis.room.phase !== 'ready') continue;
+        let plan = this.overheadPlans.get(vis);
+        if (!plan) this.overheadPlans.set(vis, (plan = planOverhead(vis.layout.kind, p)));
+        drawOverhead(ctx, plan, now);
+      }
+    }
 
     // ---- luz: noite, salas apagadas, brilhos
     this.night = this.lighting.night;
@@ -557,6 +570,7 @@ export class Renderer {
   /** Decoração escolhida nas Configurações (WorldOptions.decoration); o plano de cada área fica em cache. */
   private decoration: Decoration = 'none';
   private decorPlans = new WeakMap<AreaVis, DecorPlan>();
+  private overheadPlans = new WeakMap<AreaVis, OverheadPlan>();
 
   private drawWalls(vis: AreaVis, anim: BuildAnim, now: number, hour: number): void {
     const { ctx } = this;
@@ -569,7 +583,7 @@ export class Renderer {
     // decoração por baixo dos itens de parede dinâmicos (relógio, TV, janela...)
     if (this.decoration !== 'none') {
       let plan = this.decorPlans.get(vis);
-      if (!plan) this.decorPlans.set(vis, (plan = planDecor(vis.layout.walls)));
+      if (!plan) this.decorPlans.set(vis, (plan = planDecor(vis.layout.walls, vis.layout.wallItems)));
       drawDecor(ctx, plan, rise, now);
     }
     for (const w of vis.wallItems) this.drawWallItem(vis, w, now, hour, rise);
@@ -631,8 +645,10 @@ export class Renderer {
         const r = s.base.rects?.tv;
         // roda na TV do lounge: o programa escolhido (futebol, novela, desenho) ou o videogame
         const live = this.sim.social.tvScreen();
-        const mode = live ? live.mode : TV_MODES[Math.floor(now / 9000) % TV_MODES.length];
-        const seed = live ? live.seed : w.seed;
+        // decoração Brasil: sem programa escolhido, a TV passa futebol (seed % 3 === 0)
+        const br = !live && this.decoration === 'brasil';
+        const mode = live ? live.mode : br ? 'show' : TV_MODES[Math.floor(now / 9000) % TV_MODES.length];
+        const seed = live ? live.seed : br ? 0 : w.seed;
         if (r) this.safe(() => this.art.drawScreen(ctx, { x: o.x + r.x, y: o.y + rise + r.y, w: r.w, h: r.h }, mode, now, seed));
         return;
       }
@@ -762,6 +778,7 @@ export class Renderer {
         const r = s.rects.screen;
         const mode = this.deskScreen(f, area);
         this.safe(() => this.art.drawScreen(ctx, { x: dx + r.x, y: dy + r.y, w: r.w, h: r.h }, mode, now, f.seed));
+        if (this.decoration === 'brasil') drawDeskFlag(ctx, dx + 3, dy + r.y + r.h + 1, now, f.seed);
       } else if (f.kind === 'coffee_machine' && state === 1) {
         this.drawSteam(f.ax, dy + 2, now, f.seed);
       } else if (f.kind === 'arcade' && s.rects?.screen) {

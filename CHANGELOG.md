@@ -13,9 +13,10 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
-- Decoração opcional: **Configurações › Escritório › Decoração › Brasil** pendura um varal de bandeirinhas verde e
-  amarelo no alto das paredes e um coração verde e amarelo em cada sala. Vem desligada; vale só no navegador de quem
-  ligar.
+- Decoração opcional: **Configurações › Escritório › Decoração › Brasil** enfeita o escritório para a torcida:
+  varais de bandeirinhas verde e amarelo cruzando as salas e o corredor, bandeira do Brasil no chão do lounge e da
+  recepção, na parede e no mastro, balões, confete, bandeirinha nas mesas e futebol nas TVs. Vem desligada; vale só
+  no navegador de quem ligar.
 
 ## [0.12.4] - 2026-10-20
 

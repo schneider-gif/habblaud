@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BR_GREEN, BR_YELLOW, planDecor, sagAt } from './decor';
-import type { WallSegment } from '../layout/types';
+import { BR_GREEN, BR_YELLOW, freeRuns, planDecor, sagAt, WALL_FLAG } from './decor';
+import type { WallItemPlacement, WallSegment } from '../layout/types';
 import { DEFAULT_PREFS, sanitizePrefs, worldOptionsFrom } from '../../ui/prefs';
 
 const style = { base: '#ccc' };
@@ -21,22 +21,31 @@ describe('decoração Brasil', () => {
     ];
     const p = planDecor(walls);
     expect(p.strings.map((s) => [s.x0, s.x1])).toEqual([[2, 62], [98, 158]]);
-    for (const pen of p.pennants) expect(pen.x >= 64 && pen.x < 96).toBe(false);
+    for (const pen of p.pennants) expect(pen.x + 7 > 64 && pen.x < 96).toBe(false);
     expect(new Set(p.pennants.map((x) => x.color))).toEqual(new Set([BR_GREEN, BR_YELLOW]));
-    expect(p.heart).not.toBeNull();
-    // o coração fica no meio do maior trecho, sem bandeirinha por cima
-    const h = p.heart!;
-    expect(p.pennants.some((x) => x.run === 0 && x.x + 5 > h.x - 2 && x.x < h.x + 11)).toBe(false);
   });
 
-  it('parede curta demais fica sem varal; sem parede de face, sem coração', () => {
-    expect(planDecor([{ kind: 'face', x: 0, y: 0, w: 30, style }]).strings).toEqual([]);
-    expect(planDecor([{ kind: 'south', x: 0, y: 0, w: 300, style }]).heart).toBeNull();
+  it('bandeira de parede fica fora dos quadros e janelas; mastro e balões nas pontas da maior parede', () => {
+    const walls: WallSegment[] = [{ kind: 'face', x: 0, y: 0, w: 192, style }];
+    const items: WallItemPlacement[] = [{ id: 'j', kind: 'window', cx: 40, baseY: 24, on: 'face', order: 0 }];
+    const p = planDecor(walls, items);
+    expect(p.flags.length).toBeGreaterThan(0);
+    for (const f of p.flags) expect(f.x < 40 + 18 && f.x + WALL_FLAG.w > 40 - 18).toBe(false);
+    expect(p.pole?.x).toBeLessThan(20);
+    expect(p.balloons?.x).toBeGreaterThan(170);
   });
 
-  it('a barriga do varal é zero nas pontas e máxima no meio', () => {
+  it('parede curta fica sem varal, sem mastro e sem balões', () => {
+    const p = planDecor([{ kind: 'face', x: 0, y: 0, w: 30, style }]);
+    expect(p.strings).toEqual([]);
+    expect(p.pole).toBeNull();
+    expect(p.balloons).toBeNull();
+  });
+
+  it('a barriga do varal é zero nas pontas e máxima no meio; trechos livres', () => {
     expect(sagAt(0, 0, 100, 3)).toBe(0);
     expect(sagAt(100, 0, 100, 3)).toBe(0);
     expect(sagAt(50, 0, 100, 3)).toBe(3);
+    expect(freeRuns(0, 100, [{ x: 10, w: 20 }, { x: 50, w: 10 }])).toEqual([[0, 10], [30, 50], [60, 100]]);
   });
 });
