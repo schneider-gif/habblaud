@@ -21,6 +21,7 @@ import { Lighting } from './lighting';
 import { Particles } from './particles';
 import { carSprite, propSprite, shadowSprite } from './props';
 import { countBadge, fallbackIcon } from './shell-sprites';
+import { drawDecor, planDecor, type DecorPlan, type Decoration } from './decor';
 import { buildAreaVis, furnitureSprites, opaqueBounds, paintShell, toWallVis, WALL_MARGIN, wallItemOrigin, wallSprites, type AreaVis, type FurnVis, type WallVis } from './scene';
 
 const enum K {
@@ -317,6 +318,7 @@ export class Renderer {
   frame(now: number, dt: number, opts: WorldOptions, sel: { agent: string | null; room: string | null; hover: string | null }): void {
     const { ctx, camera } = this;
     this.date.setTime(this.clock());
+    this.decoration = opts.decoration ?? 'none';
     this.dt = dt;
     this.updateCars(now, dt);
     const W = this.canvas.width;
@@ -552,6 +554,10 @@ export class Renderer {
     }
   }
 
+  /** Decoração escolhida nas Configurações (WorldOptions.decoration); o plano de cada área fica em cache. */
+  private decoration: Decoration = 'none';
+  private decorPlans = new WeakMap<AreaVis, DecorPlan>();
+
   private drawWalls(vis: AreaVis, anim: BuildAnim, now: number, hour: number): void {
     const { ctx } = this;
     const p = vis.px;
@@ -560,6 +566,12 @@ export class Renderer {
     if (anim.walls < 1) ctx.globalAlpha = anim.walls;
     ctx.drawImage(vis.walls, p.x, p.y - WALL_MARGIN + rise);
     // itens de parede dinâmicos
+    // decoração por baixo dos itens de parede dinâmicos (relógio, TV, janela...)
+    if (this.decoration !== 'none') {
+      let plan = this.decorPlans.get(vis);
+      if (!plan) this.decorPlans.set(vis, (plan = planDecor(vis.layout.walls)));
+      drawDecor(ctx, plan, rise, now);
+    }
     for (const w of vis.wallItems) this.drawWallItem(vis, w, now, hour, rise);
     ctx.globalAlpha = 1;
     if (vis.sign && anim.sign > 0) {

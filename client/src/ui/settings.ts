@@ -61,6 +61,7 @@ export class SettingsPopover implements UiComponent {
   private bubbles: ReturnType<typeof segmented<UiPrefs['bubbles']>>;
   private liveliness: ReturnType<typeof segmented<UiPrefs['liveliness']>>;
   private daylight: ReturnType<typeof segmented<UiPrefs['daylight']>>;
+  private decoration: ReturnType<typeof segmented<UiPrefs['decoration']>>;
   private soundGroup: SoundSettingsGroup;
   private demoGroup: HTMLElement;
   private about: AboutGroup;
@@ -107,6 +108,15 @@ export class SettingsPopover implements UiComponent {
       (v) => ctx.updatePrefs({ daylight: v }),
     );
     this.daylight.row.append(h('span', { class: 'ui-set__hint', text: 'Automático: céu, luzes e sol nas janelas seguem a hora local.' }));
+    this.decoration = segmented<UiPrefs['decoration']>(
+      'Decoração',
+      [
+        ['none', 'Nenhuma'],
+        ['brasil', '💚💛 Brasil'],
+      ],
+      (v) => ctx.updatePrefs({ decoration: v }),
+    );
+    this.decoration.row.append(h('span', { class: 'ui-set__hint', text: 'Bandeirinhas e um coração verde e amarelo nas paredes. Só neste navegador.' }));
     this.soundGroup = new SoundSettingsGroup(ctx, sound);
 
     this.demoGroup = h(
@@ -131,6 +141,7 @@ export class SettingsPopover implements UiComponent {
         this.bubbles.row,
         this.liveliness.row,
         this.daylight.row,
+        this.decoration.row,
       ),
       h(
         'div',
@@ -200,6 +211,7 @@ export class SettingsPopover implements UiComponent {
     this.bubbles.set(p.bubbles);
     this.liveliness.set(p.liveliness);
     this.daylight.set(p.daylight);
+    this.decoration.set(p.decoration);
     this.soundGroup.render();
     setHidden(this.demoGroup, this.ctx.store.mock || this.ctx.store.snapshot?.meta.demoLocked === true);
     this.about.render();
