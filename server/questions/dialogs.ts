@@ -13,8 +13,11 @@ export const DIALOG_POLL_MS = 2_500;
 /** Pausa depois de uma tecla, para o TUI redesenhar antes de a tela ser lida de novo. */
 export const DIALOG_KEY_PAUSE_MS = 250;
 export const WAITING_FOR_DIALOG = 'responder uma tela no terminal';
-/** Teclas dos botões do escritório (nomes do tmux). */
-export const DIALOG_KEYS = ['Up', 'Down', 'Enter', 'Escape'] as const;
+/**
+ * Teclas dos botões e do teclado do escritório (nomes do tmux). Tab/BTab e ← → trocam de aba (ex.: /permissions) e
+ * BSpace apaga no campo de texto da tela; sem elas a pessoa ficava presa numa tela que não saía do lugar.
+ */
+export const DIALOG_KEYS = ['Up', 'Down', 'Left', 'Right', 'Enter', 'Escape', 'Tab', 'BTab', 'BSpace'] as const;
 export type DialogKey = (typeof DIALOG_KEYS)[number];
 /** Linhas do trecho no máximo. */
 const EXCERPT_MAX_LINES = 24;
@@ -74,6 +77,8 @@ export function findDialog(text: string): string | undefined {
 export interface DialogInput {
   screen(id: string): Promise<string | undefined>;
   navKeys(id: string, keys: readonly DialogKey[]): Promise<void>;
+  /** Texto literal no campo da tela (ex.: a regra nova do /permissions), sem Enter. */
+  typeText(id: string, text: string): Promise<void>;
 }
 
 export interface DialogWatcherOptions {
@@ -172,13 +177,17 @@ export class DialogWatcher {
 
   /** Aperta uma tecla no diálogo (botões do escritório) e relê a tela. Só com diálogo à mostra. */
   async pressKey(agentId: string, body: unknown): Promise<{ dialog: boolean }> {
-    const key = (body as { key?: unknown } | undefined)?.key;
-    if (typeof key !== 'string' || !(DIALOG_KEYS as readonly string[]).includes(key)) throw new AnswerError(400, 'tecla inválida (use Up, Down, Enter ou Escape)');
+    const { key, text } = (body ?? {}) as { key?: unknown; text?: unknown };
+    if (text !== undefined) {
+      // eslint-disable-next-line no-control-regex
+      if (typeof text !== 'string' || !text || text.length > 2_000 || /[ -]/.test(text)) throw new AnswerError(400, 'texto inválido (uma linha)');
+    } else if (typeof key !== 'string' || !(DIALOG_KEYS as readonly string[]).includes(key)) throw new AnswerError(400, `tecla inválida (use ${DIALOG_KEYS.join(', ')})`);
     if (!this.dialogs.has(agentId)) {
       if (await this.check(agentId)) this.opts.office.markDirty();
       if (!this.dialogs.has(agentId)) throw new AnswerError(404, 'a tela do terminal já mudou: confira de novo');
     }
-    await this.opts.input.navKeys(agentId, [key as DialogKey]);
+    if (typeof text === 'string') await this.opts.input.typeText(agentId, text);
+    else await this.opts.input.navKeys(agentId, [key as DialogKey]);
     await this.sleep(this.opts.keyPauseMs ?? DIALOG_KEY_PAUSE_MS);
     if (await this.check(agentId)) this.opts.office.markDirty();
     return { dialog: this.dialogs.has(agentId) };

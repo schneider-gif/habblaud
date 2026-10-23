@@ -61,7 +61,7 @@ class FakeTeachTui {
     if (k === 'Up') this.cursor = Math.max(0, this.cursor - 1);
     else if (k === 'Down') this.cursor = Math.min(this.options.length - 1, this.cursor + 1);
     else if (k === 'Escape') this.closed = 'esc';
-    else this.closed = (['yes', 'no', 'never'] as const)[this.cursor];
+    else if (k === 'Enter') this.closed = (['yes', 'no', 'never'] as const)[this.cursor];
   }
   screen(): string {
     if (this.closed) return PROMPT;
@@ -139,6 +139,7 @@ function setup(screens: { tui?: FakeTeachTui; text?: string; covered?: boolean }
   const agent = { id: 'a1', kind: 'main', engine: 'claude', status: 'idle' } as unknown as AgentInfo;
   let dirty = 0;
   const keys: string[] = [];
+  const typed: string[] = [];
   const w = new DialogWatcher({
     office: { list: () => [agent], markDirty: () => void dirty++ },
     input: {
@@ -147,12 +148,13 @@ function setup(screens: { tui?: FakeTeachTui; text?: string; covered?: boolean }
         keys.push(...k);
         for (const x of k) screens.tui?.key(x);
       },
+      typeText: async (_id, t) => void typed.push(t),
     },
     covered: () => !!screens.covered,
     now: () => 42,
     sleep: async () => {},
   });
-  return { agent, w, keys, dirty: () => dirty };
+  return { agent, w, keys, typed, dirty: () => dirty };
 }
 
 describe('DialogWatcher', () => {
@@ -188,6 +190,17 @@ describe('DialogWatcher', () => {
     await s.w.poll();
     await s.w.pressKey('a1', { key: 'Escape' });
     expect(tui.closed).toBe('esc');
+  });
+
+  it('/permissions: abas (Tab, Shift+Tab, ← →), apagar e texto digitado chegam ao terminal', async () => {
+    const tui = new FakeTeachTui();
+    const s = setup({ tui });
+    await s.w.poll();
+    for (const key of ['Tab', 'BTab', 'Left', 'Right', 'BSpace']) await s.w.pressKey('a1', { key });
+    expect(s.keys).toEqual(['Tab', 'BTab', 'Left', 'Right', 'BSpace']);
+    await s.w.pressKey('a1', { text: 'Bash(npm run test:*)' });
+    expect(s.typed).toEqual(['Bash(npm run test:*)']);
+    await expect(s.w.pressKey('a1', { text: 'a' + String.fromCharCode(10) + 'b' })).rejects.toMatchObject({ status: 400 });
   });
 
   it('tecla inválida ou sem diálogo na tela: recusa sem apertar nada', async () => {

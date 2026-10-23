@@ -284,12 +284,12 @@ export class OfficeStore {
   }
 
   /** Aperta uma tecla (Up, Down, Enter, Escape) numa tela de seleção desconhecida no terminal do agente. */
-  async pressDialogKey(agentId: string, key: string): Promise<string | undefined> {
+  async pressDialogKey(agentId: string, input: { key: string } | { text: string }): Promise<string | undefined> {
     if (this.mock) return 'Na demonstração não há terminal de verdade.';
     const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key }),
+      body: JSON.stringify(input),
     });
     if (res.ok) return undefined;
     try {

@@ -203,7 +203,7 @@ const dialogs =
   config.terminal && input
     ? new DialogWatcher({
         office,
-        input: { screen: (id) => input.screen(id), navKeys: (id, k) => input.navKeys(id, k) },
+        input: { screen: (id) => input.screen(id), navKeys: (id, k) => input.navKeys(id, k), typeText: (id, t) => input.typeText(id, t) },
         covered: (id) => !!questions?.pendingOf(id) || !!late.permissions?.snapshot().has(id) || !!late.codex?.approvals().some((a) => a.agentId === id),
       })
     : undefined;
