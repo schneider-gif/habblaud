@@ -24,6 +24,9 @@ const COUNTERS: { key: Exclude<keyof Counters, 'shells'>; singular: string; plur
   { key: 'subagents', singular: 'subagente', plural: 'subagentes', hint: 'Subagentes em atividade' },
   { key: 'waiting', singular: 'precisa de você', plural: 'precisam de você', hint: 'Agentes esperando sua resposta no terminal' },
 ];
+/** Coração verde e amarelo (fica colorido mesmo com o botão desligado; ligado, ganha o fundo de "pressionado"). */
+const DECOR_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 14 2.2 8.3A3.4 3.4 0 0 1 8 3.6a3.4 3.4 0 0 1 5.8 4.7Z" fill="#009C3B"/><path d="M8 5.2 11.6 8 8 10.8 4.4 8Z" fill="#FFDF00"/></svg>';
 const WAITING_HINT = COUNTERS.find((c) => c.key === 'waiting')!.hint;
 
 export class TopBar implements UiComponent {
@@ -41,6 +44,8 @@ export class TopBar implements UiComponent {
   private sidebarBtn: HTMLButtonElement;
   private feedBtn: HTMLButtonElement;
   private timelapseBtn: HTMLButtonElement;
+  /** Liga/desliga a decoração Brasil (a mesma opção de Configurações › Decoração). */
+  private decorBtn: HTMLButtonElement;
   readonly settingsBtn: HTMLButtonElement;
   /** Grupo dos botões de painéis (feed, configurações, ajuda); o histórico entra aqui (ui/index.ts). */
   readonly panelGroup: HTMLElement;
@@ -146,6 +151,7 @@ export class TopBar implements UiComponent {
     );
     this.feedBtn = iconButton(ICONS.feed, 'Feed de atividade ( ] )', () => ctx.togglePanel('feed'));
     this.timelapseBtn = iconButton(TIMELAPSE_ICONS.timelapse, 'Timelapse: reproduzir o dia (L)', () => ctx.toggleTimelapse(), 'ui-btn-timelapse');
+    this.decorBtn = iconButton(DECOR_ICON, 'Decoração Brasil: ligar ou desligar', () => ctx.updatePrefs({ decoration: ctx.prefs.decoration === 'brasil' ? 'none' : 'brasil' }), 'ui-btn-decor');
     this.settingsBtn = iconButton(ICONS.settings, 'Configurações', () => ctx.toggleSettings());
     this.settingsBtn.setAttribute('aria-haspopup', 'dialog');
     this.version = new VersionChip(ctx, this.settingsBtn);
@@ -160,6 +166,7 @@ export class TopBar implements UiComponent {
       'div',
       { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': 'Painéis' } },
       this.timelapseBtn,
+      this.decorBtn,
       this.feedBtn,
       this.settingsBtn,
       iconButton(ICONS.help, 'Ajuda (?)', () => ctx.openHelp()),
@@ -365,6 +372,7 @@ export class TopBar implements UiComponent {
     setHidden(this.bugLink, !links?.bug);
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
     this.timelapseBtn.setAttribute('aria-pressed', String(this.ctx.isTimelapseOpen()));
+    this.decorBtn.setAttribute('aria-pressed', String(this.ctx.prefs.decoration === 'brasil'));
     setHidden(this.timelapseBtn, store.mock);
   }
 
