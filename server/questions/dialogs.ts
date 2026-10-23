@@ -36,7 +36,7 @@ const CURSOR = /^\s*[❯›>]\s*\S/;
  * levantada sem nada para responder): o /login do Claude Code (link + "Paste code here", "OAuth error … Press Enter
  * to retry", "Login successful. Press Enter to continue…") e qualquer "Press Enter to retry/continue".
  */
-const NO_CURSOR = /Paste code here|Login successful|OAuth error|Press Enter to (retry|continue)/;
+const NO_CURSOR = /Paste code here|Login successful|OAuth error|Press Enter to (retry|continue)|←\/→ to switch|Enter to submit/;
 /** Login com o campo de colar o código: a caixa de mensagem do chat manda o texto para ele. */
 const LOGIN_INPUT = /Paste code here/;
 export const isLoginDialog = (excerpt: string) => LOGIN_INPUT.test(excerpt);
@@ -47,6 +47,8 @@ export const isLoginDialog = (excerpt: string) => LOGIN_INPUT.test(excerpt);
  */
 export function findDialog(text: string): string | undefined {
   const lines = text.replace(/\r/g, '').split('\n');
+  // pane mais alto que a tela (ex.: /permissions num pane de 40 linhas): as linhas vazias de baixo não contam
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
   let footer = -1;
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 12); i--) {
     if (FOOTER.test(lines[i])) {
