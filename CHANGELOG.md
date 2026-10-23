@@ -9,6 +9,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.5] - 2026-10-23
+
+### Adicionado
+
+- Decoração opcional: **Configurações › Escritório › Decoração › Brasil** pendura um varal de bandeirinhas verde e
+  amarelo no alto das paredes e um coração verde e amarelo em cada sala. Vem desligada; vale só no navegador de quem
+  ligar.
+
 ## [0.12.4] - 2026-10-20
 
 ### Corrigido
