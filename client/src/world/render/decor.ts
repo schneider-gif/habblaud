@@ -200,12 +200,15 @@ function drawPole(ctx: CanvasRenderingContext2D, px: number, py: number, t: numb
   drawWaving(ctx, flagCanvas(POLE_FLAG.w, POLE_FLAG.h), px + 2, top + 1, t, 1.6);
 }
 
-/** Bandeirinha de mesa (palito + bandeira 7×5), com a base na posição dada. */
+/** Bandeirinha de mesa (base, palito de 14 px e bandeira 10×7), com a base na posição dada. */
 export function drawDeskFlag(ctx: CanvasRenderingContext2D, x: number, y: number, t: number, seed: number): void {
-  ctx.fillStyle = '#6b5a45';
-  ctx.fillRect(x, y - 8, 1, 8);
-  ctx.fillRect(x - 1, y - 1, 3, 1);
-  drawWaving(ctx, flagCanvas(7, 5), x + 1, y - 8, t + (seed % 997) * 37, 0.8);
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(x - 2, y - 1, 5, 2);
+  ctx.fillStyle = '#d8d8d8';
+  ctx.fillRect(x, y - 14, 1, 13);
+  ctx.fillStyle = BR_YELLOW;
+  ctx.fillRect(x, y - 15, 1, 1);
+  drawWaving(ctx, flagCanvas(10, 7), x + 1, y - 14, t + (seed % 997) * 37, 1);
 }
 
 /** Desenha os enfeites de parede e de chão da área (por baixo dos móveis e personagens). */

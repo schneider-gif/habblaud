@@ -778,7 +778,8 @@ export class Renderer {
         const r = s.rects.screen;
         const mode = this.deskScreen(f, area);
         this.safe(() => this.art.drawScreen(ctx, { x: dx + r.x, y: dy + r.y, w: r.w, h: r.h }, mode, now, f.seed));
-        if (this.decoration === 'brasil') drawDeskFlag(ctx, dx + 3, dy + r.y + r.h + 1, now, f.seed);
+        // bandeirinha espetada ao lado do monitor (o palito sobe acima da tela para aparecer)
+        if (this.decoration === 'brasil') drawDeskFlag(ctx, dx + r.x + r.w + 2, dy + r.y + r.h + 2, now, f.seed);
       } else if (f.kind === 'coffee_machine' && state === 1) {
         this.drawSteam(f.ax, dy + 2, now, f.seed);
       } else if (f.kind === 'arcade' && s.rects?.screen) {
