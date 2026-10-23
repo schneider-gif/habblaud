@@ -9,6 +9,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.7] - 2026-10-23
+
+### Corrigido
+
+- Telas do terminal que travavam (como o `/permissions`) agora aparecem no escritório e aceitam o teclado: setas, Tab e
+  Shift+Tab trocam de aba, Enter confirma, Esc sai e o texto da caixa de mensagem vai para o campo da tela. O cartão
+  ganhou os botões ← → Tab e pega o foco sozinho.
+
 ## [0.12.6] - 2026-10-23
 
 ### Adicionado
