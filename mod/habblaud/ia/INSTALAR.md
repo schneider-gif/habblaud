@@ -6,6 +6,9 @@ Motores de IA ao portal com o `CODER_AGENT_TOKEN` e liga o Claude Code nela (`ap
 `~/.claude/settings.json`). Sem o add-on, o portal responde 404 e o daemon tira o que tinha posto. Com login próprio
 do Claude (`~/.claude/.credentials.json` ou `primaryApiKey`), vale a conta do cliente: o daemon tira o nosso e não pede.
 
+Contas em `CLAUDE_CONFIG_DIR` (outro diretório de configuração) não são gerenciadas: o daemon só mexe no `~/.claude`.
+Tirar o add-on deixa as sessões em andamento usando a chave em cache por até 300 s; depois elas pedem login.
+
 A chave nunca vai para env do container, `startup_script` nem manifest do Coder: só para `~/.habblaude/ia-chave` (600).
 
 ## Contêiner (imagem habblaude-office)
