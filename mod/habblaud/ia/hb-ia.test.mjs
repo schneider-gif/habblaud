@@ -1,7 +1,7 @@
 // node --test mod/habblaud/ia/hb-ia.test.mjs   (HOME temporário, portal falso; nada de rede)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { rodada } from './hb-ia.mjs';
@@ -157,4 +157,22 @@ test('settings por symlink e modo preservados; sem .tmp sobrando', async () => {
   assert.equal(statSync(real).mode & 0o777, 0o600);
   assert.equal(JSON.parse(readFileSync(join(home, '.claude/settings.json'), 'utf8')).apiKeyHelper, 'cat ~/.habblaude/ia-chave');
   assert.equal(readdirSync(join(home, 'dotfiles')).concat(readdirSync(join(home, '.habblaude'))).some((n) => n.endsWith('.tmp')), false);
+});
+
+test('segunda rodada igual não reescreve o settings', async () => {
+  const home = casa();
+  await rodar(home, portal(200, OK));
+  const sp = join(home, '.claude/settings.json');
+  utimesSync(sp, 1000, 1000);
+  assert.equal(await rodar(home, portal(200, OK)), 'gravou');
+  assert.equal(statSync(sp).mtimeMs, 1000000);
+});
+
+test('404 sem marca: apaga a chave órfã se o helper não é de outro', async () => {
+  const home = casa({ '.habblaude/ia-chave': 'sk-orfa-1234567890' });
+  assert.equal(await rodar(home, portal(404, {})), 'nada');
+  assert.equal(existsSync(join(home, '.habblaude/ia-chave')), false);
+  const home2 = casa({ '.habblaude/ia-chave': 'x', '.claude/settings.json': { apiKeyHelper: 'cat ~/.habblaude/ia-chave' } });
+  assert.equal(await rodar(home2, portal(404, {})), 'nada');
+  assert.equal(existsSync(join(home2, '.habblaude/ia-chave')), true);
 });

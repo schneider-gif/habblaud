@@ -78,6 +78,12 @@ WantedBy=multi-user.target
 
 `sudo systemctl daemon-reload && sudo systemctl enable --now hb-ia`; log: `journalctl -u hb-ia` (só mudanças de estado).
 
+## Log e resultados
+
+O daemon recusa rodar como root (grava em `$HOME`; rode como `ubuntu`). O log só registra mudanças de estado:
+`gravou`, `nada`, `removeu`, `propria`, `propria-removeu`, `config-do-cliente`, `settings-invalido`, `sem-token`,
+`erro-<status>` (HTTP do portal), `erro-rede`, `erro-resposta`, `erro-concorrencia`. Nunca a chave nem o token.
+
 ## Contrato com o portal (app.habblaude.com)
 
 - `POST /api/escritorio/ia/chave {agentToken}` -> 200 `{chave, baseUrl, modelo}`; 404 = sem Motores de IA (ou pausado
@@ -87,6 +93,6 @@ WantedBy=multi-user.target
 
 - `~/.habblaude/ia-chave` (600): a chave.
 - `~/.claude/settings.json`: `apiKeyHelper: "cat ~/.habblaude/ia-chave"`, `env` (`ANTHROPIC_BASE_URL`, modelos,
-  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`) e `"hbIaGerenciado": true`.
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`) e `"hbIaGerenciado": {"env": {...}}` (os valores que o daemon gravou: só o que ainda bate com eles é removido).
 - `~/.claude.json`: `hasCompletedOnboarding: true` (só acrescenta).
 - Contêiner: `/tmp/hb-logs/ia.log` (saída do supervisor).

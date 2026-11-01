@@ -43,6 +43,7 @@ function editar(p, fn, mode = 0o644) {
     if (!s) return 'settings-invalido';
     const { r, novo } = fn(s);
     if (!novo) return r;
+    if (JSON.stringify(novo) === JSON.stringify(s)) return r; // nada mudou: não mexe no arquivo
     if (ler(p) !== t0) continue;
     gravarJson(p, novo, mode);
     return r;
@@ -50,8 +51,8 @@ function editar(p, fn, mode = 0o644) {
   return 'erro-concorrencia';
 }
 
-// o que gravamos por último: { chave: valor }. `hbIaGerenciado: true` (formato antigo) não registra env.
-const gravado = (s) => (s?.[MARCA] && typeof s[MARCA] === 'object' && s[MARCA].env) || {};
+// o que gravamos por último: { chave: valor }
+const gravado = (s) => s?.[MARCA]?.env ?? {};
 
 /** Login/credencial própria: OAuth do Pro/Max, chave do /login, ou token/chave em env (settings do cliente ou processo). */
 export function contaPropria(home, env = process.env) {
@@ -73,13 +74,14 @@ export function aplicar(home, { chave, baseUrl, modelo }) {
     // qualquer valor que não fomos nós que gravamos é configuração do cliente: não mexe em nada
     if (ENV_KEYS.some((k) => k in env && env[k] !== rec[k])) return { r: 'config-do-cliente' };
     if ('apiKeyHelper' in s && !(s[MARCA] && s.apiKeyHelper === HELPER)) return { r: 'config-do-cliente' };
-    mkdirSync(join(home, '.habblaude'), { recursive: true, mode: 0o700 });
-    const arq = join(home, '.habblaude', 'ia-chave');
-    if (ler(arq) !== chave) gravar(arq, chave, 0o600);
-    chmodSync(arq, 0o600);
     return { r: 'gravou', novo: { ...s, apiKeyHelper: HELPER, env: { ...env, ...valores }, [MARCA]: { env: valores } } };
   });
   if (r !== 'gravou') return r;
+  // a chave só entra depois do settings ter sido aceito (sem arquivo sobrando em config-do-cliente/erro-concorrencia)
+  mkdirSync(join(home, '.habblaude'), { recursive: true, mode: 0o700 });
+  const arq = join(home, '.habblaude', 'ia-chave');
+  if (ler(arq) !== chave) gravar(arq, chave, 0o600);
+  chmodSync(arq, 0o600);
   // sem o onboarding marcado o Claude Code abre a tela de login mesmo com a chave
   const cj = join(home, '.claude.json');
   const c = lerJson(cj);
@@ -91,7 +93,10 @@ export function aplicar(home, { chave, baseUrl, modelo }) {
 export function remover(home) {
   const sp = join(home, '.claude', 'settings.json');
   const r = editar(sp, (s) => {
-    if (!s[MARCA]) return { r: 'nada' };
+    if (!s[MARCA]) {
+      if (s.apiKeyHelper !== HELPER) rmSync(join(home, '.habblaude', 'ia-chave'), { force: true }); // chave órfã
+      return { r: 'nada' };
+    }
     const rec = gravado(s);
     const { apiKeyHelper, [MARCA]: _m, env: envAntes, ...resto } = s;
     const env = { ...(envAntes && typeof envAntes === 'object' ? envAntes : {}) };
