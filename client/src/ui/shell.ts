@@ -8,7 +8,7 @@ import { copyText, h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
 import type { XtermBundle } from './shell-xterm';
 /** Programa de uma aba nova (lista fechada no servidor): primeira execução do Claude, login da OpenAI (Codex) ou do GitHub. */
-export type ShellProgram = 'claude' | 'codex' | 'gh';
+export type ShellProgram = 'claude' | 'claude-token' | 'codex' | 'gh';
 
 export interface ShellTabInfo {
   id: string;

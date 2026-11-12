@@ -25,16 +25,17 @@ export const SHELL_MAX_TABS = 12;
 /**
  * Programas que uma aba nova pode rodar antes do shell (lista fechada: nada vem do corpo da requisição):
  * - claude: primeira execução do Claude (tema e login) — Missão 0;
+ * - claude-token: `claude setup-token` (token de 1 ano da conta Claude, colado no seletor de IA da barra);
  * - codex: login da conta OpenAI no Codex com código de dispositivo (`codex login --device-auth`, mostra link e código);
  * - gh: login no GitHub (`gh auth login --web`, código de dispositivo) e, logado, `gh auth setup-git` e o nome/e-mail
  *   do git a partir do `gh api user` (ver GH_LOGIN_SCRIPT).
  */
-export type ShellProgram = 'claude' | 'codex' | 'gh';
+export type ShellProgram = 'claude' | 'claude-token' | 'codex' | 'gh';
 
 export function cleanProgram(v: unknown, login?: unknown): ShellProgram | undefined {
   if (login === true) return 'claude';
   if (v === undefined || v === null || v === '') return undefined;
-  if (v === 'claude' || v === 'codex' || v === 'gh') return v;
+  if (v === 'claude' || v === 'claude-token' || v === 'codex' || v === 'gh') return v;
   throw new ShellError(400, 'programa inválido');
 }
 
@@ -283,6 +284,8 @@ export class ShellService {
     const program = opts.program ?? (opts.login ? 'claude' : undefined);
     let cmd = `exec ${sh} -l`;
     if (program === 'claude') cmd = `${sh} -lc 'claude; exec ${sh} -l'`;
+    // claude-token: token de 1 ano da conta Claude (o seletor de IA da barra pede para colar a linha sk-ant-…)
+    else if (program === 'claude-token') cmd = `${sh} -lc 'claude setup-token; exec ${sh} -l'`;
     else if (program === 'codex') cmd = `${sh} -lc 'codex login --device-auth; exec ${sh} -l'`;
     else if (program === 'gh') {
       // O script vai num arquivo do próprio usuário (aspas e quebras de linha sem passar por escape de shell).

@@ -8,6 +8,7 @@ import { TIMELAPSE_ICONS } from './timelapse';
 import { focusPermission, nextPermissionAgent, permissionAgents } from './permission';
 import { UsageCards } from './usage';
 import { VersionChip } from './version';
+import { IaPicker } from './ia-picker';
 import { wordmark } from './widgets';
 
 interface CounterRefs {
@@ -39,6 +40,8 @@ export class TopBar implements UiComponent {
   /** Próximo agente do botão de shells (cliques seguidos passam por todos, do que espera há mais tempo). */
   private shellCursor = 0;
   private usage: UsageCards;
+  /** Seletor de IA (Motores de IA Habblaude / conta Claude): só aparece com o daemon hb-ia no escritório. */
+  private ia: IaPicker;
   private version: VersionChip;
   private hadOpen = false;
   private sidebarBtn: HTMLButtonElement;
@@ -123,6 +126,7 @@ export class TopBar implements UiComponent {
     }
 
     this.usage = new UsageCards(ctx);
+    this.ia = new IaPicker(ctx);
 
     this.sidebarBtn = iconButton(ICONS.sidebar, 'Recolher ou expandir o painel lateral ( [ )', () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
     this.sidebarBadge = h('span', { class: 'ui-badge ui-btn-sidebar__badge', hidden: true, attrs: { 'aria-hidden': 'true' } });
@@ -225,7 +229,7 @@ export class TopBar implements UiComponent {
       ),
       counterWrap,
       this.usage.el,
-      (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.githubBtn, this.vscodeLink, this.bugLink), viewGroup, panelGroup, this.moreBtn)),
+      (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.ia.el, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.githubBtn, this.vscodeLink, this.bugLink), viewGroup, panelGroup, this.moreBtn)),
       this.moreMenu,
     );
     this.viewGroupEl = viewGroup;

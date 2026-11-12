@@ -70,6 +70,8 @@ export interface ApiDeps {
   shell?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Painel do GitHub (/api/github*, github/http.ts): a trava fica lá; devolve false para o resto. */
   github?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
+  /** Seletor de IA da barra (/api/ia*, ia/http.ts): a trava fica lá; devolve false para o resto. */
+  ia?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
   /** Terminal embutido disponível agora (flag "shell" do /api/health). */
   shellAvailable?: () => boolean;
   /** Vida social salva no servidor (GET/PUT /api/state). */
@@ -428,6 +430,13 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       if (!deps.github?.(req, res, url)) {
         req.resume();
         sendJson(res, 403, { error: 'GitHub desligado: só funciona com o terminal embutido ligado' });
+      }
+      return true;
+    }
+    if (path === '/api/ia' || path.startsWith('/api/ia/')) {
+      if (!deps.ia?.(req, res, url)) {
+        req.resume();
+        sendJson(res, 404, { error: 'seletor de IA indisponível' });
       }
       return true;
     }

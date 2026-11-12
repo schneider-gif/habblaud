@@ -44,6 +44,7 @@ import { withCodexPermissions } from './codex/approvals';
 import { GithubService } from './github/service';
 import { hasConversations, WelcomeService, welcomeOff } from './welcome/welcome';
 import { createGithubRoutes, githubOffReason } from './github/http';
+import { createIaRoutes } from './ia/http';
 import { userInfo } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { Carteiro } from './mensagens/carteiro';
@@ -293,6 +294,8 @@ const githubRoutes = createGithubRoutes({
   readJson,
   onChange: () => void missions?.evaluate(),
 });
+// Seletor de IA da barra: grava a escolha em ~/.habblaude; o daemon hb-ia (mod/habblaud/ia) aplica no Claude Code.
+const iaRoutes = createIaRoutes({ home: config.home, allowedHosts: config.allowedHosts, sendJson, readJson });
 const shellRoutes = createShellRoutes({
   service: shellService,
   offReason: () => shellState.reason,
@@ -396,6 +399,7 @@ const api = createApiHandler({
   missions,
   welcome,
   github: githubRoutes,
+  ia: iaRoutes,
   shell: shellRoutes.api,
   shellAvailable: () => shellState.reason === undefined && !office.isDemo(),
   state,
