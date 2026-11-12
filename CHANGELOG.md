@@ -9,6 +9,30 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.7] - 2026-10-23
+
+### Corrigido
+
+- Telas do terminal que travavam (como o `/permissions`) agora aparecem no escritório e aceitam o teclado: setas, Tab e
+  Shift+Tab trocam de aba, Enter confirma, Esc sai e o texto da caixa de mensagem vai para o campo da tela. O cartão
+  ganhou os botões ← → Tab e pega o foco sozinho.
+
+## [0.12.6] - 2026-10-23
+
+### Adicionado
+
+- Botão do coração verde e amarelo na barra de cima liga e desliga a decoração Brasil num clique (a mesma opção de
+  **Configurações › Decoração**). Continua desligada por padrão.
+
+## [0.12.5] - 2026-10-23
+
+### Adicionado
+
+- Decoração opcional: **Configurações › Escritório › Decoração › Brasil** enfeita o escritório para a torcida:
+  varais de bandeirinhas verde e amarelo cruzando as salas e o corredor, bandeira do Brasil no chão do lounge e da
+  recepção, na parede e no mastro, balões, confete, bandeirinha nas mesas e futebol nas TVs. Vem desligada; vale só
+  no navegador de quem ligar.
+
 ## [0.12.4] - 2026-10-20
 
 ### Corrigido

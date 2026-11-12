@@ -1,0 +1,40 @@
+╭─── Claude Code v2.1.159 ─────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                        │ Tips for getting started                                                    │
+│            Welcome back!               │ Ask Claude to create a new app or clone a repository                        │
+│                                        │ ─────────────────────────────────────────────────────────────────────────── │
+│                 ▐▛███▜▌                │ What's new                                                                  │
+│                ▝▜█████▛▘               │ Fixed sandboxed Bash commands on macOS and Linux running the shell's start… │
+│                  ▘▘ ▝▝                 │ Fixed macOS sandbox `denyWrite` glob patterns not applying at a path's rea… │
+│                                        │ Fixed sandboxed commands and auto-accepted edits being able to modify the … │
+│   Opus 4.8 (1M context) · Claude Max   │ /release-notes for more                                                     │
+│                 ~/proj                 │                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+   Opus 4.8 is here! Now defaults to high effort · /effort xhigh for your hardest tasks
+
+❯ /permissions
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Permissions  Recently denied   Allow   Ask   Deny   Workspace
+
+  Claude Code won't ask before using allowed tools.
+  ╭───────────────────────────────────────────────╮
+  │ ⌕ Search…                                     │
+  ╰───────────────────────────────────────────────╯
+
+  ❯ 1. Add a new rule…
+
+  ↑/↓ to navigate · Enter to select · ←/→ to switch · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+

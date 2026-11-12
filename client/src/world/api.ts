@@ -17,6 +17,8 @@ export interface WorldOptions {
   dayNight: boolean;
   /** (Opcional, aditivo) Ciclo dia/noite: automático, sempre dia ou sempre noite. Vale sobre `dayNight`. */
   daylight?: DaylightMode;
+  /** (Opcional, aditivo) Decoração nas paredes, escolhida pelo usuário. Padrão: nenhuma. */
+  decoration?: 'none' | 'brasil';
 }
 
 /** Ciclo dia/noite: segue a hora local, ou fixa o dia ou a noite. */

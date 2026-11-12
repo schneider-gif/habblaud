@@ -876,8 +876,15 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.ask.render(agent);
     this.dialog.render(agent);
     const asking = this.ask.visible || (this.dialog.visible && !this.dialog.loginVisible);
-    const wait = this.dialog.visible ? 'O terminal do agente espera você responder a tela acima' : QUESTION_WAIT_TEXT;
-    const label = this.dialog.loginVisible ? 'Cole aqui o código do login e envie' : asking ? `${wait} (o que você digitar fica guardado aqui)` : this.canSend ? SEND_PLACEHOLDER : INPUT_PLACEHOLDER;
+    const label = this.dialog.loginVisible
+      ? 'Cole aqui o código do login e envie'
+      : this.ask.visible
+        ? `${QUESTION_WAIT_TEXT} (o que você digitar fica guardado aqui)`
+        : this.dialog.visible
+          ? 'Para escrever num campo da tela acima (ex.: uma regra), digite aqui e envie'
+          : this.canSend
+            ? SEND_PLACEHOLDER
+            : INPUT_PLACEHOLDER;
     setAttr(this.inputEl, 'placeholder', label);
     setAttr(this.inputEl, 'aria-label', label);
     this.el.classList.toggle('is-asking', asking);
@@ -1446,11 +1453,24 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (!id || this.sending) return;
     if (!this.canSend) return this.explainBlocked(true);
     if (!text) return;
-    // Diálogo de pergunta aberto no terminal: o TUI perderia o texto (ou um Enter escolheria uma opção).
-    if (this.ask.visible || (this.dialog.visible && !this.dialog.loginVisible)) {
-      const card = this.ask.visible ? this.ask : this.dialog;
-      this.ctx.notify(`${this.ask.visible ? QUESTION_WAIT_TEXT : 'O terminal do agente espera você responder a tela acima'}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
-      card.el.focus({ preventScroll: false });
+    // Pergunta com opções aberta: o TUI perderia o texto (ou um Enter escolheria uma opção).
+    if (this.ask.visible) {
+      this.ctx.notify(`${QUESTION_WAIT_TEXT}. Sua mensagem ficou na caixa: envie depois de responder.`, 'warn');
+      this.ask.el.focus({ preventScroll: false });
+      return;
+    }
+    // Tela no terminal (ex.: /permissions): o texto vai para o campo da tela, sem Enter; a pessoa confirma com Enter.
+    if (this.dialog.visible && !this.dialog.loginVisible) {
+      this.sending = true;
+      const err = await this.dialog.typeText(text);
+      this.sending = false;
+      if (err) this.ctx.notify(err, 'warn');
+      else {
+        this.inputEl.value = '';
+        fitInput(this.inputEl);
+        this.ctx.notify('Texto escrito na tela do terminal. Confira e aperte Enter para confirmar.');
+      }
+      this.dialog.el.focus({ preventScroll: false });
       return;
     }
     this.sending = true;

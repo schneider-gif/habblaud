@@ -332,7 +332,7 @@ export function createAgentInput(deps: AgentInputDeps = {}) {
      * por aqui, e uma por vez: quem chama (DialogWatcher) confere antes que a tela mostra um diálogo de seleção.
      */
     async navKeys(id: string, keys: readonly string[]): Promise<void> {
-      if (keys.length !== 1 || !/^(Up|Down|Enter|Escape)$/.test(keys[0])) throw new InputError(400, 'tecla inválida');
+      if (keys.length !== 1 || !/^(Up|Down|Left|Right|Enter|Escape|Tab|BTab|BSpace)$/.test(keys[0])) throw new InputError(400, 'tecla inválida');
       const t = await targetOf(id);
       if (!t) throw new InputError(409, 'este agente não roda no tmux: responda no terminal dele');
       await run(['-S', t.socket, 'send-keys', '-t', t.pane, keys[0]]);

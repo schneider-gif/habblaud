@@ -31,6 +31,8 @@ export interface UiPrefs {
   hiddenAccounts: string[];
   /** Quadro de missões recolhido (só a etiqueta no canto). */
   missionsMinimized: boolean;
+  /** Decoração opcional nas paredes (desligada por padrão; ver world/render/decor.ts). */
+  decoration: 'none' | 'brasil';
 }
 
 export const DEFAULT_PREFS: UiPrefs = {
@@ -46,6 +48,7 @@ export const DEFAULT_PREFS: UiPrefs = {
   panelsChosen: false,
   hiddenAccounts: [],
   missionsMinimized: false,
+  decoration: 'none',
 };
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -72,6 +75,7 @@ export function sanitizePrefs(raw: unknown): UiPrefs {
     panelsChosen: o.panelsChosen === true,
     hiddenAccounts: Array.isArray(o.hiddenAccounts) ? o.hiddenAccounts.filter((x): x is string => typeof x === 'string').slice(0, 20) : [],
     missionsMinimized: bool(o.missionsMinimized, d.missionsMinimized),
+    decoration: oneOf(o.decoration, ['none', 'brasil'] as const, d.decoration),
   };
 }
 
@@ -96,7 +100,7 @@ export function savePrefs(storage: StorageLike | null, prefs: UiPrefs): void {
 
 /** Parte das preferências que o mundo (canvas) consome. */
 export function worldOptionsFrom(p: UiPrefs): Partial<WorldOptions> {
-  return { showNames: p.showNames, bubbles: p.bubbles, liveliness: p.liveliness, dayNight: p.daylight !== 'day', daylight: p.daylight };
+  return { showNames: p.showNames, bubbles: p.bubbles, liveliness: p.liveliness, dayNight: p.daylight !== 'day', daylight: p.daylight, decoration: p.decoration };
 }
 
 /** localStorage com proteção contra navegadores que lançam exceção ao acessá-lo. */

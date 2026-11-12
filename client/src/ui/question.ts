@@ -227,6 +227,9 @@ export class QuestionCard {
 const DIALOG_BUTTONS: [key: string, text: string, title: string][] = [
   ['Up', '↑', 'Sobe uma opção'],
   ['Down', '↓', 'Desce uma opção'],
+  ['Left', '←', 'Aba anterior / volta'],
+  ['Right', '→', 'Próxima aba / avança'],
+  ['Tab', 'Tab', 'Troca de aba (ex.: /permissions)'],
   ['Enter', 'Enter', 'Confirma a opção marcada com ❯'],
   ['Escape', 'Esc', 'Cancela / fecha a tela'],
 ];
@@ -235,7 +238,16 @@ const DIALOG_BUTTONS: [key: string, text: string, title: string][] = [
  * Cartão de uma tela de seleção no terminal do agente que o Habblaude não conhece (ex.: "Teach auto mode about your
  * environment?"): mostra o trecho do terminal e os botões ↑ ↓ Enter Esc, que apertam a tecla no pane.
  */
-const KIND_UNKNOWN = 'Tela que o Habblaude não conhece: use os botões como se fossem as teclas do terminal.';
+const KIND_UNKNOWN =
+  'Tela no terminal: use os botões ou as teclas do seu teclado (↑ ↓ ← → Tab Enter Esc). Para escrever num campo da tela, digite na caixa de mensagem e envie; depois confirme com Enter.';
+
+/** Tecla do teclado do navegador → tecla do tmux. Shift+Tab volta a aba. */
+export function dialogKeyOf(e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey'>): string | undefined {
+  if (e.ctrlKey || e.altKey || e.metaKey) return undefined;
+  const map: Record<string, string> = { ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Enter: 'Enter', Escape: 'Escape', Backspace: 'BSpace' };
+  if (e.key === 'Tab') return e.shiftKey ? 'BTab' : 'Tab';
+  return map[e.key];
+}
 const KIND_LOGIN = 'Entrar na conta do Claude: abra o link, faça o login e cole o código na caixa de mensagem.';
 
 export class DialogCard {
@@ -260,7 +272,13 @@ export class DialogCard {
     );
     this.el = h(
       'section',
-      { class: `ui-perm ui-ask ui-ask--${variant}`, hidden: true, tabIndex: -1, attrs: { 'aria-label': 'Tela no terminal do agente' } },
+      {
+        class: `ui-perm ui-ask ui-ask--${variant}`,
+        hidden: true,
+        tabIndex: 0,
+        attrs: { 'aria-label': 'Tela no terminal do agente: as setas, Tab, Enter e Esc vão para o terminal' },
+        on: { keydown: (e: Event) => this.onKey(e as KeyboardEvent) },
+      },
       h('div', { class: 'ui-perm__head ui-ask__head' }, h('span', { class: 'ui-perm__icon', text: '⌨', attrs: { 'aria-hidden': 'true' } }), h('strong', { class: 'ui-perm__title', text: 'O terminal do agente espera você' })),
       this.kind,
       this.pre,
@@ -291,7 +309,9 @@ export class DialogCard {
       this.status.classList.remove('is-error');
       setText(this.status, '');
     }
+    const appeared = this.el.hidden;
     setHidden(this.el, false);
+    if (appeared && !d.login) queueMicrotask(() => this.focusIfIdle());
     this.login = !!d.login;
     setText(this.kind, d.login ? KIND_LOGIN : KIND_UNKNOWN);
     // o link do login precisa abrir: o trecho vira texto com as URLs clicáveis (nada de HTML vindo da tela)
@@ -299,6 +319,33 @@ export class DialogCard {
     linkifyInto(this.pre, d.text);
     const local = this.ctx.store.mock || !!this.ctx.store.snapshot?.meta.terminal;
     for (const b of this.buttons) b.disabled = this.busy || !local;
+  }
+
+  /** Teclado físico com o cartão em foco: as teclas vão para o terminal (botões continuam valendo). */
+  private onKey(e: KeyboardEvent): void {
+    if (e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' ')) return; // botão em foco: clique
+    const key = dialogKeyOf(e);
+    if (!key || this.el.hidden || this.buttons.every((b) => b.disabled && !this.busy)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void this.press(key);
+  }
+
+  /** Põe o foco no cartão para o teclado já funcionar (só se a pessoa não estiver digitando em outro campo). */
+  focusIfIdle(): void {
+    const a = document.activeElement;
+    if (a && a !== document.body && (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || (a as HTMLElement).isContentEditable)) return;
+    this.el.focus({ preventScroll: true });
+  }
+
+  /** Texto da caixa de mensagem para o campo da tela (sem Enter). Devolve o erro, se houver. */
+  async typeText(text: string): Promise<string | undefined> {
+    if (!this.agentId) return 'Nenhuma tela à mostra.';
+    try {
+      return await this.ctx.store.pressDialogKey(this.agentId, { text });
+    } catch {
+      return 'Não foi possível falar com o Habblaude. Responda no terminal.';
+    }
   }
 
   private async press(key: string): Promise<void> {
@@ -309,7 +356,7 @@ export class DialogCard {
     this.ctx.invalidate();
     let error: string | undefined;
     try {
-      error = await this.ctx.store.pressDialogKey(agentId, key);
+      error = await this.ctx.store.pressDialogKey(agentId, { key });
     } catch {
       error = 'Não foi possível falar com o Habblaude. Responda no terminal.';
     }

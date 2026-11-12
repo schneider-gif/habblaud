@@ -1,6 +1,7 @@
 // Diálogos desconhecidos na tela do agente: findDialog com telas reais do Claude Code 2.1.295 (confiança na pasta,
 // imports do CLAUDE.md), a "Teach auto mode about your environment?" num TUI falso, telas que NÃO são diálogo (prompt
 // normal, agente trabalhando, pergunta com opções) e o DialogWatcher (snapshot, teclas, cartão próprio). Dados sintéticos.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AgentInfo } from '../../shared/types';
 import { setQuiet } from '../log';
@@ -61,7 +62,7 @@ class FakeTeachTui {
     if (k === 'Up') this.cursor = Math.max(0, this.cursor - 1);
     else if (k === 'Down') this.cursor = Math.min(this.options.length - 1, this.cursor + 1);
     else if (k === 'Escape') this.closed = 'esc';
-    else this.closed = (['yes', 'no', 'never'] as const)[this.cursor];
+    else if (k === 'Enter') this.closed = (['yes', 'no', 'never'] as const)[this.cursor];
   }
   screen(): string {
     if (this.closed) return PROMPT;
@@ -139,6 +140,7 @@ function setup(screens: { tui?: FakeTeachTui; text?: string; covered?: boolean }
   const agent = { id: 'a1', kind: 'main', engine: 'claude', status: 'idle' } as unknown as AgentInfo;
   let dirty = 0;
   const keys: string[] = [];
+  const typed: string[] = [];
   const w = new DialogWatcher({
     office: { list: () => [agent], markDirty: () => void dirty++ },
     input: {
@@ -147,13 +149,30 @@ function setup(screens: { tui?: FakeTeachTui; text?: string; covered?: boolean }
         keys.push(...k);
         for (const x of k) screens.tui?.key(x);
       },
+      typeText: async (_id, t) => void typed.push(t),
     },
     covered: () => !!screens.covered,
     now: () => 42,
     sleep: async () => {},
   });
-  return { agent, w, keys, dirty: () => dirty };
+  return { agent, w, keys, typed, dirty: () => dirty };
 }
+
+describe('telas reais do /permissions (Claude Code 2.1.159, pane 120x40 com linhas vazias embaixo)', () => {
+  const tela = (n: number) => readFileSync(new URL(`./fixtures/permissions-${n}.txt`, import.meta.url), 'utf8');
+  it('abas com a busca em foco (sem cursor ❯): detectada', () => {
+    const d = findDialog(tela(0));
+    expect(d).toContain('Recently denied');
+    expect(d).toContain('←/→ to switch');
+    expect(d).not.toContain('Welcome back');
+  });
+  it('lista com o cursor em "Add a new rule…": detectada', () => {
+    expect(findDialog(tela(1))).toContain('❯ 1. Add a new rule…');
+  });
+  it('campo da regra nova ("Enter to submit"): detectada', () => {
+    expect(findDialog(tela(2))).toContain('Enter permission rule');
+  });
+});
 
 describe('DialogWatcher', () => {
   it('põe o diálogo no snapshot e o tira quando some', async () => {
@@ -188,6 +207,17 @@ describe('DialogWatcher', () => {
     await s.w.poll();
     await s.w.pressKey('a1', { key: 'Escape' });
     expect(tui.closed).toBe('esc');
+  });
+
+  it('/permissions: abas (Tab, Shift+Tab, ← →), apagar e texto digitado chegam ao terminal', async () => {
+    const tui = new FakeTeachTui();
+    const s = setup({ tui });
+    await s.w.poll();
+    for (const key of ['Tab', 'BTab', 'Left', 'Right', 'BSpace']) await s.w.pressKey('a1', { key });
+    expect(s.keys).toEqual(['Tab', 'BTab', 'Left', 'Right', 'BSpace']);
+    await s.w.pressKey('a1', { text: 'Bash(npm run test:*)' });
+    expect(s.typed).toEqual(['Bash(npm run test:*)']);
+    await expect(s.w.pressKey('a1', { text: 'a' + String.fromCharCode(10) + 'b' })).rejects.toMatchObject({ status: 400 });
   });
 
   it('tecla inválida ou sem diálogo na tela: recusa sem apertar nada', async () => {

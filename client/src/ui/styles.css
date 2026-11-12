@@ -209,6 +209,11 @@
   background: var(--ui-accent-soft);
 }
 
+.ui-btn-decor[aria-pressed='false'] svg {
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+
 .ui-icon-btn--sm {
   width: 26px;
   height: 26px;
