@@ -25,7 +25,8 @@ const dolar = (v: number) => `US$ ${v.toFixed(2).replace('.', ',')}`;
 export class IaPicker {
   readonly el: HTMLButtonElement;
   private img: HTMLImageElement;
-  private menu: HTMLElement;
+  /** a barra põe a lista dentro dela (as variáveis de cor e fonte só valem dentro de .ui-root) */
+  readonly menu: HTMLElement;
   private estado: IaEstado | null = null;
   private conectando = false;
   private erro = '';
@@ -46,7 +47,6 @@ export class IaPicker {
       h('span', { class: 'ui-ia-btn__dot', attrs: { 'aria-hidden': 'true' } }),
     );
     this.menu = h('div', { class: 'ui-ia-menu', role: 'menu', hidden: true, attrs: { 'aria-label': 'IA dos agentes' } });
-    document.body.append(this.menu);
     document.addEventListener('pointerdown', (e) => {
       if (!this.menu.hidden && !this.menu.contains(e.target as Node) && !this.el.contains(e.target as Node)) this.toggle(false);
     });

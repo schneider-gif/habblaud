@@ -231,6 +231,7 @@ export class TopBar implements UiComponent {
       this.usage.el,
       (this.rightEl = h('div', { class: 'ui-topbar__right' }, this.ia.el, this.newAgentBtn, h('div', { class: 'ui-topbar__tools' }, this.shellBtn, this.githubBtn, this.vscodeLink, this.bugLink), viewGroup, panelGroup, this.moreBtn)),
       this.moreMenu,
+      this.ia.menu,
     );
     this.viewGroupEl = viewGroup;
     new ResizeObserver(() => this.scheduleFit()).observe(this.el);
