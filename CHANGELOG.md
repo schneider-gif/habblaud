@@ -9,6 +9,25 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.12] - 2026-11-13
+
+### Corrigido
+
+- Depois de religar o escritório, os Motores de IA voltam em cerca de um minuto (antes podiam levar 5 minutos).
+- O Gemini Flash Lite saiu da lista do seletor: ele voltava sem resposta no Claude Code. Quem tinha escolhido ele
+  passa a usar o Prisma.
+
+## [0.12.8] a [0.12.11] - 2026-11-12
+
+### Adicionado
+
+- Seletor de IA na barra: escolha entre os Motores de IA Habblaude (Prisma, DeepSeek, Qwen, Claude Sonnet) e a sua
+  conta Claude, com o gasto do dia em créditos.
+
+### Corrigido
+
+- Respostas longas não dão mais erro de crédito no meio do dia (saída limitada a 16 mil tokens).
+
 ## [0.12.7] - 2026-10-23
 
 ### Corrigido
