@@ -17,7 +17,8 @@ const INTERVALO_MS = 300_000;
 const MARCA = 'hbIaGerenciado';
 const HELPER = 'cat ~/.habblaude/ia-chave';
 const ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_MAX_CONTEXT_TOKENS', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS'];
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_MAX_CONTEXT_TOKENS', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS'];
 
 const CRED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'];
 // estas passam na frente do apiKeyHelper (ordem de credenciais do Claude Code): com elas os Motores não valeriam
@@ -78,13 +79,16 @@ export function aplicar(home, { chave, baseUrl, modelo }) {
   const sp = join(home, '.claude', 'settings.json');
   const valores = { ANTHROPIC_BASE_URL: baseUrl, ANTHROPIC_MODEL: modelo, ANTHROPIC_DEFAULT_OPUS_MODEL: modelo,
     ANTHROPIC_DEFAULT_SONNET_MODEL: modelo, ANTHROPIC_DEFAULT_HAIKU_MODEL: modelo, CLAUDE_CODE_SUBAGENT_MODEL: modelo,
-    CLAUDE_CODE_MAX_CONTEXT_TOKENS: '190000', CLAUDE_CODE_API_KEY_HELPER_TTL_MS: '300000' };
+    CLAUDE_CODE_MAX_CONTEXT_TOKENS: '190000', CLAUDE_CODE_API_KEY_HELPER_TTL_MS: '300000',
+    // o Claude Code pede até 128k de saída; o OpenRouter recusa (402) se o crédito do dia não cobre esse máximo
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS: '16000' };
   mkdirSync(join(home, '.claude'), { recursive: true });
   const r = editar(sp, (s) => {
     const rec = gravado(s);
     const env = s.env && typeof s.env === 'object' ? s.env : {};
     // qualquer valor que não fomos nós que gravamos é configuração do cliente: não mexe em nada
-    if (ENV_KEYS.some((k) => k in env && env[k] !== rec[k])) return { r: 'config-do-cliente' };
+    // (valor igual ao nosso conta como nosso: o limite de saída foi posto à mão no escritório do dono em 12/11, antes da 0.12.11)
+    if (ENV_KEYS.some((k) => k in env && env[k] !== rec[k] && env[k] !== valores[k])) return { r: 'config-do-cliente' };
     if ('apiKeyHelper' in s && !(s[MARCA] && s.apiKeyHelper === HELPER)) return { r: 'config-do-cliente' };
     return { r: 'gravou', novo: { ...s, apiKeyHelper: HELPER, env: { ...env, ...valores }, [MARCA]: { env: valores } } };
   });

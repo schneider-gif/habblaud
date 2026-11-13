@@ -31,6 +31,7 @@ function portal(status, corpo) {
 const ler = (home, p) => JSON.parse(readFileSync(join(home, p), 'utf8'));
 const texto = (home, p) => readFileSync(join(home, p), 'utf8');
 const rodar = (home, f) => rodada({ home, portal: 'https://portal.teste', agentToken: TOKEN, fetch: f, env: {} });
+const SAIDA = 'CLAUDE_CODE_MAX_OUTPUT_TOKENS';
 const MODELOS = ['ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL'];
 
 test('200: grava a chave (600) e o settings, sem perder o que já estava', async () => {
@@ -94,6 +95,7 @@ test('escolha "motores" com login próprio: liga os Motores no modelo escolhido;
   const s = ler(home, '.claude/settings.json');
   assert.equal(s.apiKeyHelper, 'cat ~/.habblaude/ia-chave');
   for (const k of MODELOS) assert.equal(s.env[k], 'deepseek/deepseek-v3.2');
+  assert.equal(s.env[SAIDA], '16000'); // sem isso o OpenRouter recusa (402) quando o crédito do dia não cobre 128k
   assert.deepEqual(f.uso, [`Bearer ${OK.chave}`]);
   const est = ler(home, '.habblaude/ia-estado.json');
   assert.deepEqual([est.modo, est.modelo, est.padrao, est.uso], ['motores', 'deepseek/deepseek-v3.2', OK.modelo, { hoje: 0.12, limite: 0.37 }]);
