@@ -20,7 +20,8 @@ async function api(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unkno
   return j;
 }
 
-const dolar = (v: number) => `US$ ${v.toFixed(2).replace('.', ',')}`;
+// o cliente vê créditos, nunca dólar (US$ 0,89/dia pareceria pouco): 1 crédito = US$ 0,001
+const creditos = (usd: number): string => Math.round(usd * 1000).toLocaleString('pt-BR');
 
 export class IaPicker {
   readonly el: HTMLButtonElement;
@@ -173,8 +174,10 @@ export class IaPicker {
         );
       }
       if (e.uso) {
-        const lim = e.uso.limite !== null ? ` de ${dolar(e.uso.limite)}` : '';
-        this.menu.append(h('div', { class: 'ui-ia-uso', text: `📊 Hoje: ${dolar(e.uso.hoje)}${lim}` }));
+        const texto = e.uso.limite !== null
+          ? `⚡ Créditos de hoje: ${creditos(Math.max(0, e.uso.limite - e.uso.hoje))} de ${creditos(e.uso.limite)} restantes`
+          : `⚡ Créditos usados hoje: ${creditos(e.uso.hoje)}`;
+        this.menu.append(h('div', { class: 'ui-ia-uso', text: texto }));
       }
     } else {
       this.menu.append(
