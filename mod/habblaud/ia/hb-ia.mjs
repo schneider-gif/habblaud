@@ -14,6 +14,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const INTERVALO_MS = 300_000;
+// depois de religar o 1º pedido costuma dar 401 (token do agente novo): tenta de novo logo (portal aceita 1/min)
+const RETENTE_MS = 65_000, RETENTES = 5;
+// tirados do seletor (voltavam vazios no Claude Code); quem já tinha escolhido cai no padrão
+const MODELOS_FORA = new Set(['google/gemini-3.5-flash-lite']);
 const MARCA = 'hbIaGerenciado';
 const HELPER = 'cat ~/.habblaude/ia-chave';
 const ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
@@ -130,7 +134,7 @@ export function lerEscolha(home) {
   const j = lerJson(hb(home, ESCOLHA)) ?? {};
   return {
     modo: j.modo === 'motores' || j.modo === 'conta' ? j.modo : undefined,
-    modelo: typeof j.modelo === 'string' && RE_MODELO.test(j.modelo) ? j.modelo : undefined,
+    modelo: typeof j.modelo === 'string' && RE_MODELO.test(j.modelo) && !MODELOS_FORA.has(j.modelo) ? j.modelo : undefined,
   };
 }
 
@@ -243,9 +247,10 @@ async function main() {
       espera = setTimeout(() => vez(true), 300);
     });
   } catch (e) { console.error(`hb-ia: sem fs.watch (${e.message}); a troca vale na próxima rodada`); }
-  for (;;) {
+  for (let falhas = 0; ;) {
     await vez(false);
-    await new Promise((ok) => setTimeout(ok, INTERVALO_MS));
+    falhas = /^erro|^sem-token/.test(ultimo) && cache.status !== 200 ? falhas + 1 : 0;
+    await new Promise((ok) => setTimeout(ok, falhas && falhas <= RETENTES ? RETENTE_MS : INTERVALO_MS));
   }
 }
 

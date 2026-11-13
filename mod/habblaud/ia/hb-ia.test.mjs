@@ -116,6 +116,12 @@ test('escolha "conta" sem conta conectada: fica nos Motores; modelo inválido us
   assert.equal(ler(home, '.habblaude/ia-estado.json').modo, 'motores');
 });
 
+test('modelo tirado do seletor (Gemini Flash Lite) cai no padrão do portal', async () => {
+  const home = casa({ '.habblaude/ia-escolha.json': { modo: 'motores', modelo: 'google/gemini-3.5-flash-lite' } });
+  assert.equal(await rodar(home, portal(200, OK)), 'gravou');
+  assert.equal(ler(home, '.claude/settings.json').env.ANTHROPIC_MODEL, OK.modelo);
+});
+
 test('motores com ANTHROPIC_API_KEY do cliente: não liga (ela passaria na frente)', async () => {
   const home = casa({ '.claude/settings.json': { env: { ANTHROPIC_API_KEY: 'sk-ant-dele' } }, '.habblaude/ia-escolha.json': { modo: 'motores' } });
   assert.equal(await rodar(home, portal(200, OK)), 'config-do-cliente');

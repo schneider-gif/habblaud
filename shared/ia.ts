@@ -15,7 +15,6 @@ export const IA_MODELOS: readonly IaModelo[] = [
   { id: 'minimax/minimax-m2.7', nome: 'Prisma', desc: 'Padrão. Bom e barato para o dia a dia.', logo: 'prisma.svg' }, // 0,21/0,84
   { id: 'deepseek/deepseek-v3.2', nome: 'DeepSeek V3.2', desc: 'Forte em código e matemática.', logo: 'deepseek.svg' }, // 0,26/0,38
   { id: 'qwen/qwen3-coder-next', nome: 'Qwen3 Coder', desc: 'Da Alibaba. Feito para programar.', logo: 'qwen.svg' }, // 0,12/0,80
-  { id: 'google/gemini-3.5-flash-lite', nome: 'Gemini Flash Lite', desc: 'Do Google. Ótimo com textos longos.', logo: 'gemini.svg' }, // 0,30/2,50
   { id: 'anthropic/claude-sonnet-5.5', nome: 'Claude Sonnet 5.5', desc: 'Premium. O melhor em código.', logo: 'claude.svg', premium: true }, // 2/10
 ];
 export const IA_PADRAO = IA_MODELOS[0]!.id;
