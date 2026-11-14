@@ -170,7 +170,6 @@ export class TopBar implements UiComponent {
       'div',
       { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': 'Painéis' } },
       this.timelapseBtn,
-      this.decorBtn,
       this.feedBtn,
       this.settingsBtn,
       iconButton(ICONS.help, 'Ajuda (?)', () => ctx.openHelp()),

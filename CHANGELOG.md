@@ -9,6 +9,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.13] - 2026-11-14
+
+### Removido
+
+- Decoração Brasil (bandeiras, balões e confete verde e amarelo) e o botão do coração na barra. Quem tinha ligado volta
+  ao escritório normal sozinho.
+
 ## [0.12.12] - 2026-11-13
 
 ### Corrigido

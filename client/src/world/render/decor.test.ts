@@ -8,9 +8,9 @@ const style = { base: '#ccc' };
 describe('decoração Brasil', () => {
   it('vem desligada e só aceita valores conhecidos', () => {
     expect(DEFAULT_PREFS.decoration).toBe('none');
-    expect(sanitizePrefs({ decoration: 'brasil' }).decoration).toBe('brasil');
+    expect(sanitizePrefs({ decoration: 'brasil' }).decoration).toBe('none'); // tirada da produção em 14/11
     expect(sanitizePrefs({ decoration: 'natal' }).decoration).toBe('none');
-    expect(worldOptionsFrom(sanitizePrefs({ decoration: 'brasil' })).decoration).toBe('brasil');
+    expect(worldOptionsFrom(sanitizePrefs({ decoration: 'brasil' })).decoration).toBe('none');
   });
 
   it('varal só nas paredes de face, pulando as passagens, alternando verde e amarelo', () => {

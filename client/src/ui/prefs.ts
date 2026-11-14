@@ -75,7 +75,8 @@ export function sanitizePrefs(raw: unknown): UiPrefs {
     panelsChosen: o.panelsChosen === true,
     hiddenAccounts: Array.isArray(o.hiddenAccounts) ? o.hiddenAccounts.filter((x): x is string => typeof x === 'string').slice(0, 20) : [],
     missionsMinimized: bool(o.missionsMinimized, d.missionsMinimized),
-    decoration: oneOf(o.decoration, ['none', 'brasil'] as const, d.decoration),
+    // 14/11/2026: decoração Brasil tirada da produção (dono); quem tinha ligado volta para 'none'. O desenho (decor.ts) ficou.
+    decoration: oneOf(o.decoration, ['none'] as const, d.decoration),
   };
 }
 

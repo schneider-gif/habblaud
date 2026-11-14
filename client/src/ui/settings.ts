@@ -141,7 +141,6 @@ export class SettingsPopover implements UiComponent {
         this.bubbles.row,
         this.liveliness.row,
         this.daylight.row,
-        this.decoration.row,
       ),
       h(
         'div',
