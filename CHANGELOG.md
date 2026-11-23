@@ -9,6 +9,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.14] - 2026-11-22
+
+### Novo
+
+- Foto do escritório no portal: com a aba aberta, o escritório manda ao portal que o hospeda uma foto pequena da
+  tela (20 s depois de abrir e a cada 5 min). Só quando o portal está configurado (link de bug); sem ele, nada sai.
+
 ## [0.12.13] - 2026-11-14
 
 ### Removido
