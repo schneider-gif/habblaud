@@ -895,7 +895,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private start(id: string, session: RecentSession | null, opener: HTMLElement | null): void {
     if (opener && !this.el.contains(opener)) this.opener = opener;
     if (this.id === id) {
-      this.focusLog();
+      this.focusOnOpen();
       return;
     }
     // Um terminal por vez: abrir outro substitui o atual (a busca e o filtro continuam valendo).
@@ -917,7 +917,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     if (!session) void this.checkInput(id);
     this.connect();
     this.render();
-    this.focusLog();
+    this.focusOnOpen();
     this.ctx.invalidate();
   }
 
@@ -1393,6 +1393,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       if (el.offsetTop + el.offsetHeight > top) return { key, offset: el.offsetTop - top };
     }
     return null;
+  }
+
+  /** Ao abrir: agente vai direto para a caixa de mensagem (com mouse); histórico e celular ficam na conversa (sem teclado na tela). */
+  private focusOnOpen(): void {
+    if (this.session || !matchMedia('(pointer: fine)').matches) return this.focusLog();
+    this.inputEl.focus({ preventScroll: true });
   }
 
   private focusLog(): void {
