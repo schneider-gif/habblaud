@@ -14,6 +14,7 @@ import { ICONS } from './icons';
 import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
+import { clampGeom, parseGeom } from './shell';
 import { DialogCard, QUESTION_WAIT_TEXT, QuestionCard } from './question';
 import {
   clearHits,
@@ -60,6 +61,22 @@ export function sentText(name: string | undefined): string {
 }
 
 /** Aviso de falha ao enviar, pelo status HTTP (0 = sem resposta) e o erro devolvido pelo servidor. */
+const TERM_POS_KEY = 'habblaud:term-pos';
+/** Posição guardada da janela do terminal (null apaga). */
+function termPos(set?: { x: number; y: number } | null): { x: number; y: number } | null {
+  try {
+    if (set === null) localStorage.removeItem(TERM_POS_KEY);
+    else if (set) localStorage.setItem(TERM_POS_KEY, JSON.stringify({ ...set, w: 1, h: 1 }));
+    else {
+      const g = parseGeom(localStorage.getItem(TERM_POS_KEY));
+      return g ? { x: g.x, y: g.y } : null;
+    }
+  } catch {
+    // armazenamento bloqueado: a janela abre no centro
+  }
+  return null;
+}
+
 export function sendErrorText(status: number, error?: string): string {
   if (status === 409) return NOT_IN_TMUX_HINT;
   if (status === 502) return 'Mensagem não enviada: tmux indisponível na máquina.';
@@ -652,6 +669,9 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private dialog: DialogCard;
   private sendBadge!: HTMLElement;
 
+  private bar!: HTMLElement;
+  /** Rascunho de cada agente: trocar de agente não leva o texto para o outro. */
+  private drafts = new Map<string, string>();
   private kindEl: HTMLElement;
   private accEl: HTMLElement;
   private nameEl: HTMLElement;
@@ -700,9 +720,9 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       h('span', { text: 'envia mensagens' }),
     );
     const close = iconButton(ICONS.close, 'Fechar terminal (Esc)', () => this.close(), 'ui-icon-btn--sm ui-term__close');
-    const bar = h(
+    const bar = (this.bar = h(
       'div',
-      { class: 'ui-term__bar' },
+      { class: 'ui-term__bar', title: 'Arraste para mover · clique duplo volta ao centro' },
       icon,
       this.kindEl,
       h('div', { class: 'ui-term__who' }, this.accEl, this.nameEl, this.roleEl, this.roomEl),
@@ -711,7 +731,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       ro,
       this.sendBadge,
       close,
-    );
+    ));
 
     // Barra de ferramentas: filtro (segmentado) e a busca, que aparece com Ctrl/⌘+F ou a lupa.
     const filters = h('div', { class: 'ui-seg ui-term__filter', role: 'radiogroup', attrs: { 'aria-label': 'Filtrar a conversa' } });
@@ -799,6 +819,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       h('div', { class: 'ui-term__foot' }, this.status, h('label', { class: 'ui-term__prompt' }, h('span', { class: 'ui-term__caret', text: '>', attrs: { 'aria-hidden': 'true' } }), input)),
     );
     this.el.addEventListener('keydown', (e) => this.onKey(e));
+    this.setupDrag();
     this.renderFilter();
     // Janela redimensionada: quem está no fim continua vendo o fim.
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => this.follow && this.scrollToEnd()).observe(this.scroll);
@@ -832,6 +853,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
 
   close(): void {
     if (this.id === null) return;
+    if (!this.session) this.drafts.set(this.id, this.inputEl.value);
     this.disconnect();
     this.stopSpinner();
     this.closeSearch(false);
@@ -889,6 +911,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     setAttr(this.inputEl, 'aria-label', label);
     this.el.classList.toggle('is-asking', asking);
     if (asking && !before && this.follow) requestAnimationFrame(() => this.scrollToEnd());
+    // Pergunta/tela respondida: o foco que estava no cartão volta para a caixa de mensagem.
+    if (before && !asking && (!document.activeElement || document.activeElement === document.body)) this.focusOnOpen();
   }
 
   /** Abre o painel numa conversa nova (agente ou sessão do histórico); a mesma conversa só recebe o foco. */
@@ -899,6 +923,10 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       return;
     }
     // Um terminal por vez: abrir outro substitui o atual (a busca e o filtro continuam valendo).
+    if (this.id && !this.session) this.drafts.set(this.id, this.inputEl.value);
+    this.inputEl.value = session ? '' : (this.drafts.get(id) ?? '');
+    fitInput(this.inputEl);
+    if (this.id === null) this.restorePos();
     this.disconnect();
     this.clear();
     this.id = id;
@@ -1401,6 +1429,54 @@ export class TerminalPanel implements UiComponent, TerminalControl {
     this.inputEl.focus({ preventScroll: true });
   }
 
+  // ---------------------------------------------------------------- janela: arrastar pela barra (desktop)
+
+  private setupDrag(): void {
+    let start: { px: number; py: number; x: number; y: number } | null = null;
+    this.bar.addEventListener('dblclick', (e) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      this.el.style.left = this.el.style.top = '';
+      termPos(null);
+    });
+    this.bar.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || this.ctx.isNarrow() || (e.target as HTMLElement).closest('button, a, input')) return;
+      const r = this.el.getBoundingClientRect();
+      start = { px: e.clientX, py: e.clientY, x: r.left, y: r.top };
+      this.bar.setPointerCapture(e.pointerId);
+      this.el.classList.add('is-dragging');
+      e.preventDefault();
+    });
+    this.bar.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      this.placeAt(start.x + e.clientX - start.px, start.y + e.clientY - start.py);
+    });
+    const end = () => {
+      if (!start) return;
+      start = null;
+      this.el.classList.remove('is-dragging');
+      termPos({ x: parseFloat(this.el.style.left), y: parseFloat(this.el.style.top) });
+    };
+    this.bar.addEventListener('pointerup', end);
+    this.bar.addEventListener('pointercancel', end);
+  }
+
+  /** Põe a janela em x/y sem sair da tela (a barra sempre alcançável). */
+  private placeAt(x: number, y: number): void {
+    const g = clampGeom({ x, y, w: this.el.offsetWidth, h: this.el.offsetHeight }, { w: innerWidth, h: innerHeight, top: 4 });
+    this.el.style.left = `${g.x}px`;
+    this.el.style.top = `${g.y}px`;
+  }
+
+  /** Ao abrir: volta para onde a pessoa deixou (desktop); no celular o CSS manda. */
+  private restorePos(): void {
+    const p = termPos();
+    if (!p || this.ctx.isNarrow()) {
+      this.el.style.left = this.el.style.top = '';
+      return;
+    }
+    requestAnimationFrame(() => this.placeAt(p.x, p.y));
+  }
+
   private focusLog(): void {
     this.scroll.focus({ preventScroll: true });
   }
@@ -1491,8 +1567,12 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       const j = (await r.json().catch(() => ({}))) as { error?: string };
       // notify também anuncia aos leitores de tela (região viva), então o aviso vale para os dois.
       if (r.ok) {
-        this.inputEl.value = '';
-        fitInput(this.inputEl);
+        this.drafts.delete(id);
+        if (this.id === id) {
+          this.inputEl.value = '';
+          fitInput(this.inputEl);
+          this.jumpToEnd();
+        }
         this.ctx.notify(sentText(name));
         // primeira mensagem: o transcript nasce agora, então o stream que falhou tenta de novo
         if (this.conn === 'failed') setTimeout(() => this.id === id && this.connect(), 1500);

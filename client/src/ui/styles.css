@@ -3552,26 +3552,26 @@
   gap: 6px;
 }
 
-.ui-shell {
+.ui-shjob {
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--ui-bg-soft);
   border: 1px solid var(--ui-line);
 }
 
-.ui-shell__head {
+.ui-shjob__head {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: start;
   gap: 7px;
 }
 
-.ui-shell__icon {
+.ui-shjob__icon {
   text-align: center;
   font-size: 13px;
 }
 
-.ui-shell__label {
+.ui-shjob__label {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
@@ -3584,13 +3584,13 @@
   line-height: 1.3;
 }
 
-.ui-shell__time {
+.ui-shjob__time {
   font: 700 13px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--st-shell);
 }
 
-.ui-shell__meta {
+.ui-shjob__meta {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -3599,33 +3599,33 @@
   color: var(--ui-faint);
 }
 
-.ui-shell__badge {
+.ui-shjob__badge {
   padding: 0 6px;
   border-radius: 4px;
   font: 600 10.5px/17px var(--font-ui);
   white-space: nowrap;
 }
 
-.ui-shell__badge--bg {
+.ui-shjob__badge--bg {
   color: #a9eeea;
   background: color-mix(in srgb, var(--st-shell) 16%, transparent);
 }
 
-.ui-shell__badge--fg {
+.ui-shjob__badge--fg {
   color: #ffd9a3;
   background: rgba(255, 181, 71, 0.15);
 }
 
-.ui-shell__badge--monitor {
+.ui-shjob__badge--monitor {
   color: #d3c2ff;
   background: rgba(170, 140, 255, 0.16);
 }
 
-.ui-shell__cmd {
+.ui-shjob__cmd {
   margin: 6px 0 0 25px;
 }
 
-.ui-shell__cmd summary {
+.ui-shjob__cmd summary {
   width: max-content;
   font-size: 11.5px;
   color: var(--ui-accent);
@@ -3633,7 +3633,7 @@
   border-radius: 4px;
 }
 
-.ui-shell__cmd-body {
+.ui-shjob__cmd-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -3641,7 +3641,7 @@
   margin-top: 6px;
 }
 
-.ui-shell__cmd pre {
+.ui-shjob__cmd pre {
   margin: 0;
   padding: 7px 9px;
   max-height: 140px;
@@ -8786,4 +8786,18 @@ body:has(.ui-welcome:not([hidden])) :is(.ui-missions, .ui-missions-balloon) {
   color: var(--ui-text);
   font-family: var(--font-mono);
   font-size: 13px;
+}
+
+/* Terminal do agente: arrastável pela barra no desktop. */
+@media (min-width: 901px) {
+  .ui-term__bar { cursor: grab; }
+  .ui-term__bar button, .ui-term__bar a { cursor: pointer; }
+  .ui-term.is-dragging { user-select: none; transition: none; }
+  .ui-term.is-dragging .ui-term__bar { cursor: grabbing; }
+}
+
+/* Toque: campos com 16px (o Safari do iPhone não dá zoom) e botões de permissão do tamanho do dedo. */
+@media (pointer: coarse) {
+  .ui-term__input, .ui-search__input, .ui-perm__reason, .ui-ask__other { font-size: 16px; }
+  .ui-perm__btn, .ui-perm__rule { height: 44px; }
 }

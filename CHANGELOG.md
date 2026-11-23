@@ -9,6 +9,20 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.15] - 2026-11-23
+### Mudou
+- Login da conta Claude pelo terminal: "Fazer login na conta Claude" abre o terminal já com o `claude`; não precisa
+  mais colar token nem código no seletor de IA.
+- A janela do terminal de um agente pode ser arrastada pela barra de cima (clique duplo volta ao centro) e abre onde
+  você deixou.
+- Abrir o terminal de um agente já põe o cursor na caixa de mensagem (no computador).
+### Corrigido
+- "Shells rodando" no painel do agente aparecia como uma caixa escura vazia por cima do painel.
+- O texto digitado para um agente não vai mais para outro quando você troca de terminal.
+- Depois de mandar uma mensagem, a conversa desce até o fim; depois de responder uma pergunta, o cursor volta à caixa.
+- Na busca da lateral, Enter abre o primeiro agente encontrado.
+- No celular: campos com letra de 16px (o iPhone não dá mais zoom) e botões de permissão maiores.
+
 ## [0.12.14] - 2026-11-22
 
 ### Novo

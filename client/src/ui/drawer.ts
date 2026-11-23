@@ -126,19 +126,19 @@ const shellRefs = new WeakMap<HTMLElement, ShellRefs>();
 const SHELL_KIND_VARIANT = (j: ShellJob): string => (j.kind === 'monitor' ? 'monitor' : j.background ? 'bg' : 'fg');
 
 function createShellItem(): HTMLElement {
-  const icon = h('span', { class: 'ui-shell__icon', attrs: { 'aria-hidden': 'true' } });
-  const label = h('span', { class: 'ui-shell__label' });
-  const time = h('time', { class: 'ui-shell__time' });
-  const badge = h('span', { class: 'ui-shell__badge' });
-  const since = h('span', { class: 'ui-shell__since' });
+  const icon = h('span', { class: 'ui-shjob__icon', attrs: { 'aria-hidden': 'true' } });
+  const label = h('span', { class: 'ui-shjob__label' });
+  const time = h('time', { class: 'ui-shjob__time' });
+  const badge = h('span', { class: 'ui-shjob__badge' });
+  const since = h('span', { class: 'ui-shjob__since' });
   const command = h('pre', { class: 'ui-mono' });
   const details = h(
     'details',
-    { class: 'ui-shell__cmd' },
+    { class: 'ui-shjob__cmd' },
     h('summary', { text: 'Comando' }),
-    h('div', { class: 'ui-shell__cmd-body' }, command, copyButton(() => command.textContent ?? '', 'Copiar comando')),
+    h('div', { class: 'ui-shjob__cmd-body' }, command, copyButton(() => command.textContent ?? '', 'Copiar comando')),
   );
-  const li = h('li', { class: 'ui-shell' }, h('div', { class: 'ui-shell__head' }, icon, label, time), h('div', { class: 'ui-shell__meta' }, badge, since), details);
+  const li = h('li', { class: 'ui-shjob' }, h('div', { class: 'ui-shjob__head' }, icon, label, time), h('div', { class: 'ui-shjob__meta' }, badge, since), details);
   shellRefs.set(li, { icon, label, time, badge, since, details, command });
   return li;
 }
@@ -153,7 +153,7 @@ function updateShellItem(li: HTMLElement, j: ShellJob, now: number): void {
   setAttr(r.time, 'datetime', new Date(j.startedAt).toISOString());
   setTitle(r.time, `Rodando há ${formatDuration(elapsed)} (desde ${formatClock(j.startedAt)})`);
   setText(r.badge, shellKindLabel(j));
-  setVariant(r.badge, 'ui-shell__badge--', SHELL_KIND_VARIANT(j));
+  setVariant(r.badge, 'ui-shjob__badge--', SHELL_KIND_VARIANT(j));
   setText(r.since, `desde ${formatClock(j.startedAt, false)}`);
   setTitle(r.since, `Iniciado em ${formatDateTime(j.startedAt)} · id ${j.id}`);
   setHidden(r.details, !j.command);

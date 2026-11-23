@@ -55,6 +55,8 @@ export class Sidebar implements UiComponent {
       this.ctx.invalidate();
     });
     this.input.addEventListener('keydown', (e) => {
+      // Enter abre o primeiro agente da busca
+      if (e.key === 'Enter') (this.scroller.querySelector('.ui-agent') as HTMLButtonElement | null)?.click();
       if (e.key === 'Escape') {
         e.stopPropagation();
         if (this.input.value) {

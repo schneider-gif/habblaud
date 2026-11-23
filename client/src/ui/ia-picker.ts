@@ -1,5 +1,5 @@
 // Seletor de IA da barra: só o logo da IA em uso (bolinha = funcionando); clicou, a lista no estilo do chat Prisma1.
-// "Sua conta" (conta Claude conectada, ou conectar com o token de 1 ano do `claude setup-token`) e "Motores de IA
+// "Sua conta" (conta Claude conectada, ou login pelo terminal com o claude) e "Motores de IA
 // Habblaude" (adicional do portal). A troca é gravada pelo servidor (/api/ia) e aplicada pelo daemon hb-ia.
 import { IA_MODELOS, iaModelo, type IaEstado } from '../../../shared/ia';
 import type { UiContext } from './context';
@@ -29,7 +29,6 @@ export class IaPicker {
   /** a barra põe a lista dentro dela (as variáveis de cor e fonte só valem dentro de .ui-root) */
   readonly menu: HTMLElement;
   private estado: IaEstado | null = null;
-  private conectando = false;
   private erro = '';
   private ocupado = false;
 
@@ -80,7 +79,7 @@ export class IaPicker {
     this.el.title = titulo;
     this.el.setAttribute('aria-label', titulo);
     // com o campo do token aberto não redesenha (apagaria o que o cliente está colando)
-    if (!this.menu.hidden && !this.conectando) this.render();
+    if (!this.menu.hidden) this.render();
   }
 
   private toggle(abrir = this.menu.hidden): void {
@@ -91,7 +90,7 @@ export class IaPicker {
       this.menu.style.top = `${Math.round(r.bottom + 6)}px`;
       this.menu.style.right = `${Math.max(8, Math.round(window.innerWidth - r.right))}px`;
       void this.carregar();
-    } else this.conectando = false;
+    }
     setHidden(this.menu, !abrir);
     this.el.setAttribute('aria-expanded', String(abrir));
   }
@@ -102,7 +101,6 @@ export class IaPicker {
     this.erro = '';
     this.render();
     try {
-      this.conectando = false;
       this.mostrar(await fn());
       // o daemon aplica em instantes: confere de novo para a bolinha e o uso refletirem
       setTimeout(() => void this.carregar(), 2_500);
@@ -152,11 +150,15 @@ export class IaPicker {
           h('button', { class: 'ui-ia-link', type: 'button', text: 'Desconectar o token da conta Claude', on: { click: () => void this.agir(() => api('DELETE', '/api/ia/token')) } }),
         );
       }
-    } else if (!this.conectando) {
+    } else {
+      // Login direto no terminal: abre o claude, a pessoa faz o /login lá e a conta aparece aqui sozinha.
       this.menu.append(
-        this.item({ logo: 'claude.svg', nome: 'Conectar minha conta Claude', desc: 'Pro ou Max. Fica conectada por 1 ano.', ativo: false, onClick: () => ((this.conectando = true), this.render()) }),
+        this.ctx.isShellAvailable()
+          ? this.item({ logo: 'claude.svg', nome: 'Fazer login na conta Claude', desc: 'Abre o terminal com o Claude: entre com a sua conta Pro ou Max por lá', ativo: false,
+              onClick: () => { this.toggle(false); this.ctx.openShell({ program: 'claude', label: 'Login do Claude' }); } })
+          : h('p', { class: 'ui-ia-nota', text: 'Para usar a sua conta Claude, rode claude no terminal do VS Code e faça o login.' }),
       );
-    } else this.menu.append(this.formToken());
+    }
 
     this.menu.append(h('div', { class: 'ui-ia-hr' }), sec('Motores de IA Habblaude'));
     if (e.motores) {
@@ -191,24 +193,5 @@ export class IaPicker {
     if (this.erro) this.menu.append(h('p', { class: 'ui-ia-nota ui-ia-nota--warn', role: 'alert', text: `⚠ ${this.erro}` }));
   }
 
-  private formToken(): HTMLElement {
-    const input = h('input', {
-      class: 'ui-ia-token__input',
-      attrs: { type: 'password', placeholder: 'sk-ant-oat01-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Token da conta Claude' },
-    });
-    const salvar = () => void this.agir(() => api('POST', '/api/ia/token', { token: input.value }));
-    input.addEventListener('keydown', (ev) => ev.key === 'Enter' && salvar());
-    const terminal = this.ctx.isShellAvailable()
-      ? h('button', { class: 'ui-btn', type: 'button', text: 'Abrir o terminal', on: { click: () => this.ctx.openShell({ program: 'claude-token', label: 'Conta Claude' }) } })
-      : h('code', { text: 'claude setup-token' });
-    return h(
-      'div',
-      { class: 'ui-ia-token' },
-      h('p', { text: '1. No terminal, rode o comando e autorize no navegador com a sua conta Claude:' }),
-      terminal,
-      h('p', { text: '2. Cole aqui a linha que começa com sk-ant- :' }),
-      h('div', { class: 'ui-ia-token__row' }, input, h('button', { class: 'ui-btn ui-btn--primary', type: 'button', text: 'Conectar', attrs: { disabled: this.ocupado || undefined }, on: { click: salvar } })),
-      h('button', { class: 'ui-ia-link', type: 'button', text: 'Cancelar', on: { click: () => ((this.conectando = false), this.render()) } }),
-    );
-  }
+
 }
