@@ -25,17 +25,17 @@ export const SHELL_MAX_TABS = 12;
 /**
  * Programas que uma aba nova pode rodar antes do shell (lista fechada: nada vem do corpo da requisição):
  * - claude: primeira execução do Claude (tema e login) — Missão 0;
- * - claude-token: `claude setup-token` (token de 1 ano da conta Claude, colado no seletor de IA da barra);
+ * - claude-login: `claude auth login` (conta Claude Pro/Max) e, logado, o seletor de IA passa para a conta (CLAUDE_LOGIN_SCRIPT);
  * - codex: login da conta OpenAI no Codex com código de dispositivo (`codex login --device-auth`, mostra link e código);
  * - gh: login no GitHub (`gh auth login --web`, código de dispositivo) e, logado, `gh auth setup-git` e o nome/e-mail
  *   do git a partir do `gh api user` (ver GH_LOGIN_SCRIPT).
  */
-export type ShellProgram = 'claude' | 'claude-token' | 'codex' | 'gh';
+export type ShellProgram = 'claude' | 'claude-login' | 'codex' | 'gh';
 
 export function cleanProgram(v: unknown, login?: unknown): ShellProgram | undefined {
-  if (login === true) return 'claude';
+  if (login === true) return 'claude-login';
   if (v === undefined || v === null || v === '') return undefined;
-  if (v === 'claude' || v === 'claude-token' || v === 'codex' || v === 'gh') return v;
+  if (v === 'claude' || v === 'claude-login' || v === 'codex' || v === 'gh') return v;
   throw new ShellError(400, 'programa inválido');
 }
 
@@ -44,6 +44,24 @@ export function cleanProgram(v: unknown, login?: unknown): ShellProgram | undefi
  * dele), nunca passa pelo Habblaude. Depois do login: credential helper do git e user.name/user.email (e-mail público
  * ou o noreply do GitHub), só se ainda não houver.
  */
+/**
+ * Login da conta Claude pelo terminal. `claude auth login` faz o OAuth mesmo com os Motores de IA ligados (o `claude`
+ * comum abriria já nos Motores, sem pedir login); logado, a escolha do seletor vira "conta" e o hb-ia tira os Motores.
+ */
+export const CLAUDE_LOGIN_SCRIPT = [
+  'echo "Login da sua conta Claude (Pro ou Max)."',
+  'echo "Abra o link abaixo, entre com a sua conta e cole aqui o código que aparecer."',
+  'echo',
+  'if claude auth login --claudeai; then',
+  '  node -e \'const fs=require("fs"),f=require("os").homedir()+"/.habblaude/ia-escolha.json";let j={};try{j=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}j.modo="conta";fs.mkdirSync(require("path").dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(j)+"\\n")\'',
+  '  echo',
+  '  echo "Pronto: sua conta Claude está conectada. Agentes novos já usam a sua conta."',
+  'else',
+  '  echo',
+  '  echo "O login não terminou. Feche esta aba e tente de novo pelo seletor de IA."',
+  'fi',
+].join('\n');
+
 export const GH_LOGIN_SCRIPT = [
   'gh auth status >/dev/null 2>&1 || gh auth login --web --git-protocol https --hostname github.com || exit 1',
   'gh auth setup-git',
@@ -281,17 +299,15 @@ export class ShellService {
     const name = `terminal-${n}`;
     const { cols, rows } = clampSize(opts.cols, opts.rows);
     const sh = this.shell.replace(/'/g, '');
-    const program = opts.program ?? (opts.login ? 'claude' : undefined);
+    const program = opts.program ?? (opts.login ? 'claude-login' : undefined);
     let cmd = `exec ${sh} -l`;
     if (program === 'claude') cmd = `${sh} -lc 'claude; exec ${sh} -l'`;
-    // claude-token: token de 1 ano da conta Claude (o seletor de IA da barra pede para colar a linha sk-ant-…)
-    else if (program === 'claude-token') cmd = `${sh} -lc 'claude setup-token; exec ${sh} -l'`;
     else if (program === 'codex') cmd = `${sh} -lc 'codex login --device-auth; exec ${sh} -l'`;
-    else if (program === 'gh') {
+    else if (program === 'gh' || program === 'claude-login') {
       // O script vai num arquivo do próprio usuário (aspas e quebras de linha sem passar por escape de shell).
-      const file = join(this.deps.home, '.habblaud', 'gh-login.sh');
+      const file = join(this.deps.home, '.habblaud', program === 'gh' ? 'gh-login.sh' : 'claude-login.sh');
       await mkdir(dirname(file), { recursive: true });
-      await writeFile(file, `${GH_LOGIN_SCRIPT}\n`, { mode: 0o700 });
+      await writeFile(file, `${program === 'gh' ? GH_LOGIN_SCRIPT : CLAUDE_LOGIN_SCRIPT}\n`, { mode: 0o700 });
       cmd = `${sh} -lc '${sh} ${file.replace(/'/g, '')}; exec ${sh} -l'`;
     }
     await this.tmux([

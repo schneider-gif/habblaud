@@ -8,7 +8,7 @@ import { copyText, h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
 import type { XtermBundle } from './shell-xterm';
 /** Programa de uma aba nova (lista fechada no servidor): primeira execução do Claude, login da OpenAI (Codex) ou do GitHub. */
-export type ShellProgram = 'claude' | 'claude-token' | 'codex' | 'gh';
+export type ShellProgram = 'claude' | 'claude-login' | 'codex' | 'gh';
 
 export interface ShellTabInfo {
   id: string;
@@ -380,7 +380,7 @@ export class ShellPanel implements UiComponent {
       return this.activate(opts.session);
     }
     await this.refresh();
-    if (opts.login || opts.program) return void this.newTab({ program: opts.program ?? 'claude' });
+    if (opts.login || opts.program) return void this.newTab({ program: opts.program ?? 'claude-login' });
     if (this.active && this.allTabs().some((t) => t.id === this.active)) return this.activate(this.active, { force: !this.ws });
     const saved = safeGet(SHELL_ACTIVE_KEY);
     const tabs = this.allTabs();

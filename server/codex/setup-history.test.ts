@@ -77,7 +77,8 @@ describe('histórico com conversas do Codex', () => {
 
 describe('abas do terminal embutido com programa', () => {
   it('lista fechada: claude, codex (login com código de dispositivo) e gh (login do GitHub)', async () => {
-    expect(cleanProgram(undefined, true)).toBe('claude');
+    expect(cleanProgram(undefined, true)).toBe('claude-login');
+    expect(cleanProgram('claude-login')).toBe('claude-login');
     expect(cleanProgram('codex')).toBe('codex');
     expect(cleanProgram('gh')).toBe('gh');
     expect(() => cleanProgram('rm -rf ~')).toThrow();
@@ -87,9 +88,13 @@ describe('abas do terminal embutido com programa', () => {
       const svc = new ShellService({ home: tmp.dir, shell: '/bin/bash', tmux: async (args) => (calls.push(args), args[0] === 'list-sessions' ? '' : '') });
       await svc.create({ program: 'codex' }).catch(() => undefined);
       await svc.create({ program: 'gh' }).catch(() => undefined);
+      await svc.create({ login: true }).catch(() => undefined);
       const cmds = calls.filter((c) => c[0] === 'new-session').map((c) => c[c.indexOf(tmp.dir) + 5]);
       expect(cmds[0]).toBe("/bin/bash -lc 'codex login --device-auth; exec /bin/bash -l'");
       expect(cmds[1]).toContain('.habblaud/gh-login.sh');
+      // login: claude auth login num script (não abre um claude comum, que viraria agente novo)
+      expect(cmds[2]).toContain('.habblaud/claude-login.sh');
+      expect(readFileSync(join(tmp.dir, '.habblaud', 'claude-login.sh'), 'utf8')).toContain('claude auth login --claudeai');
       expect(readFileSync(join(tmp.dir, '.habblaud', 'gh-login.sh'), 'utf8')).toContain('gh auth login --web --git-protocol https --hostname github.com');
       expect(GH_LOGIN_SCRIPT).toContain('gh auth setup-git');
       expect(GH_LOGIN_SCRIPT).not.toMatch(/token/i);

@@ -155,7 +155,7 @@ export class IaPicker {
       this.menu.append(
         this.ctx.isShellAvailable()
           ? this.item({ logo: 'claude.svg', nome: 'Fazer login na conta Claude', desc: 'Abre o terminal com o Claude: entre com a sua conta Pro ou Max por lá', ativo: false,
-              onClick: () => { this.toggle(false); this.ctx.openShell({ program: 'claude', label: 'Login do Claude' }); } })
+              onClick: () => { this.toggle(false); this.ctx.openShell({ program: 'claude-login', label: 'Login do Claude' }); } })
           : h('p', { class: 'ui-ia-nota', text: 'Para usar a sua conta Claude, rode claude no terminal do VS Code e faça o login.' }),
       );
     }

@@ -9,6 +9,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.17] - 2026-11-23
+### Corrigido
+- "Fazer login na conta Claude" com os Motores de IA ligados abria o Claude já nos Motores, sem pedir login. Agora roda
+  `claude auth login` (link + código no terminal) e, logado, o seletor passa para a sua conta sozinho. Os outros botões de
+  login (boas-vindas e Missão 0) também, e não criam mais um agente novo a cada clique.
+
 ## [0.12.16] - 2026-11-23
 ### Corrigido
 - Celular e telas estreitas: o pedido de permissão (Aprovar/Recusar) aparece dentro do terminal do agente; antes

@@ -59,7 +59,7 @@ export interface UiContext {
    * Abre o terminal embutido (ui/shell.ts). `login`: aba nova rodando o claude (Missão 0); `session`: anexa à sessão
    * tmux de um agente em configuração (agente-*).
    */
-  openShell(opts?: { login?: boolean; program?: 'claude' | 'claude-token' | 'codex' | 'gh'; session?: string; label?: string }): void;
+  openShell(opts?: { login?: boolean; program?: 'claude' | 'claude-login' | 'codex' | 'gh'; session?: string; label?: string }): void;
   toggleShell(): void;
   isShellOpen(): boolean;
   /** O servidor oferece o terminal embutido agora (meta.shell)? */
