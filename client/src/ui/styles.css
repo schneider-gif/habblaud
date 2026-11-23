@@ -8801,3 +8801,14 @@ body:has(.ui-welcome:not([hidden])) :is(.ui-missions, .ui-missions-balloon) {
   .ui-term__input, .ui-search__input, .ui-perm__reason, .ui-ask__other { font-size: 16px; }
   .ui-perm__btn, .ui-perm__rule { height: 44px; }
 }
+
+/* Pedido de permissão dentro do terminal: só nas telas em que o terminal cobre a gaveta. */
+@media (min-width: 901px) {
+  .ui-term .ui-perm { display: none; }
+}
+.ui-term .ui-perm { flex: none; max-height: 50%; overflow: auto; margin: 0 10px 8px; }
+
+/* Celular: o terminal ocupa só a área visível acima do teclado. */
+@media (max-width: 600px) {
+  .ui-term { top: var(--vvt, 0px); bottom: auto; height: var(--vvh, 100dvh); }
+}

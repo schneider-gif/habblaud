@@ -15,6 +15,7 @@ import { linkifyInto } from './linkify';
 import { renderMarkdown } from './markdown';
 import { roleLabel, shellWaitIn } from './model';
 import { clampGeom, parseGeom } from './shell';
+import { PermissionCard } from './permission';
 import { DialogCard, QUESTION_WAIT_TEXT, QuestionCard } from './question';
 import {
   clearHits,
@@ -670,6 +671,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private sendBadge!: HTMLElement;
 
   private bar!: HTMLElement;
+  /** Pedido de permissão dentro do terminal: no celular o terminal cobre a gaveta, onde o cartão mora (CSS esconde no desktop). */
+  private perm: PermissionCard;
   /** Rascunho de cada agente: trocar de agente não leva o texto para o outro. */
   private drafts = new Map<string, string>();
   private kindEl: HTMLElement;
@@ -695,6 +698,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private statusTime: HTMLElement;
 
   constructor(private ctx: UiContext) {
+    this.perm = new PermissionCard(ctx);
     const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
     const findKey = mac ? '⌘F' : 'Ctrl+F';
     const icon = h('span', { class: 'ui-term__icon', attrs: { 'aria-hidden': 'true' } });
@@ -814,12 +818,24 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       bar,
       tools,
       h('div', { class: 'ui-term__body' }, this.alertEl, this.scroll, this.newBtn),
+      this.perm.el,
       this.ask.el,
       this.dialog.el,
       h('div', { class: 'ui-term__foot' }, this.status, h('label', { class: 'ui-term__prompt' }, h('span', { class: 'ui-term__caret', text: '>', attrs: { 'aria-hidden': 'true' } }), input)),
     );
     this.el.addEventListener('keydown', (e) => this.onKey(e));
     this.setupDrag();
+    // Celular: a área visível encolhe quando o teclado abre; o terminal acompanha (o CSS usa --vvh/--vvt).
+    const vv = window.visualViewport;
+    if (vv) {
+      const fit = () => {
+        document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+        document.documentElement.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
+      };
+      vv.addEventListener('resize', fit);
+      vv.addEventListener('scroll', fit);
+      fit();
+    }
     this.renderFilter();
     // Janela redimensionada: quem está no fim continua vendo o fim.
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => this.follow && this.scrollToEnd()).observe(this.scroll);
@@ -895,6 +911,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private renderAsk(): void {
     const agent = this.id && !this.session ? this.ctx.agent(this.id) : undefined;
     const before = this.ask.visible || this.dialog.visible;
+    this.perm.render(agent);
     this.ask.render(agent);
     this.dialog.render(agent);
     const asking = this.ask.visible || (this.dialog.visible && !this.dialog.loginVisible);

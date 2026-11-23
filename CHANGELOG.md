@@ -9,6 +9,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.16] - 2026-11-23
+### Corrigido
+- Celular e telas estreitas: o pedido de permissão (Aprovar/Recusar) aparece dentro do terminal do agente; antes
+  ficava escondido atrás dele.
+- Celular: o terminal encolhe quando o teclado abre, e a caixa de mensagem fica sempre à vista.
+
 ## [0.12.15] - 2026-11-23
 ### Mudou
 - Login da conta Claude pelo terminal: "Fazer login na conta Claude" abre o terminal já com o `claude`; não precisa
