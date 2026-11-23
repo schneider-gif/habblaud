@@ -9,6 +9,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e
 do meio (0.**3**.0).
 
 
+## [0.12.18] - 2026-11-23
+
+### Corrigido
+
+- O terminal arrastado não fica mais fora do lugar quando a janela do navegador fica estreita.
+- No computador, um pedido de permissão não busca mais o detalhe duas vezes com o terminal aberto.
+- O rascunho guardado por agente ganhou teste: o texto digitado num agente não vai para outro.
+
 ## [0.12.17] - 2026-11-23
 ### Corrigido
 - "Fazer login na conta Claude" com os Motores de IA ligados abria o Claude já nos Motores, sem pedir login. Agora roda

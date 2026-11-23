@@ -32,6 +32,7 @@ import {
   type TerminalFilter,
 } from './termtools';
 import { createAccountChip, updateAccountChip } from './widgets';
+import { swapDraft } from './draft';
 
 /** Máximo de itens no DOM: os mais antigos saem primeiro. */
 export const TERMINAL_DOM_LIMIT = 1500;
@@ -699,6 +700,10 @@ export class TerminalPanel implements UiComponent, TerminalControl {
 
   constructor(private ctx: UiContext) {
     this.perm = new PermissionCard(ctx);
+    // Tela ficou estreita com a janela arrastada: a posição gravada não pode vencer o layout do celular.
+    addEventListener('resize', () => {
+      if (this.ctx.isNarrow()) this.el.style.left = this.el.style.top = '';
+    });
     const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
     const findKey = mac ? '⌘F' : 'Ctrl+F';
     const icon = h('span', { class: 'ui-term__icon', attrs: { 'aria-hidden': 'true' } });
@@ -911,7 +916,8 @@ export class TerminalPanel implements UiComponent, TerminalControl {
   private renderAsk(): void {
     const agent = this.id && !this.session ? this.ctx.agent(this.id) : undefined;
     const before = this.ask.visible || this.dialog.visible;
-    this.perm.render(agent);
+    // No computador o CSS esconde este cartão (o da sala já mostra): não montar evita buscar o detalhe 2x.
+    this.perm.render(this.ctx.isNarrow() ? agent : undefined);
     this.ask.render(agent);
     this.dialog.render(agent);
     const asking = this.ask.visible || (this.dialog.visible && !this.dialog.loginVisible);
@@ -940,8 +946,7 @@ export class TerminalPanel implements UiComponent, TerminalControl {
       return;
     }
     // Um terminal por vez: abrir outro substitui o atual (a busca e o filtro continuam valendo).
-    if (this.id && !this.session) this.drafts.set(this.id, this.inputEl.value);
-    this.inputEl.value = session ? '' : (this.drafts.get(id) ?? '');
+    this.inputEl.value = swapDraft(this.drafts, this.id && !this.session ? this.id : null, this.inputEl.value, session ? null : id);
     fitInput(this.inputEl);
     if (this.id === null) this.restorePos();
     this.disconnect();
